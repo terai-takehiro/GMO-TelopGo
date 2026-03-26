@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+
+# Claude Code
+.claude/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

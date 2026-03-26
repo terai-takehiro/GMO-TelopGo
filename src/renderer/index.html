@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; frame-src https:;">
+  <title>GMO TelopGo</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <!-- タブバー -->
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="name-telop">名前テロップ</button>
+    <button class="tab-btn" data-tab="side-telop">サイドテロップ</button>
+    <button class="tab-btn" data-tab="dual">並列表示</button>
+    <button class="tab-btn tab-btn--settings" data-tab="settings">設定</button>
+    <div class="tab-bar-right">
+      <button class="btn btn--small" id="project-load">読込</button>
+      <button class="btn btn--small" id="project-save">保存</button>
+    </div>
+  </nav>
+
+  <!-- ===== 名前テロップ タブ ===== -->
+  <div class="tab-content active" id="tab-name-telop">
+    <div class="panel-layout">
+      <!-- 入力パネル -->
+      <div class="panel panel--input">
+        <div class="panel-header">
+          <h2>名前テロップ スケジュール</h2>
+          <div class="panel-actions">
+            <button class="btn" id="name-add-row">行追加</button>
+            <button class="btn btn--danger" id="name-clear-all">全削除</button>
+          </div>
+        </div>
+
+        <!-- 名前プール (折りたたみ) -->
+        <div class="pool-section">
+          <div class="pool-header" id="name-pool-toggle">
+            <span>名前プール (<span id="name-pool-count">0</span>名)</span>
+            <div class="pool-actions">
+              <button class="btn btn--small btn--primary" id="name-load-pool">Excel読込</button>
+              <button class="btn btn--small btn--danger" id="name-clear-pool">クリア</button>
+            </div>
+          </div>
+          <div class="pool-list hidden" id="name-pool-body"></div>
+        </div>
+
+        <datalist id="name-pool-jp"></datalist>
+
+        <div class="table-wrapper">
+          <table class="data-table data-table--name" id="name-table">
+            <thead>
+              <tr>
+                <th class="col-drag"></th>
+                <th class="col-num">#</th>
+                <th class="col-shot-type">タイプ</th>
+                <th class="col-persons">出演者</th>
+                <th class="col-actions"></th>
+              </tr>
+            </thead>
+            <tbody id="name-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 送出パネル -->
+      <div class="panel panel--broadcast">
+        <div class="panel-header">
+          <h2>送出制御</h2>
+          <div class="mode-switch">
+            <label class="mode-label">
+              <input type="radio" name="name-mode" value="schedule" checked>
+              スケジュール
+            </label>
+            <label class="mode-label">
+              <input type="radio" name="name-mode" value="karuta">
+              かるた
+            </label>
+          </div>
+        </div>
+
+        <!-- プレビュー -->
+        <div class="preview-container">
+          <iframe id="name-preview" class="preview-frame" src="about:blank" allow="autoplay" sandbox="allow-scripts allow-same-origin" loading="eager"></iframe>
+        </div>
+
+        <div class="broadcast-info">
+          <div class="info-block info-block--onair">
+            <span class="info-block-label">ON AIR</span>
+            <div class="info-block-content" id="name-onair">
+              <span class="info-empty">---</span>
+            </div>
+          </div>
+          <div class="info-block info-block--next">
+            <span class="info-block-label">NEXT</span>
+            <div class="info-block-content" id="name-next">
+              <span class="info-empty">---</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- かるたモード用リスト -->
+        <div class="karuta-list hidden" id="name-karuta-list"></div>
+
+        <div class="broadcast-controls">
+          <button class="btn btn--broadcast btn--change" id="name-change" disabled>CHANGE</button>
+          <button class="btn btn--broadcast btn--take" id="name-take" disabled>TAKE</button>
+          <button class="btn btn--broadcast btn--clear" id="name-clear" disabled>CLEAR</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== サイドテロップ タブ ===== -->
+  <div class="tab-content" id="tab-side-telop">
+    <div class="panel-layout">
+      <!-- 入力パネル -->
+      <div class="panel panel--input">
+        <div class="panel-header">
+          <h2>サイドテロップ データ</h2>
+          <div class="panel-actions">
+            <button class="btn btn--primary" id="side-load-excel">Excel読込</button>
+            <button class="btn" id="side-add-row">行追加</button>
+            <button class="btn btn--danger" id="side-clear-all">全削除</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table" id="side-table">
+            <thead>
+              <tr>
+                <th class="col-drag"></th>
+                <th class="col-num">#</th>
+                <th>テキスト(日本語)</th>
+                <th>テキスト(英語)</th>
+                <th class="col-actions"></th>
+              </tr>
+            </thead>
+            <tbody id="side-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 送出パネル -->
+      <div class="panel panel--broadcast">
+        <div class="panel-header">
+          <h2>送出制御</h2>
+          <div class="mode-switch">
+            <label class="mode-label">
+              <input type="radio" name="side-mode" value="schedule" checked>
+              スケジュール
+            </label>
+            <label class="mode-label">
+              <input type="radio" name="side-mode" value="karuta">
+              かるた
+            </label>
+          </div>
+        </div>
+
+        <!-- プレビュー -->
+        <div class="preview-container">
+          <iframe id="side-preview" class="preview-frame" src="about:blank" allow="autoplay" sandbox="allow-scripts allow-same-origin" loading="eager"></iframe>
+        </div>
+
+        <div class="broadcast-info">
+          <div class="info-block info-block--onair">
+            <span class="info-block-label">ON AIR</span>
+            <div class="info-block-content" id="side-onair">
+              <span class="info-empty">---</span>
+            </div>
+          </div>
+          <div class="info-block info-block--next">
+            <span class="info-block-label">NEXT</span>
+            <div class="info-block-content" id="side-next">
+              <span class="info-empty">---</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="karuta-list hidden" id="side-karuta-list"></div>
+
+        <div class="broadcast-controls">
+          <button class="btn btn--broadcast btn--change" id="side-change" disabled>CHANGE</button>
+          <button class="btn btn--broadcast btn--take" id="side-take" disabled>TAKE</button>
+          <button class="btn btn--broadcast btn--clear" id="side-clear" disabled>CLEAR</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 並列表示 タブ ===== -->
+  <div class="tab-content" id="tab-dual">
+    <div class="dual-layout">
+      <div class="dual-tables" id="dual-tables"></div>
+      <div class="dual-right">
+        <div class="dual-preview" id="dual-preview"></div>
+        <div class="dual-controls">
+          <div class="dual-ctrl-col" id="dual-ctrl-name"></div>
+          <div class="dual-ctrl-col" id="dual-ctrl-side"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 設定 タブ ===== -->
+  <div class="tab-content" id="tab-settings">
+    <div class="settings-panel">
+      <h2>接続設定</h2>
+
+      <fieldset class="settings-group">
+        <legend>出力プレビュー</legend>
+        <div class="settings-row">
+          <label for="output-url">Output URL</label>
+          <input type="text" id="output-url" class="input" placeholder="https://app.singular.live/output/...">
+        </div>
+      </fieldset>
+
+      <fieldset class="settings-group">
+        <legend>名前テロップ</legend>
+        <div class="settings-row">
+          <label for="name-token">App Token (共通)</label>
+          <input type="text" id="name-token" class="input" placeholder="名前テロップ用 App Token">
+          <button class="btn btn--small" id="name-test-conn">接続テスト</button>
+        </div>
+
+        <div class="shot-settings-list" id="name-shot-settings">
+          <!-- 各ショットタイプの設定は settings-ui.js で動的生成 -->
+        </div>
+      </fieldset>
+
+      <fieldset class="settings-group">
+        <legend>サイドテロップ</legend>
+        <div class="settings-row">
+          <label for="side-token">App Token</label>
+          <input type="text" id="side-token" class="input" placeholder="サイドテロップ用 App Token">
+          <button class="btn btn--small" id="side-test-conn">接続テスト</button>
+        </div>
+        <div class="settings-row">
+          <label for="side-sub-comp">Sub-Composition名</label>
+          <input type="text" id="side-sub-comp" class="input" placeholder="例: Side_Telop">
+        </div>
+        <div class="settings-row">
+          <label>フィールドマッピング</label>
+          <div class="field-mapping">
+            <div class="mapping-row">
+              <span class="mapping-label">テキスト(JP)</span>
+              <input type="text" id="side-field-text-jp" class="input input--small" placeholder="textJp">
+            </div>
+            <div class="mapping-row">
+              <span class="mapping-label">テキスト(EN)</span>
+              <input type="text" id="side-field-text-en" class="input input--small" placeholder="textEn">
+            </div>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="settings-actions">
+        <button class="btn btn--primary" id="save-settings">設定を保存</button>
+        <span class="settings-status" id="settings-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ステータスバー -->
+  <footer class="status-bar">
+    <span class="status-item" id="status-text">準備完了</span>
+    <span class="status-item" id="status-api">API: 未接続</span>
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script src="js/tab-controller.js"></script>
+  <script src="js/drag-drop.js"></script>
+  <script src="js/name-telop.js"></script>
+  <script src="js/side-telop.js"></script>
+  <script src="js/broadcast.js"></script>
+  <script src="js/settings-ui.js"></script>
+  <script src="js/status-bar.js"></script>
+</body>
+</html>

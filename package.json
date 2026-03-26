@@ -1,0 +1,35 @@
+{
+  "name": "gmo-telopgo",
+  "version": "1.0.0",
+  "description": "GMO TelopGo - Singular Live テロップ送出アプリ",
+  "main": "main.js",
+  "author": "GMOインターネットグループ株式会社",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.gmo.telopgo",
+    "productName": "GMO TelopGo",
+    "win": {
+      "target": [
+        { "target": "dir" },
+        { "target": "nsis" }
+      ],
+      "icon": "assets/icon.png",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
