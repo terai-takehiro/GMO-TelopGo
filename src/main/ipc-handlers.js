@@ -1,5 +1,6 @@
 const { ipcMain, dialog } = require('electron');
 const fs = require('fs');
+const XLSX = require('xlsx');
 const { readExcel } = require('./excel-reader');
 const singularApi = require('./singular-api');
 const { getSettings, saveSettings, getTelopConfig, getNameShotConfig } = require('./settings-store');
@@ -166,6 +167,45 @@ function registerIpcHandlers() {
         saveSettings(data.settings);
       }
       return { success: true, data };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+  // --- Template Download ---
+  ipcMain.handle('download-template', async (_event, telopType) => {
+    const wb = XLSX.utils.book_new();
+    let wsData;
+    let defaultFilename;
+
+    if (telopType === 'name') {
+      wsData = [
+        ['肩書(JP)', '名前(JP)', '肩書(EN)', '名前(EN)'],
+        ['代表取締役', '山田太郎', 'CEO', 'Taro Yamada'],
+      ];
+      defaultFilename = 'name-telop-template.xlsx';
+    } else {
+      wsData = [
+        ['テキスト(JP)', 'テキスト(EN)'],
+        ['サンプルテキスト', 'Sample text'],
+      ];
+      defaultFilename = 'side-telop-template.xlsx';
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = wsData[0].map(() => ({ wch: 20 }));
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+
+    const result = await dialog.showSaveDialog({
+      title: 'テンプレートを保存',
+      defaultPath: defaultFilename,
+      filters: [{ name: 'Excel', extensions: ['xlsx'] }],
+    });
+
+    if (result.canceled || !result.filePath) return { success: false };
+
+    try {
+      XLSX.writeFile(wb, result.filePath);
+      return { success: true, filePath: result.filePath };
     } catch (err) {
       return { success: false, error: err.message };
     }

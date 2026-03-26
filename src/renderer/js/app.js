@@ -48,3 +48,22 @@ const App = {
     el.style.color = type === 'error' ? 'var(--red)' : type === 'success' ? 'var(--green)' : 'var(--text-muted)';
   },
 };
+
+// --- テンプレートダウンロード ---
+document.getElementById('dl-template-name')?.addEventListener('click', async () => {
+  const result = await window.api.downloadTemplate('name');
+  if (result?.success) {
+    App.setStatus('名前テロップテンプレートを保存しました', 'success');
+  } else if (result?.error) {
+    App.setStatus(`テンプレート保存エラー: ${result.error}`, 'error');
+  }
+});
+
+document.getElementById('dl-template-side')?.addEventListener('click', async () => {
+  const result = await window.api.downloadTemplate('side');
+  if (result?.success) {
+    App.setStatus('サイドテロップテンプレートを保存しました', 'success');
+  } else if (result?.error) {
+    App.setStatus(`テンプレート保存エラー: ${result.error}`, 'error');
+  }
+});

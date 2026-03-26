@@ -2,26 +2,27 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg-primary: #1a1a2e;
-  --bg-secondary: #16213e;
-  --bg-panel: #0f3460;
-  --bg-input: #1a1a3e;
-  --bg-hover: #1a2a5e;
-  --text-primary: #e0e0e0;
-  --text-secondary: #a0a0b0;
-  --text-muted: #606080;
-  --accent: #e94560;
-  --accent-hover: #ff6b81;
-  --green: #00c853;
-  --green-dim: #1b5e20;
-  --yellow: #ffd600;
-  --yellow-dim: #f57f17;
-  --red: #ff1744;
-  --border: #2a2a4e;
-  --border-light: #3a3a5e;
+  --bg-primary: #f0f4f8;
+  --bg-secondary: #ffffff;
+  --bg-panel: #e8eef4;
+  --bg-input: #ffffff;
+  --bg-hover: #dce6f0;
+  --text-primary: #1a2a3e;
+  --text-secondary: #4a5a6a;
+  --text-muted: #8a96a4;
+  --accent: #005bac;
+  --accent-hover: #0070d4;
+  --green: #1b8a3e;
+  --green-dim: #e6f5ec;
+  --yellow: #b8860b;
+  --yellow-dim: #fef8e0;
+  --red: #d32f2f;
+  --border: #c8d8e8;
+  --border-light: #d8e4ee;
   --radius: 4px;
   --font: 'Segoe UI', 'Yu Gothic UI', 'Meiryo', sans-serif;
   --font-mono: 'Consolas', 'MS Gothic', monospace;
+  --header-bg: #003366;
 }
 
 html, body {
@@ -37,6 +38,67 @@ html, body {
 body {
   display: flex;
   flex-direction: column;
+}
+
+/* === App Header === */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  height: 40px;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+
+.app-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-header-icon {
+  width: 24px;
+  height: 24px;
+  -webkit-app-region: no-drag;
+}
+
+.app-header-titles {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.app-header-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+}
+
+.app-header-subtitle {
+  font-size: 10px;
+  color: #a0c0e0;
+  letter-spacing: 0.3px;
+}
+
+.app-header-actions {
+  display: flex;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.app-header-actions .btn {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
+.app-header-actions .btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 /* === Tab Bar === */
@@ -178,21 +240,21 @@ body {
   border-color: var(--yellow);
   color: var(--yellow);
 }
-.btn--change:hover:not(:disabled) { background: rgba(255, 214, 0, 0.25); }
+.btn--change:hover:not(:disabled) { background: #fdf0c0; }
 
 .btn--take {
   background: var(--green-dim);
   border-color: var(--green);
   color: var(--green);
 }
-.btn--take:hover:not(:disabled) { background: rgba(0, 200, 83, 0.25); }
+.btn--take:hover:not(:disabled) { background: #d0f0da; }
 
 .btn--clear {
-  background: rgba(255, 23, 68, 0.15);
+  background: #fde8e8;
   border-color: var(--red);
   color: var(--red);
 }
-.btn--clear:hover:not(:disabled) { background: rgba(255, 23, 68, 0.25); }
+.btn--clear:hover:not(:disabled) { background: #fcd0d0; }
 
 /* === Data Table === */
 .table-wrapper {
@@ -239,8 +301,8 @@ body {
 .data-table tbody tr:hover { background: var(--bg-hover); }
 
 /* ★ 色分け変更: NEXT=緑, ON AIR=赤 */
-.data-table tbody tr.selected { background: rgba(0, 200, 83, 0.2); }
-.data-table tbody tr.on-air { background: rgba(255, 23, 68, 0.2); }
+.data-table tbody tr.selected { background: #e0f5e8; }
+.data-table tbody tr.on-air { background: #fde8e8; }
 .data-table tbody tr.dragging { opacity: 0.4; }
 
 .data-table input,
@@ -557,7 +619,7 @@ body {
 }
 
 .karuta-item:hover { border-color: var(--accent); background: var(--bg-hover); }
-.karuta-item.selected { border-color: var(--green); background: rgba(0, 200, 83, 0.15); }
+.karuta-item.selected { border-color: var(--green); background: #e0f5e8; }
 
 /* === 並列表示レイアウト === */
 .dual-layout {
@@ -749,5 +811,5 @@ body {
 /* === Scrollbar === */
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
-::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }

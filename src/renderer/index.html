@@ -7,6 +7,21 @@
   <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
+  <!-- アプリヘッダー -->
+  <header class="app-header">
+    <div class="app-header-brand">
+      <img src="../../assets/icon.png" alt="" class="app-header-icon">
+      <div class="app-header-titles">
+        <span class="app-header-name">GMO TelopGo</span>
+        <span class="app-header-subtitle">Singular Live テロップ送出システム</span>
+      </div>
+    </div>
+    <div class="app-header-actions">
+      <button class="btn btn--small" id="dl-template-name" title="名前テロップ用Excelテンプレートをダウンロード">名前テンプレDL</button>
+      <button class="btn btn--small" id="dl-template-side" title="サイドテロップ用Excelテンプレートをダウンロード">サイドテンプレDL</button>
+    </div>
+  </header>
+
   <!-- タブバー -->
   <nav class="tab-bar">
     <button class="tab-btn active" data-tab="name-telop">名前テロップ</button>

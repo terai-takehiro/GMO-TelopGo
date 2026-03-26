@@ -17,4 +17,7 @@ contextBridge.exposeInMainWorld('api', {
   // Project save/load
   saveProject: (projectData) => ipcRenderer.invoke('save-project', projectData),
   loadProject: () => ipcRenderer.invoke('load-project'),
+
+  // Template download
+  downloadTemplate: (telopType) => ipcRenderer.invoke('download-template', telopType),
 });
