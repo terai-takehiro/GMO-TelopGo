@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - claude/review-documentation-Hyb8t
+  workflow_dispatch:
 
 jobs:
   build:
@@ -13,13 +14,18 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - run: npm install
 
       - run: npx electron-builder --win nsis --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: GMO-TelopGo-Installer
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            !dist/*blockmap*
