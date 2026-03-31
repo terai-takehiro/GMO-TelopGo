@@ -81,14 +81,17 @@ const NameTelop = {
    */
   showAutocomplete(textarea, field, personRow, tr, personIndex) {
     this.closeDropdown();
-    const query = textarea.value.trim();
-    if (!query || App.namePool.length === 0) return;
+    if (App.namePool.length === 0) return;
 
-    // プールから候補をフィルタ (部分一致)
-    const matches = App.namePool.filter(p => {
-      const target = field === 'nameJp' ? (p.nameJp || '') : (p.titleJp || '');
-      return target.includes(query);
-    });
+    const query = textarea.value.trim();
+
+    // プールから候補をフィルタ (空欄なら全件、入力ありなら部分一致)
+    const matches = query
+      ? App.namePool.filter(p => {
+          const target = field === 'nameJp' ? (p.nameJp || '') : (p.titleJp || '');
+          return target.includes(query);
+        })
+      : App.namePool;
     if (matches.length === 0) return;
 
     const dropdown = document.createElement('div');
@@ -317,35 +320,34 @@ const NameTelop = {
       });
 
       // 名前JP のオートコンプリート & 自動補完
-      nameJpTa.addEventListener('input', () => {
-        const idx = parseInt(tr.dataset.index, 10);
-        App.nameData[idx].persons[pi].nameJp = nameJpTa.value;
-        this.showAutocomplete(nameJpTa, 'nameJp', personRow, tr, pi);
-      });
-      nameJpTa.addEventListener('change', () => {
-        const idx = parseInt(tr.dataset.index, 10);
-        this.autoFillFromPool(personRow, idx, pi);
-      });
-      nameJpTa.addEventListener('blur', () => {
-        // 少し遅延してドロップダウンのクリックを拾えるようにする
-        setTimeout(() => this.closeDropdown(), 150);
-      });
+      const bindAutocomplete = (ta, fieldName) => {
+        // フォーカス時に候補表示（空欄でも全件表示）
+        ta.addEventListener('focus', () => {
+          this.showAutocomplete(ta, fieldName, personRow, tr, pi);
+        });
+        // 入力時にフィルタ更新
+        ta.addEventListener('input', () => {
+          const idx = parseInt(tr.dataset.index, 10);
+          App.nameData[idx].persons[pi][fieldName] = ta.value;
+          this.showAutocomplete(ta, fieldName, personRow, tr, pi);
+        });
+        // 確定時に自動補完
+        ta.addEventListener('change', () => {
+          const idx = parseInt(tr.dataset.index, 10);
+          this.autoFillFromPool(personRow, idx, pi);
+        });
+        // フォーカス外れたらドロップダウンを閉じる
+        ta.addEventListener('blur', () => {
+          setTimeout(() => this.closeDropdown(), 200);
+        });
+      };
+
+      bindAutocomplete(nameJpTa, 'nameJp');
 
       // 肩書JP のオートコンプリート & 自動補完
       if (shotDef.hasTitle) {
         const titleJpTa = personRow.querySelector('[data-field="titleJp"]');
-        titleJpTa.addEventListener('input', () => {
-          const idx = parseInt(tr.dataset.index, 10);
-          App.nameData[idx].persons[pi].titleJp = titleJpTa.value;
-          this.showAutocomplete(titleJpTa, 'titleJp', personRow, tr, pi);
-        });
-        titleJpTa.addEventListener('change', () => {
-          const idx = parseInt(tr.dataset.index, 10);
-          this.autoFillFromPool(personRow, idx, pi);
-        });
-        titleJpTa.addEventListener('blur', () => {
-          setTimeout(() => this.closeDropdown(), 150);
-        });
+        bindAutocomplete(titleJpTa, 'titleJp');
       }
 
       // 全textarea自動高さ調整
