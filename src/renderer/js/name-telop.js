@@ -5,6 +5,8 @@ const NameTelop = {
   tbody: null,
   /** 現在表示中のオートコンプリートドロップダウン */
   _activeDropdown: null,
+  /** blur遅延クローズ用タイマーID */
+  _closeTimer: null,
 
   init() {
     this.tbody = document.getElementById('name-tbody');
@@ -65,10 +67,26 @@ const NameTelop = {
 
   /** ドロップダウンを閉じる */
   closeDropdown() {
+    if (this._closeTimer) {
+      clearTimeout(this._closeTimer);
+      this._closeTimer = null;
+    }
     if (this._activeDropdown) {
       this._activeDropdown.remove();
       this._activeDropdown = null;
     }
+  },
+
+  /** 遅延付きでドロップダウンを閉じる（候補クリック猶予） */
+  closeDropdownLater() {
+    if (this._closeTimer) clearTimeout(this._closeTimer);
+    this._closeTimer = setTimeout(() => {
+      this._closeTimer = null;
+      if (this._activeDropdown) {
+        this._activeDropdown.remove();
+        this._activeDropdown = null;
+      }
+    }, 200);
   },
 
   /**
@@ -80,7 +98,16 @@ const NameTelop = {
    * @param {number} personIndex - 出演者インデックス
    */
   showAutocomplete(textarea, field, personRow, tr, personIndex) {
-    this.closeDropdown();
+    // 前のblurによる遅延クローズをキャンセル
+    if (this._closeTimer) {
+      clearTimeout(this._closeTimer);
+      this._closeTimer = null;
+    }
+    // 既存のドロップダウンを即座に除去
+    if (this._activeDropdown) {
+      this._activeDropdown.remove();
+      this._activeDropdown = null;
+    }
     if (App.namePool.length === 0) return;
 
     const query = textarea.value.trim();
@@ -336,9 +363,9 @@ const NameTelop = {
           const idx = parseInt(tr.dataset.index, 10);
           this.autoFillFromPool(personRow, idx, pi);
         });
-        // フォーカス外れたらドロップダウンを閉じる
+        // フォーカス外れたらドロップダウンを遅延クローズ
         ta.addEventListener('blur', () => {
-          setTimeout(() => this.closeDropdown(), 200);
+          this.closeDropdownLater();
         });
       };
 
