@@ -301,7 +301,6 @@ const SettingsUI = {
     if (data.namePool) {
       App.namePool = data.namePool;
       NameTelop.renderPool();
-      NameTelop.updateDatalist();
     }
 
     // テロップデータを反映
