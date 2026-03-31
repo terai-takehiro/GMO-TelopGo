@@ -170,8 +170,8 @@ const Broadcast = {
         const name = p.nameJp || '';
         const title = p.titleJp || '';
         if (name) {
-          html += `<span class="info-person">${this.esc(name)}`;
-          if (title) html += ` <small>(${this.esc(title)})</small>`;
+          html += `<span class="info-person">${this.esc(name).replace(/\n/g, '<br>')}`;
+          if (title) html += ` <small>(${this.esc(title).replace(/\n/g, '<br>')})</small>`;
           html += '</span>';
         }
       });

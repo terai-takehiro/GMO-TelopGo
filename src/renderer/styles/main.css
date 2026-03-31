@@ -320,7 +320,7 @@ body {
 .data-table .cell-textarea {
   resize: none;
   overflow: hidden;
-  white-space: pre;
+  white-space: pre-wrap;
   line-height: 1.4;
   min-height: 28px;
 }
@@ -386,7 +386,7 @@ body {
 .person-row textarea {
   resize: none;
   overflow: hidden;
-  white-space: pre;
+  white-space: pre-wrap;
   line-height: 1.4;
   min-height: 24px;
 }
@@ -804,6 +804,42 @@ body {
 }
 
 .status-item { white-space: nowrap; }
+
+/* === Autocomplete Dropdown === */
+.autocomplete-dropdown {
+  z-index: 1000;
+  background: var(--bg-input);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.autocomplete-option {
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  gap: 4px;
+  align-items: baseline;
+}
+
+.autocomplete-option:hover {
+  background: var(--bg-hover);
+}
+
+.autocomplete-option .ac-name {
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+
+.autocomplete-option .ac-title {
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: pre-wrap;
+}
 
 /* === Utility === */
 .hidden { display: none !important; }
