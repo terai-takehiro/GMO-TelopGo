@@ -7,10 +7,11 @@ const DragDrop = {
   /**
    * tbodyにドラッグ＆ドロップを有効化
    * @param {HTMLElement} tbody
-   * @param {Array} dataArray - 並び替え対象のデータ配列
+   * @param {Function} getDataArray - 並び替え対象のデータ配列を返す関数
+   * @param {Function} setDataArray - 並び替え後のデータ配列をセットする関数
    * @param {Function} onReorder - 並び替え後のコールバック
    */
-  enable(tbody, dataArray, onReorder) {
+  enable(tbody, getDataArray, setDataArray, onReorder) {
     tbody.addEventListener('dragstart', (e) => {
       const row = e.target.closest('tr');
       if (!row) return;
@@ -40,11 +41,11 @@ const DragDrop = {
       this.dragSrcRow = null;
 
       // DOMの順序からデータ配列を再構築
+      const dataArray = getDataArray();
       const rows = Array.from(tbody.querySelectorAll('tr'));
       const newOrder = rows.map((r) => parseInt(r.dataset.index, 10));
       const reordered = newOrder.map((i) => dataArray[i]);
-      dataArray.length = 0;
-      dataArray.push(...reordered);
+      setDataArray(reordered);
 
       // インデックスを更新して番号を振り直し
       rows.forEach((r, i) => {

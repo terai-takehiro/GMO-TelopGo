@@ -11,7 +11,12 @@ const SideTelop = {
     document.getElementById('side-add-row').addEventListener('click', () => this.addEmptyRow());
     document.getElementById('side-clear-all').addEventListener('click', () => this.clearAll());
 
-    DragDrop.enable(this.tbody, App.sideData, () => this.onReorder());
+    DragDrop.enable(
+      this.tbody,
+      () => App.sideData,
+      (arr) => { App.sideData = arr; },
+      () => this.onReorder()
+    );
   },
 
   async loadExcel() {

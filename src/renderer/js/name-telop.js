@@ -22,7 +22,12 @@ const NameTelop = {
     document.getElementById('name-add-row').addEventListener('click', () => this.addEmptyRow());
     document.getElementById('name-clear-all').addEventListener('click', () => this.clearAll());
 
-    DragDrop.enable(this.tbody, App.nameData, () => this.onReorder());
+    DragDrop.enable(
+      this.tbody,
+      () => App.nameData,
+      (arr) => { App.nameData = arr; },
+      () => this.onReorder()
+    );
 
     // ドロップダウン外クリックで閉じる
     document.addEventListener('mousedown', (e) => {
