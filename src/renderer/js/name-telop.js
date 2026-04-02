@@ -7,6 +7,8 @@ const NameTelop = {
   _activeDropdown: null,
   /** blur遅延クローズ用タイマーID */
   _closeTimer: null,
+  /** ドロップダウンから選択された直後フラグ */
+  _selectedFromDropdown: false,
 
   init() {
     this.tbody = document.getElementById('name-tbody');
@@ -164,6 +166,8 @@ const NameTelop = {
   applyPoolItem(poolItem, personRow, rowIndex, personIndex) {
     const item = App.nameData[rowIndex];
     const person = item.persons[personIndex];
+
+    this._selectedFromDropdown = true;
 
     const fills = { titleJp: poolItem.titleJp, nameJp: poolItem.nameJp, nameEn: poolItem.nameEn, titleEn: poolItem.titleEn };
     Object.entries(fills).forEach(([field, value]) => {
@@ -353,9 +357,11 @@ const NameTelop = {
 
       // 名前JP のオートコンプリート & 自動補完
       const bindAutocomplete = (ta, fieldName) => {
-        // フォーカス時に候補表示（空欄でも全件表示）
+        // フォーカス時: 空欄の場合のみ候補表示
         ta.addEventListener('focus', () => {
-          this.showAutocomplete(ta, fieldName, personRow, tr, pi);
+          if (!ta.value.trim()) {
+            this.showAutocomplete(ta, fieldName, personRow, tr, pi);
+          }
         });
         // 入力時にフィルタ更新
         ta.addEventListener('input', () => {
@@ -363,10 +369,13 @@ const NameTelop = {
           App.nameData[idx].persons[pi][fieldName] = ta.value;
           this.showAutocomplete(ta, fieldName, personRow, tr, pi);
         });
-        // 確定時に自動補完
+        // 確定時: ドロップダウンから選択された場合のみ自動補完
         ta.addEventListener('change', () => {
           const idx = parseInt(tr.dataset.index, 10);
-          this.autoFillFromPool(personRow, idx, pi);
+          if (this._selectedFromDropdown) {
+            this._selectedFromDropdown = false;
+            this.autoFillFromPool(personRow, idx, pi);
+          }
         });
         // フォーカス外れたらドロップダウンを遅延クローズ
         ta.addEventListener('blur', () => {
