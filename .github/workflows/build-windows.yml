@@ -32,7 +32,8 @@ jobs:
         run: npm ci
 
       - name: Build installer (electron-builder)
-        run: npm run build
+        # --publish never: electron-builderの自動公開を無効化 (Release添付は下のステップで行う)
+        run: npm run build -- --publish never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
