@@ -1,6 +1,7 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const { registerIpcHandlers } = require('./src/main/ipc-handlers');
+const gpioDio = require('./src/main/gpio-dio');
 
 // GPU アクセラレーション最適化
 app.commandLine.appendSwitch('enable-gpu-rasterization');
@@ -34,4 +35,8 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   app.quit();
+});
+
+app.on('will-quit', () => {
+  gpioDio.disconnect();
 });

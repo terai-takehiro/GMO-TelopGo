@@ -48,6 +48,30 @@ const store = new Store({
         textEn: 'textEn',
       },
     },
+    gpio: {
+      enabled: false,
+      deviceName: 'DIO000',
+      pressLevel: 'on', // 'on': 押下=ON(立ち上がり) / 'off': 押下=OFF(立ち下がり)
+      // 物理ボタン(EzV-400リモート相当) → 入力ビット割当と実行アクション
+      buttons: {
+        name: {
+          stop:  { bit: -1, action: 'none' },
+          clear: { bit: -1, action: 'clear' },
+          top:   { bit: -1, action: 'top' },
+          rev:   { bit: -1, action: 'rev' },
+          skip:  { bit: -1, action: 'skip' },
+          take:  { bit: -1, action: 'take' },
+        },
+        side: {
+          stop:  { bit: -1, action: 'none' },
+          clear: { bit: -1, action: 'clear' },
+          top:   { bit: -1, action: 'top' },
+          rev:   { bit: -1, action: 'rev' },
+          skip:  { bit: -1, action: 'skip' },
+          take:  { bit: -1, action: 'take' },
+        },
+      },
+    },
   },
 });
 
@@ -56,6 +80,7 @@ function getSettings() {
     outputUrl: store.get('outputUrl'),
     nameTelop: store.get('nameTelop'),
     sideTelop: store.get('sideTelop'),
+    gpio: store.get('gpio'),
   };
 }
 
@@ -63,6 +88,12 @@ function saveSettings(settings) {
   if (settings.outputUrl !== undefined) store.set('outputUrl', settings.outputUrl);
   if (settings.nameTelop) store.set('nameTelop', settings.nameTelop);
   if (settings.sideTelop) store.set('sideTelop', settings.sideTelop);
+  if (settings.gpio) store.set('gpio', settings.gpio);
+}
+
+/** GPIOリモートボタン設定を取得 */
+function getGpioConfig() {
+  return store.get('gpio');
 }
 
 function getTelopConfig(telopType) {
@@ -81,4 +112,4 @@ function getNameShotConfig(shotType) {
   };
 }
 
-module.exports = { getSettings, saveSettings, getTelopConfig, getNameShotConfig };
+module.exports = { getSettings, saveSettings, getTelopConfig, getNameShotConfig, getGpioConfig };

@@ -267,6 +267,56 @@
         </div>
       </fieldset>
 
+      <fieldset class="settings-group">
+        <legend>GPIOリモートボタン (CONTEC DIO)</legend>
+        <div class="settings-row">
+          <label>リモート制御</label>
+          <label class="gpio-enable-label"><input type="checkbox" id="gpio-enabled"> 有効にする (起動時に自動接続)</label>
+        </div>
+        <div class="settings-row">
+          <label for="gpio-device-name">デバイス名</label>
+          <input type="text" id="gpio-device-name" class="input input--small" placeholder="DIO000" list="gpio-device-list">
+          <datalist id="gpio-device-list"></datalist>
+          <button class="btn btn--small" id="gpio-search-devices">検索</button>
+          <button class="btn btn--small btn--primary" id="gpio-connect">接続</button>
+          <button class="btn btn--small" id="gpio-disconnect">切断</button>
+          <span class="gpio-conn-status" id="gpio-conn-status">未接続</span>
+        </div>
+        <div class="settings-row">
+          <label for="gpio-press-level">押下検出</label>
+          <select id="gpio-press-level" class="input input--small">
+            <option value="on">押下でON (立ち上がり検出)</option>
+            <option value="off">押下でOFF (立ち下がり検出)</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label>入力モニタ</label>
+          <div class="gpio-monitor" id="gpio-monitor"></div>
+        </div>
+
+        <div class="gpio-mapping-columns">
+          <div class="gpio-mapping-col">
+            <h3>名前テロップ</h3>
+            <table class="gpio-mapping-table">
+              <thead>
+                <tr><th>ボタン</th><th>入力ビット</th><th></th><th>動作</th></tr>
+              </thead>
+              <tbody id="gpio-map-name"></tbody>
+            </table>
+          </div>
+          <div class="gpio-mapping-col">
+            <h3>サイドテロップ</h3>
+            <table class="gpio-mapping-table">
+              <thead>
+                <tr><th>ボタン</th><th>入力ビット</th><th></th><th>動作</th></tr>
+              </thead>
+              <tbody id="gpio-map-side"></tbody>
+            </table>
+          </div>
+        </div>
+        <p class="gpio-hint">「検出」をクリックしてからリモートの割り当てたいボタンを押すと、入力ビットが自動で割り当てられます。割当後は「設定を保存」で確定してください。</p>
+      </fieldset>
+
       <div class="settings-actions">
         <button class="btn btn--primary" id="save-settings">設定を保存</button>
         <span class="settings-status" id="settings-status"></span>
@@ -278,6 +328,7 @@
   <footer class="status-bar">
     <span class="status-item" id="status-text">準備完了</span>
     <span class="status-item" id="status-api">API: 未接続</span>
+    <span class="status-item" id="status-gpio">GPIO: 未接続</span>
   </footer>
 
   <script src="js/app.js"></script>
@@ -286,6 +337,7 @@
   <script src="js/name-telop.js"></script>
   <script src="js/side-telop.js"></script>
   <script src="js/broadcast.js"></script>
+  <script src="js/gpio-remote.js"></script>
   <script src="js/settings-ui.js"></script>
   <script src="js/status-bar.js"></script>
 </body>

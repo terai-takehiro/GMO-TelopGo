@@ -170,6 +170,9 @@ const SettingsUI = {
     document.getElementById('side-sub-comp').value = s.subCompositionName || '';
     document.getElementById('side-field-text-jp').value = (s.fields && s.fields.textJp) || '';
     document.getElementById('side-field-text-en').value = (s.fields && s.fields.textEn) || '';
+
+    // GPIOリモートボタン
+    GpioRemote.populateConfig(settings.gpio);
   },
 
   /** プレビューiframeにURLを反映 */
@@ -232,6 +235,7 @@ const SettingsUI = {
           textEn: document.getElementById('side-field-text-en').value.trim() || 'textEn',
         },
       },
+      gpio: GpioRemote.collectConfig(),
     };
   },
 

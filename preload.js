@@ -20,4 +20,13 @@ contextBridge.exposeInMainWorld('api', {
 
   // Template download
   downloadTemplate: (telopType) => ipcRenderer.invoke('download-template', telopType),
+
+  // GPIOリモートボタン (CONTEC DIO)
+  gpioConnect: (options) => ipcRenderer.invoke('gpio-connect', options),
+  gpioDisconnect: () => ipcRenderer.invoke('gpio-disconnect'),
+  gpioStatus: () => ipcRenderer.invoke('gpio-status'),
+  gpioListDevices: () => ipcRenderer.invoke('gpio-list-devices'),
+  onGpioButton: (callback) => ipcRenderer.on('gpio-button', (_event, bit) => callback(bit)),
+  onGpioState: (callback) => ipcRenderer.on('gpio-state', (_event, state) => callback(state)),
+  onGpioError: (callback) => ipcRenderer.on('gpio-error', (_event, message) => callback(message)),
 });

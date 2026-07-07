@@ -1,9 +1,10 @@
-const { ipcMain, dialog } = require('electron');
+const { ipcMain, dialog, BrowserWindow } = require('electron');
 const fs = require('fs');
 const XLSX = require('xlsx');
 const { readExcel } = require('./excel-reader');
 const singularApi = require('./singular-api');
-const { getSettings, saveSettings, getTelopConfig, getNameShotConfig } = require('./settings-store');
+const gpioDio = require('./gpio-dio');
+const { getSettings, saveSettings, getTelopConfig, getNameShotConfig, getGpioConfig } = require('./settings-store');
 
 /** ショットタイプのフィールドプレフィックス */
 const PERSON_PREFIXES = ['', '2nd', '3rd', '4th'];
@@ -171,6 +172,47 @@ function registerIpcHandlers() {
       return { success: false, error: err.message };
     }
   });
+  // --- GPIOリモートボタン (CONTEC DIO) ---
+  ipcMain.handle('gpio-connect', async (_event, options) => {
+    const cfg = getGpioConfig();
+    try {
+      gpioDio.connect({
+        deviceName: (options && options.deviceName) || cfg.deviceName,
+        pressLevel: (options && options.pressLevel) || cfg.pressLevel,
+      });
+      return { ok: true, status: gpioDio.getStatus() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('gpio-disconnect', async () => {
+    gpioDio.disconnect();
+    return { ok: true };
+  });
+
+  ipcMain.handle('gpio-status', async () => {
+    return gpioDio.getStatus();
+  });
+
+  ipcMain.handle('gpio-list-devices', async () => {
+    try {
+      return { ok: true, devices: gpioDio.listDevices() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // DIOイベントを全ウィンドウへ転送
+  const broadcastToWindows = (channel, payload) => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send(channel, payload);
+    });
+  };
+  gpioDio.events.on('button', (bit) => broadcastToWindows('gpio-button', bit));
+  gpioDio.events.on('state', (state) => broadcastToWindows('gpio-state', state));
+  gpioDio.events.on('error', (message) => broadcastToWindows('gpio-error', message));
+
   // --- Template Download ---
   ipcMain.handle('download-template', async (_event, telopType) => {
     const wb = XLSX.utils.book_new();
