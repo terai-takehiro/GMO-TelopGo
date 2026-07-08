@@ -11,7 +11,7 @@ const SideTelop = {
     document.getElementById('side-add-row').addEventListener('click', () => this.addEmptyRow());
     document.getElementById('side-clear-all').addEventListener('click', () => this.clearAll());
 
-    DragDrop.enable(this.tbody, App.sideData, () => this.onReorder());
+    DragDrop.enable(this.tbody, () => App.sideData, (newOrder) => this.onReorder(newOrder));
   },
 
   async loadExcel() {
@@ -64,16 +64,20 @@ const SideTelop = {
     tr.innerHTML = `
       <td class="col-drag"><span class="drag-handle">&#9776;</span></td>
       <td class="col-num"><span class="row-num">${index + 1}</span></td>
-      <td><input type="text" value="${this.esc(item.textJp)}" data-field="textJp"></td>
-      <td><input type="text" value="${this.esc(item.textEn)}" data-field="textEn"></td>
+      <td><textarea class="cell-textarea" rows="1" wrap="off" data-field="textJp">${this.esc(item.textJp)}</textarea></td>
+      <td><textarea class="cell-textarea" rows="1" wrap="off" data-field="textEn">${this.esc(item.textEn)}</textarea></td>
       <td class="col-actions"><button class="btn-delete-row" title="削除">&#10005;</button></td>
     `;
 
-    tr.querySelectorAll('input').forEach((input) => {
-      input.addEventListener('change', () => {
+    tr.querySelectorAll('textarea').forEach((ta) => {
+      ta.addEventListener('change', () => {
         const idx = parseInt(tr.dataset.index, 10);
-        App.sideData[idx][input.dataset.field] = input.value;
+        App.sideData[idx][ta.dataset.field] = ta.value;
       });
+      // 自動高さ調整 (改行に合わせて行高を伸ばす)
+      const autoResize = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+      ta.addEventListener('input', autoResize);
+      requestAnimationFrame(autoResize);
     });
 
     tr.querySelector('.btn-delete-row').addEventListener('click', () => {
@@ -82,7 +86,7 @@ const SideTelop = {
 
     // 行クリックで選択 (スケジュール/かるた共通)
     tr.addEventListener('click', (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
       Broadcast.selectItem('side', parseInt(tr.dataset.index, 10));
     });
 
@@ -93,8 +97,8 @@ const SideTelop = {
     return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   },
 
-  onReorder() {
-    Broadcast.reset('side');
+  onReorder(newOrder) {
+    Broadcast.remapAfterReorder('side', newOrder);
   },
 };
 

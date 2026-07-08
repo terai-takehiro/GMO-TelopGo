@@ -107,6 +107,7 @@ const Broadcast = {
   renderKarutaList(type) {
     const list = document.getElementById(`${type}-karuta-list`);
     const data = this.getData(type);
+    const state = App.broadcast[type];
     list.innerHTML = '';
 
     data.forEach((item, i) => {
@@ -121,6 +122,8 @@ const Broadcast = {
       } else {
         div.textContent = `${i + 1}. ${item.textJp || ''}`;
       }
+
+      if (i === state.currentIndex) div.classList.add('selected');
 
       div.addEventListener('click', () => this.selectItem(type, i));
       list.appendChild(div);
@@ -200,6 +203,26 @@ const Broadcast = {
     document.getElementById(`${type}-change`).disabled = !hasSelection;
     document.getElementById(`${type}-take`).disabled = !hasSelection;
     document.getElementById(`${type}-clear`).disabled = !state.isOnAir;
+  },
+
+  /**
+   * 並び替え後の状態追従: ON AIR / NEXT が同じ項目を指し続けるようインデックスを補正
+   * @param {number[]} newOrder - 新順序での旧インデックス配列 (newOrder[newIdx] = oldIdx)
+   */
+  remapAfterReorder(type, newOrder) {
+    const state = App.broadcast[type];
+    if (state.onAirIndex >= 0) {
+      state.onAirIndex = newOrder.indexOf(state.onAirIndex);
+    }
+    if (state.currentIndex >= 0) {
+      state.currentIndex = newOrder.indexOf(state.currentIndex);
+    }
+    this.highlightRows(type);
+    this.updateInfo(type);
+    this.updateButtons(type);
+    if (state.mode === 'karuta') {
+      this.renderKarutaList(type);
+    }
   },
 
   /**

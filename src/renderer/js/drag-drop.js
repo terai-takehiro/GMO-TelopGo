@@ -7,10 +7,11 @@ const DragDrop = {
   /**
    * tbodyにドラッグ＆ドロップを有効化
    * @param {HTMLElement} tbody
-   * @param {Array} dataArray - 並び替え対象のデータ配列
-   * @param {Function} onReorder - 並び替え後のコールバック
+   * @param {Function} getData - 並び替え対象のデータ配列を返す関数
+   *   (Excel読込等で配列が再代入されるため、参照を閉じ込めず毎回取得する)
+   * @param {Function} onReorder - 並び替え後のコールバック (newOrder: 新順序での旧インデックス配列)
    */
-  enable(tbody, dataArray, onReorder) {
+  enable(tbody, getData, onReorder) {
     tbody.addEventListener('dragstart', (e) => {
       const row = e.target.closest('tr');
       if (!row) return;
@@ -40,6 +41,7 @@ const DragDrop = {
       this.dragSrcRow = null;
 
       // DOMの順序からデータ配列を再構築
+      const dataArray = getData();
       const rows = Array.from(tbody.querySelectorAll('tr'));
       const newOrder = rows.map((r) => parseInt(r.dataset.index, 10));
       const reordered = newOrder.map((i) => dataArray[i]);
@@ -53,7 +55,7 @@ const DragDrop = {
         if (numCell) numCell.textContent = i + 1;
       });
 
-      if (onReorder) onReorder();
+      if (onReorder) onReorder(newOrder);
     });
   },
 };

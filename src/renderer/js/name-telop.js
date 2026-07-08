@@ -18,7 +18,7 @@ const NameTelop = {
     document.getElementById('name-add-row').addEventListener('click', () => this.addEmptyRow());
     document.getElementById('name-clear-all').addEventListener('click', () => this.clearAll());
 
-    DragDrop.enable(this.tbody, App.nameData, () => this.onReorder());
+    DragDrop.enable(this.tbody, () => App.nameData, (newOrder) => this.onReorder(newOrder));
   },
 
   // ===== 名前プール =====
@@ -177,14 +177,15 @@ const NameTelop = {
       personRow.dataset.personIndex = pi;
 
       if (shotDef.hasTitle) {
-        // 肩書JP (datalist付き — プールから選択可能)
-        const titleJpInput = document.createElement('input');
-        titleJpInput.type = 'text';
-        titleJpInput.dataset.field = 'titleJp';
-        titleJpInput.setAttribute('list', 'name-pool-jp');
-        titleJpInput.placeholder = pi === 0 ? '肩書JP' : `${pi + 1}nd 肩書JP`;
-        titleJpInput.value = person.titleJp || '';
-        personRow.appendChild(titleJpInput);
+        // 肩書JP (textarea — 改行入力可能)
+        const titleJpTa = document.createElement('textarea');
+        titleJpTa.className = 'cell-textarea';
+        titleJpTa.dataset.field = 'titleJp';
+        titleJpTa.rows = 1;
+        titleJpTa.wrap = 'off';
+        titleJpTa.placeholder = pi === 0 ? '肩書JP' : `${pi + 1}nd 肩書JP`;
+        titleJpTa.value = person.titleJp || '';
+        personRow.appendChild(titleJpTa);
       }
 
       // 名前JP (datalist付き)
@@ -208,13 +209,15 @@ const NameTelop = {
         personRow.appendChild(titleEnTa);
       }
 
-      // 名前EN
-      const nameEnInput = document.createElement('input');
-      nameEnInput.type = 'text';
-      nameEnInput.dataset.field = 'nameEn';
-      nameEnInput.placeholder = pi === 0 ? '名前EN' : `${pi + 1}nd 名前EN`;
-      nameEnInput.value = person.nameEn || '';
-      personRow.appendChild(nameEnInput);
+      // 名前EN (textarea — 改行入力可能)
+      const nameEnTa = document.createElement('textarea');
+      nameEnTa.className = 'cell-textarea';
+      nameEnTa.dataset.field = 'nameEn';
+      nameEnTa.rows = 1;
+      nameEnTa.wrap = 'off';
+      nameEnTa.placeholder = pi === 0 ? '名前EN' : `${pi + 1}nd 名前EN`;
+      nameEnTa.value = person.nameEn || '';
+      personRow.appendChild(nameEnTa);
 
       // 入力イベント
       personRow.querySelectorAll('input, textarea').forEach(el => {
@@ -229,16 +232,6 @@ const NameTelop = {
         const idx = parseInt(tr.dataset.index, 10);
         this.autoFillFromPool(nameJpInput.value, personRow, idx, pi);
       });
-
-      // 肩書JPの自動補完 (プルダウンはnameJp値なので、選択時にnameJpとして補完)
-      if (shotDef.hasTitle) {
-        const titleJpInput = personRow.querySelector('[data-field="titleJp"]');
-        titleJpInput.addEventListener('change', () => {
-          const idx = parseInt(tr.dataset.index, 10);
-          // datalistの値はnameJpなので、nameJpとしてプール検索
-          this.autoFillFromPool(titleJpInput.value, personRow, idx, pi);
-        });
-      }
 
       // textarea自動高さ
       personRow.querySelectorAll('.cell-textarea').forEach(ta => {
@@ -278,8 +271,8 @@ const NameTelop = {
     return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   },
 
-  onReorder() {
-    Broadcast.reset('name');
+  onReorder(newOrder) {
+    Broadcast.remapAfterReorder('name', newOrder);
   },
 };
 
