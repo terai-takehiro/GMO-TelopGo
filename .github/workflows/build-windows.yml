@@ -35,17 +35,34 @@ jobs:
         # --publish never: electron-builderの自動公開を無効化 (Release添付は下のステップで行う)
         run: npm run build -- --publish never
 
-      - name: Upload artifacts
+      # インストール不要のポータブル版ZIP (win-unpackedをそのまま圧縮)
+      # 署名なしexeがSmartScreen等でブロックされる環境向けの代替配布形式
+      - name: Package portable zip
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          Compress-Archive -Path "dist/win-unpacked/*" -DestinationPath "dist/GMO-TelopGo-$version-portable-win.zip"
+
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: GMO-TelopGo-windows-installer
           path: dist/*.exe
           if-no-files-found: error
 
-      # vX.Y.Z タグの場合は GitHub Release を作成して exe を添付
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GMO-TelopGo-windows-portable
+          path: dist/*-portable-win.zip
+          if-no-files-found: error
+
+      # vX.Y.Z タグの場合は GitHub Release を作成して exe / ポータブルZIP を添付
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.exe
+          files: |
+            dist/*.exe
+            dist/*-portable-win.zip
           generate_release_notes: true
