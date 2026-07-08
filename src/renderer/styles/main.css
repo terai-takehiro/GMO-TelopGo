@@ -971,3 +971,248 @@ body {
   padding: 3px 8px;
   border-radius: 3px;
 }
+
+/* === デザインエディタ === */
+.de-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.de-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.de-tool-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.de-lang-switch { display: flex; gap: 2px; }
+.de-lang-switch .btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.de-spacer { flex: 1; }
+
+.de-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* レイヤーパネル */
+.de-layers {
+  width: 210px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+}
+.de-layers-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+.de-layer-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  flex: 1;
+  overflow-y: auto;
+}
+.de-layer-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  border: 1px solid transparent;
+}
+.de-layer-item:hover { background: var(--bg-hover); }
+.de-layer-item.selected {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+.de-layer-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  width: 20px;
+  padding: 0;
+}
+.de-layer-type {
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 16px;
+  text-align: center;
+}
+.de-layer-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.de-layers-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* アートボード */
+.de-viewport {
+  flex: 1;
+  overflow: auto;
+  background: #3a4a5a;
+  display: flex;
+  align-items: safe center;
+  justify-content: safe center;
+  padding: 20px;
+  min-width: 0;
+}
+.de-canvas-wrap {
+  position: relative;
+  flex-shrink: 0;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  /* 透過部分を市松模様で表示 */
+  background-image:
+    linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%),
+    linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%);
+  background-color: #666;
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+}
+.de-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: top left;
+  overflow: hidden;
+}
+/* 共通レンダラーの基本スタイル (output.cssと同等) */
+.de-canvas .tl-layer {
+  position: absolute;
+  box-sizing: border-box;
+  cursor: move;
+}
+.de-canvas .tl-text {
+  display: flex;
+  white-space: pre-line;
+  overflow: hidden;
+}
+
+.de-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.de-selection {
+  position: absolute;
+  border: 1px solid #4da3ff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+}
+.de-handle {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  background: #ffffff;
+  border: 1px solid #4da3ff;
+  pointer-events: auto;
+  box-sizing: border-box;
+}
+.de-handle-nw { left: -5px; top: -5px; cursor: nwse-resize; }
+.de-handle-n  { left: calc(50% - 5px); top: -5px; cursor: ns-resize; }
+.de-handle-ne { right: -5px; top: -5px; cursor: nesw-resize; }
+.de-handle-e  { right: -5px; top: calc(50% - 5px); cursor: ew-resize; }
+.de-handle-se { right: -5px; bottom: -5px; cursor: nwse-resize; }
+.de-handle-s  { left: calc(50% - 5px); bottom: -5px; cursor: ns-resize; }
+.de-handle-sw { left: -5px; bottom: -5px; cursor: nesw-resize; }
+.de-handle-w  { left: -5px; top: calc(50% - 5px); cursor: ew-resize; }
+
+.de-guide {
+  position: absolute;
+  background: #ff4dd2;
+  z-index: 5;
+}
+.de-guide-v { top: 0; bottom: 0; width: 1px; }
+.de-guide-h { left: 0; right: 0; height: 1px; }
+
+/* プロパティパネル */
+.de-props {
+  width: 290px;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 10px;
+}
+.de-props-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 30px 0;
+}
+.de-props-section {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 14px 0 6px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--border-light);
+}
+.de-props-section:first-child { margin-top: 0; }
+.de-prop-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.de-prop-row > label {
+  width: 86px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.de-prop-row .input { flex: 1; min-width: 0; }
+.de-prop-num { width: 64px; flex: 1; }
+.de-prop-color {
+  width: 36px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: none;
+  cursor: pointer;
+}
+.de-prop-file {
+  flex: 1;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

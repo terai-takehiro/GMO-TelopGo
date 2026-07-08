@@ -7,6 +7,7 @@
   const sideTab = document.getElementById('tab-side-telop');
   const settingsTab = document.getElementById('tab-settings');
   const dualTab = document.getElementById('tab-dual');
+  const designTab = document.getElementById('tab-design');
 
   // パネル参照
   const nameLayout = nameTab.querySelector('.panel-layout');
@@ -95,6 +96,7 @@
       sideTab.classList.remove('active');
       settingsTab.classList.remove('active');
       dualTab.classList.remove('active');
+      designTab.classList.remove('active');
 
       btn.classList.add('active');
 
@@ -107,6 +109,9 @@
         sideTab.classList.add('active');
       } else if (target === 'settings') {
         settingsTab.classList.add('active');
+      } else if (target === 'design') {
+        designTab.classList.add('active');
+        if (typeof DesignEditor !== 'undefined') DesignEditor.onShow();
       }
     });
   });

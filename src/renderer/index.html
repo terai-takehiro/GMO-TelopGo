@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; frame-src https:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: http:; frame-src http: https:;">
   <title>GMO TelopGo</title>
   <link rel="stylesheet" href="styles/main.css">
 </head>
@@ -27,6 +27,7 @@
     <button class="tab-btn active" data-tab="name-telop">名前テロップ</button>
     <button class="tab-btn" data-tab="side-telop">サイドテロップ</button>
     <button class="tab-btn" data-tab="dual">並列表示</button>
+    <button class="tab-btn" data-tab="design">デザイン</button>
     <button class="tab-btn tab-btn--settings" data-tab="settings">設定</button>
     <div class="tab-bar-right">
       <button class="btn btn--small" id="project-load">読込</button>
@@ -215,6 +216,84 @@
     </div>
   </div>
 
+  <!-- ===== デザイン タブ ===== -->
+  <div class="tab-content" id="tab-design">
+    <div class="de-layout">
+      <div class="de-toolbar">
+        <label class="de-tool-label">テンプレート
+          <select id="de-template" class="input input--small"></select>
+        </label>
+        <div class="de-lang-switch">
+          <button class="btn btn--small active" id="de-lang-jp">JP</button>
+          <button class="btn btn--small" id="de-lang-en">EN</button>
+        </div>
+        <label class="de-tool-label">ズーム
+          <select id="de-zoom" class="input input--small">
+            <option value="fit">フィット</option>
+            <option value="0.25">25%</option>
+            <option value="0.5">50%</option>
+            <option value="0.75">75%</option>
+            <option value="1">100%</option>
+          </select>
+        </label>
+        <button class="btn btn--small" id="de-play-in">&#9654; IN</button>
+        <button class="btn btn--small" id="de-play-out">&#9654; OUT</button>
+        <button class="btn btn--small" id="de-copy-lang">JP&#8594;ENコピー</button>
+        <span class="de-spacer"></span>
+        <button class="btn btn--small" id="de-undo" title="Ctrl+Z">元に戻す</button>
+        <button class="btn btn--small" id="de-redo" title="Ctrl+Y">やり直す</button>
+        <button class="btn btn--small" id="de-reload">破棄して再読込</button>
+        <button class="btn btn--small btn--primary" id="de-save">保存して反映</button>
+      </div>
+      <div class="de-main">
+        <div class="de-layers">
+          <div class="de-layers-header">
+            <span>レイヤー</span>
+            <span>
+              <button class="btn btn--small" id="de-layer-up" title="前面へ">&#9650;</button>
+              <button class="btn btn--small" id="de-layer-down" title="背面へ">&#9660;</button>
+            </span>
+          </div>
+          <ul class="de-layer-list" id="de-layer-list"></ul>
+          <div class="de-layers-actions">
+            <button class="btn btn--small" id="de-add-text">+文字</button>
+            <button class="btn btn--small" id="de-add-rect">+矩形</button>
+            <button class="btn btn--small" id="de-add-image">+画像</button>
+            <button class="btn btn--small" id="de-duplicate">複製</button>
+            <button class="btn btn--small btn--danger" id="de-delete">削除</button>
+          </div>
+        </div>
+        <div class="de-viewport" id="de-viewport">
+          <div class="de-canvas-wrap" id="de-canvas-wrap">
+            <div class="de-canvas" id="de-canvas"></div>
+            <div class="de-overlay" id="de-overlay">
+              <div class="de-guide de-guide-v hidden" id="de-guide-v"></div>
+              <div class="de-guide de-guide-h hidden" id="de-guide-h"></div>
+              <div class="de-selection hidden" id="de-selection"></div>
+            </div>
+          </div>
+        </div>
+        <div class="de-props" id="de-props">
+          <div class="de-props-empty">レイヤーを選択してください</div>
+        </div>
+      </div>
+    </div>
+    <datalist id="de-fonts">
+      <option value='"Yu Gothic UI", sans-serif'></option>
+      <option value='"Yu Gothic", sans-serif'></option>
+      <option value='"Yu Mincho", serif'></option>
+      <option value='"Meiryo", sans-serif'></option>
+      <option value='"MS Gothic", monospace'></option>
+      <option value='"MS PGothic", sans-serif'></option>
+      <option value='"BIZ UDGothic", sans-serif'></option>
+      <option value='"BIZ UDPGothic", sans-serif'></option>
+      <option value='"UD Digi Kyokasho N-R", sans-serif'></option>
+      <option value='"Noto Sans JP", sans-serif'></option>
+      <option value='"Segoe UI", sans-serif'></option>
+      <option value='"Arial", sans-serif'></option>
+    </datalist>
+  </div>
+
   <!-- ===== 設定 タブ ===== -->
   <div class="tab-content" id="tab-settings">
     <div class="settings-panel">
@@ -243,7 +322,7 @@
           <label>テンプレート</label>
           <button class="btn btn--small" id="graphics-open-template">JSONを開く</button>
           <button class="btn btn--small" id="graphics-reload-template">再読込して反映</button>
-          <span class="settings-inline-hint">デザインエディタは今後のアップデートで追加予定 (現在はJSON直接編集)</span>
+          <span class="settings-inline-hint">通常は「デザイン」タブで編集します (JSON直接編集は上級者向け)</span>
         </div>
         <p class="gpio-hint">vMixのブラウザ入力に上記URLを追加してください (1920x1080・透過)。日本語/英語で別URL、名前・サイドを個別に取り込む場合は /name /side 付きのURLを使用します。他のPCから取り込む場合はWindowsファイアウォールで指定ポートの受信許可が必要です。</p>
       </fieldset>
@@ -357,6 +436,8 @@
   <script src="js/gpio-remote.js"></script>
   <script src="js/remote-sync.js"></script>
   <script src="js/graphics-ui.js"></script>
+  <script src="../output/telop-renderer.js"></script>
+  <script src="js/design-editor.js"></script>
   <script src="js/settings-ui.js"></script>
   <script src="js/status-bar.js"></script>
 </body>

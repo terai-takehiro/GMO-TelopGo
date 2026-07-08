@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld('api', {
   graphicsServerStatus: () => ipcRenderer.invoke('graphics-server-status'),
   graphicsOpenProjectFile: () => ipcRenderer.invoke('graphics-open-project-file'),
   graphicsReloadProject: () => ipcRenderer.invoke('graphics-reload-project'),
+  graphicsGetProject: () => ipcRenderer.invoke('graphics-get-project'),
+  graphicsSaveProject: (project) => ipcRenderer.invoke('graphics-save-project', project),
+  graphicsImportAsset: () => ipcRenderer.invoke('graphics-import-asset'),
   onGraphicsStatus: (callback) => ipcRenderer.on('graphics-status-changed', (_event, status) => callback(status)),
 
   // Settings

@@ -140,6 +140,42 @@ function registerIpcHandlers() {
     return { ...graphicsServer.getStatus(), lanAddresses: lanAddresses() };
   });
 
+  // --- デザインエディタ ---
+  ipcMain.handle('graphics-get-project', async () => {
+    return graphicsStore.getProject();
+  });
+
+  ipcMain.handle('graphics-save-project', async (_event, project) => {
+    try {
+      if (!project || !project.templates) {
+        return { ok: false, error: 'プロジェクトデータが不正です。' };
+      }
+      graphicsStore.setProject(project);
+      graphicsServer.refreshProject();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-import-asset', async () => {
+    const result = await dialog.showOpenDialog({
+      title: '画像を選択',
+      filters: [{ name: '画像', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    try {
+      const src = result.filePaths[0];
+      const safe = path.basename(src).replace(/[\\/:*?"<>|\s]/g, '_');
+      const file = `${Date.now()}_${safe}`;
+      fs.copyFileSync(src, path.join(graphicsStore.getAssetsDir(), file));
+      return { ok: true, file };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('graphics-open-project-file', async () => {
     await shell.openPath(graphicsStore.getProjectPath());
     return { ok: true, path: graphicsStore.getProjectPath() };
