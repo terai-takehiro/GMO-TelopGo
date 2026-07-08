@@ -2,6 +2,7 @@ const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const { registerIpcHandlers } = require('./src/main/ipc-handlers');
 const gpioDio = require('./src/main/gpio-dio');
+const remoteLink = require('./src/main/remote-link');
 
 // GPU アクセラレーション最適化
 app.commandLine.appendSwitch('enable-gpu-rasterization');
@@ -39,4 +40,5 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   gpioDio.disconnect();
+  remoteLink.stop();
 });

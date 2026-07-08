@@ -247,6 +247,10 @@ const Broadcast = {
   // --- API呼び出し ---
 
   async doChange(type) {
+    // リモート連携時: Singular送信担当でなければ担当PCへコマンドを委譲
+    if (typeof RemoteSync !== 'undefined' && RemoteSync.shouldDelegate()) {
+      return RemoteSync.sendCommand('change', type);
+    }
     const state = App.broadcast[type];
     const data = this.getData(type);
     const idx = this.getActiveIndex(type);
@@ -282,6 +286,9 @@ const Broadcast = {
   },
 
   async doTake(type) {
+    if (typeof RemoteSync !== 'undefined' && RemoteSync.shouldDelegate()) {
+      return RemoteSync.sendCommand('take', type);
+    }
     const state = App.broadcast[type];
     const data = this.getData(type);
     const idx = this.getActiveIndex(type);
@@ -370,6 +377,9 @@ const Broadcast = {
   },
 
   async doClear(type) {
+    if (typeof RemoteSync !== 'undefined' && RemoteSync.shouldDelegate()) {
+      return RemoteSync.sendCommand('clear', type);
+    }
     const state = App.broadcast[type];
 
     App.setStatus('CLEAR 送信中...');

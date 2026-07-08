@@ -29,4 +29,12 @@ contextBridge.exposeInMainWorld('api', {
   onGpioButton: (callback) => ipcRenderer.on('gpio-button', (_event, bit) => callback(bit)),
   onGpioState: (callback) => ipcRenderer.on('gpio-state', (_event, state) => callback(state)),
   onGpioError: (callback) => ipcRenderer.on('gpio-error', (_event, message) => callback(message)),
+
+  // リモート連携 (2台運用)
+  remoteStart: (options) => ipcRenderer.invoke('remote-start', options),
+  remoteStop: () => ipcRenderer.invoke('remote-stop'),
+  remoteStatus: () => ipcRenderer.invoke('remote-status'),
+  remoteSend: (message) => ipcRenderer.invoke('remote-send', message),
+  onRemoteMessage: (callback) => ipcRenderer.on('remote-message', (_event, msg) => callback(msg)),
+  onRemoteStatus: (callback) => ipcRenderer.on('remote-status-changed', (_event, status) => callback(status)),
 });

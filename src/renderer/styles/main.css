@@ -927,3 +927,21 @@ body {
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* === リモート連携設定 === */
+.remote-mode-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.remote-mode-switch .mode-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.settings-inline-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}

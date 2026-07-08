@@ -173,6 +173,9 @@ const SettingsUI = {
 
     // GPIOリモートボタン
     GpioRemote.populateConfig(settings.gpio);
+
+    // リモート連携
+    RemoteSync.populateConfig(settings.remote);
   },
 
   /** プレビューiframeにURLを反映 */
@@ -236,6 +239,7 @@ const SettingsUI = {
         },
       },
       gpio: GpioRemote.collectConfig(),
+      remote: RemoteSync.collectConfig(),
     };
   },
 

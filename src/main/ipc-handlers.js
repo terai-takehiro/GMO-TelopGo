@@ -4,6 +4,7 @@ const XLSX = require('xlsx');
 const { readExcel } = require('./excel-reader');
 const singularApi = require('./singular-api');
 const gpioDio = require('./gpio-dio');
+const remoteLink = require('./remote-link');
 const { getSettings, saveSettings, getTelopConfig, getNameShotConfig, getGpioConfig } = require('./settings-store');
 
 /** ショットタイプのフィールドプレフィックス */
@@ -212,6 +213,42 @@ function registerIpcHandlers() {
   gpioDio.events.on('button', (bit) => broadcastToWindows('gpio-button', bit));
   gpioDio.events.on('state', (state) => broadcastToWindows('gpio-state', state));
   gpioDio.events.on('error', (message) => broadcastToWindows('gpio-error', message));
+
+  // --- リモート連携 (2台運用) ---
+  ipcMain.handle('remote-start', async (_event, options) => {
+    try {
+      const port = Math.max(1, Math.min(65535, parseInt(options.port, 10) || 8765));
+      if (options.mode === 'host') {
+        remoteLink.startHost(port);
+      } else if (options.mode === 'client') {
+        if (!options.hostAddress) {
+          return { ok: false, error: '接続先ホストのIPアドレスを入力してください。' };
+        }
+        remoteLink.connectClient(options.hostAddress, port);
+      } else {
+        remoteLink.stop();
+      }
+      return { ok: true, status: remoteLink.getStatus() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('remote-stop', async () => {
+    remoteLink.stop();
+    return { ok: true };
+  });
+
+  ipcMain.handle('remote-status', async () => {
+    return remoteLink.getStatus();
+  });
+
+  ipcMain.handle('remote-send', async (_event, message) => {
+    return { sent: remoteLink.send(message) };
+  });
+
+  remoteLink.events.on('message', (msg) => broadcastToWindows('remote-message', msg));
+  remoteLink.events.on('status', (status) => broadcastToWindows('remote-status-changed', status));
 
   // --- Template Download ---
   ipcMain.handle('download-template', async (_event, telopType) => {

@@ -268,6 +268,41 @@
       </fieldset>
 
       <fieldset class="settings-group">
+        <legend>リモート連携 (2台運用)</legend>
+        <div class="settings-row">
+          <label>動作モード</label>
+          <div class="remote-mode-switch">
+            <label class="mode-label"><input type="radio" name="remote-mode" value="standalone" checked> スタンドアロン (1台)</label>
+            <label class="mode-label"><input type="radio" name="remote-mode" value="host"> ホスト (このPCで待受・GPIO側)</label>
+            <label class="mode-label"><input type="radio" name="remote-mode" value="client"> クライアント (ホストへ接続)</label>
+          </div>
+        </div>
+        <div class="settings-row">
+          <label for="remote-port">ポート番号</label>
+          <input type="number" id="remote-port" class="input input--small" min="1" max="65535" placeholder="8765">
+        </div>
+        <div class="settings-row" id="remote-host-address-row">
+          <label for="remote-host-address">接続先ホストIP</label>
+          <input type="text" id="remote-host-address" class="input input--small" placeholder="例: 192.168.1.10">
+        </div>
+        <div class="settings-row">
+          <label for="remote-singular-side">Singular送信担当</label>
+          <select id="remote-singular-side" class="input input--small">
+            <option value="host">ホストPC</option>
+            <option value="client">クライアントPC</option>
+          </select>
+          <span class="settings-inline-hint">インターネットに出られるPCを指定 (ホストがオフラインの場合はクライアントPC)</span>
+        </div>
+        <div class="settings-row">
+          <label>接続</label>
+          <button class="btn btn--small btn--primary" id="remote-apply">保存して開始</button>
+          <button class="btn btn--small" id="remote-stop">停止</button>
+          <span class="gpio-conn-status" id="remote-conn-status">停止中</span>
+        </div>
+        <p class="gpio-hint">テロップデータとON AIR/NEXT状態は両PC間で自動同期されます (接続時はホストのデータが優先)。担当でないPCでのCHANGE/TAKE/CLEAR操作 (GPIOボタン含む) は担当PCへ転送されて実行されます。ホスト側のWindowsファイアウォールで指定ポートの受信許可が必要です。</p>
+      </fieldset>
+
+      <fieldset class="settings-group">
         <legend>GPIOリモートボタン (CONTEC DIO)</legend>
         <div class="settings-row">
           <label>リモート制御</label>
@@ -329,6 +364,7 @@
     <span class="status-item" id="status-text">準備完了</span>
     <span class="status-item" id="status-api">API: 未接続</span>
     <span class="status-item" id="status-gpio">GPIO: 未接続</span>
+    <span class="status-item" id="status-remote">リンク: -</span>
   </footer>
 
   <script src="js/app.js"></script>
@@ -338,6 +374,7 @@
   <script src="js/side-telop.js"></script>
   <script src="js/broadcast.js"></script>
   <script src="js/gpio-remote.js"></script>
+  <script src="js/remote-sync.js"></script>
   <script src="js/settings-ui.js"></script>
   <script src="js/status-bar.js"></script>
 </body>

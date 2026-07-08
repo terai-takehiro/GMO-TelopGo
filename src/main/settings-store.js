@@ -72,6 +72,12 @@ const store = new Store({
         },
       },
     },
+    remote: {
+      mode: 'standalone',   // 'standalone' | 'host' | 'client'
+      port: 8765,           // 待受/接続ポート (任意指定可)
+      hostAddress: '',      // クライアント時の接続先ホストIP
+      singularSide: 'host', // Singular API送信担当: 'host' | 'client' (ネットに出られるPCを指定)
+    },
   },
 });
 
@@ -81,6 +87,7 @@ function getSettings() {
     nameTelop: store.get('nameTelop'),
     sideTelop: store.get('sideTelop'),
     gpio: store.get('gpio'),
+    remote: store.get('remote'),
   };
 }
 
@@ -89,6 +96,7 @@ function saveSettings(settings) {
   if (settings.nameTelop) store.set('nameTelop', settings.nameTelop);
   if (settings.sideTelop) store.set('sideTelop', settings.sideTelop);
   if (settings.gpio) store.set('gpio', settings.gpio);
+  if (settings.remote) store.set('remote', settings.remote);
 }
 
 /** GPIOリモートボタン設定を取得 */
