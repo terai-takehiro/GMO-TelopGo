@@ -13,7 +13,7 @@
       <img src="../../assets/icon.png" alt="" class="app-header-icon">
       <div class="app-header-titles">
         <span class="app-header-name">GMO TelopGo</span>
-        <span class="app-header-subtitle">Singular Live テロップ送出システム</span>
+        <span class="app-header-subtitle">HTML5 テロップ送出システム</span>
       </div>
     </div>
     <div class="app-header-actions">
@@ -221,50 +221,31 @@
       <h2>接続設定</h2>
 
       <fieldset class="settings-group">
-        <legend>出力プレビュー</legend>
+        <legend>出力サーバ (HTML5グラフィックス)</legend>
         <div class="settings-row">
-          <label for="output-url">Output URL</label>
-          <input type="text" id="output-url" class="input" placeholder="https://app.singular.live/output/...">
-        </div>
-      </fieldset>
-
-      <fieldset class="settings-group">
-        <legend>名前テロップ</legend>
-        <div class="settings-row">
-          <label for="name-token">App Token (共通)</label>
-          <input type="text" id="name-token" class="input" placeholder="名前テロップ用 App Token">
-          <button class="btn btn--small" id="name-test-conn">接続テスト</button>
-        </div>
-
-        <div class="shot-settings-list" id="name-shot-settings">
-          <!-- 各ショットタイプの設定は settings-ui.js で動的生成 -->
-        </div>
-      </fieldset>
-
-      <fieldset class="settings-group">
-        <legend>サイドテロップ</legend>
-        <div class="settings-row">
-          <label for="side-token">App Token</label>
-          <input type="text" id="side-token" class="input" placeholder="サイドテロップ用 App Token">
-          <button class="btn btn--small" id="side-test-conn">接続テスト</button>
+          <label for="graphics-port">ポート番号</label>
+          <input type="number" id="graphics-port" class="input input--small" min="1" max="65535" placeholder="8790">
+          <button class="btn btn--small btn--primary" id="graphics-start">起動</button>
+          <button class="btn btn--small" id="graphics-stop">停止</button>
+          <span class="gpio-conn-status" id="graphics-conn-status">停止中</span>
         </div>
         <div class="settings-row">
-          <label for="side-sub-comp">Sub-Composition名</label>
-          <input type="text" id="side-sub-comp" class="input" placeholder="例: Side_Telop">
+          <label>自動起動</label>
+          <label class="gpio-enable-label"><input type="checkbox" id="graphics-autostart" checked> アプリ起動時に出力サーバを起動する</label>
         </div>
         <div class="settings-row">
-          <label>フィールドマッピング</label>
-          <div class="field-mapping">
-            <div class="mapping-row">
-              <span class="mapping-label">テキスト(JP)</span>
-              <input type="text" id="side-field-text-jp" class="input input--small" placeholder="textJp">
-            </div>
-            <div class="mapping-row">
-              <span class="mapping-label">テキスト(EN)</span>
-              <input type="text" id="side-field-text-en" class="input input--small" placeholder="textEn">
-            </div>
+          <label>出力URL</label>
+          <div class="graphics-urls" id="graphics-urls">
+            <span class="settings-inline-hint">サーバ起動後に表示されます</span>
           </div>
         </div>
+        <div class="settings-row">
+          <label>テンプレート</label>
+          <button class="btn btn--small" id="graphics-open-template">JSONを開く</button>
+          <button class="btn btn--small" id="graphics-reload-template">再読込して反映</button>
+          <span class="settings-inline-hint">デザインエディタは今後のアップデートで追加予定 (現在はJSON直接編集)</span>
+        </div>
+        <p class="gpio-hint">vMixのブラウザ入力に上記URLを追加してください (1920x1080・透過)。日本語/英語で別URL、名前・サイドを個別に取り込む場合は /name /side 付きのURLを使用します。他のPCから取り込む場合はWindowsファイアウォールで指定ポートの受信許可が必要です。</p>
       </fieldset>
 
       <fieldset class="settings-group">
@@ -286,12 +267,12 @@
           <input type="text" id="remote-host-address" class="input input--small" placeholder="例: 192.168.1.10">
         </div>
         <div class="settings-row">
-          <label for="remote-singular-side">Singular送信担当</label>
-          <select id="remote-singular-side" class="input input--small">
+          <label for="remote-output-side">出力担当PC</label>
+          <select id="remote-output-side" class="input input--small">
             <option value="host">ホストPC</option>
             <option value="client">クライアントPC</option>
           </select>
-          <span class="settings-inline-hint">インターネットに出られるPCを指定 (ホストがオフラインの場合はクライアントPC)</span>
+          <span class="settings-inline-hint">vMixが参照する出力サーバを動かすPCを指定 (通常はホストPC)</span>
         </div>
         <div class="settings-row">
           <label>接続</label>
@@ -362,7 +343,7 @@
   <!-- ステータスバー -->
   <footer class="status-bar">
     <span class="status-item" id="status-text">準備完了</span>
-    <span class="status-item" id="status-api">API: 未接続</span>
+    <span class="status-item" id="status-output">出力: 停止</span>
     <span class="status-item" id="status-gpio">GPIO: 未接続</span>
     <span class="status-item" id="status-remote">リンク: -</span>
   </footer>
@@ -375,6 +356,7 @@
   <script src="js/broadcast.js"></script>
   <script src="js/gpio-remote.js"></script>
   <script src="js/remote-sync.js"></script>
+  <script src="js/graphics-ui.js"></script>
   <script src="js/settings-ui.js"></script>
   <script src="js/status-bar.js"></script>
 </body>

@@ -1,16 +1,70 @@
-const { ipcMain, dialog, BrowserWindow } = require('electron');
+const { ipcMain, dialog, BrowserWindow, app, shell } = require('electron');
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const XLSX = require('xlsx');
 const { readExcel } = require('./excel-reader');
-const singularApi = require('./singular-api');
 const gpioDio = require('./gpio-dio');
 const remoteLink = require('./remote-link');
-const { getSettings, saveSettings, getTelopConfig, getNameShotConfig, getGpioConfig } = require('./settings-store');
+const graphicsStore = require('./graphics-store');
+const graphicsServer = require('./graphics-server');
+const { getSettings, saveSettings, getGpioConfig, getGraphicsConfig } = require('./settings-store');
 
 /** ショットタイプのフィールドプレフィックス */
 const PERSON_PREFIXES = ['', '2nd', '3rd', '4th'];
 
+/** 名前テロップの行データをテンプレートのバインド値へ変換 */
+function nameValues(rowData) {
+  const values = {};
+  (rowData.persons || []).forEach((person, i) => {
+    const prefix = PERSON_PREFIXES[i];
+    values[prefix ? `${prefix}TitleJp` : 'titleJp'] = person.titleJp || '';
+    values[prefix ? `${prefix}NameJp` : 'nameJp'] = person.nameJp || '';
+    values[prefix ? `${prefix}TitleEn` : 'titleEn'] = person.titleEn || '';
+    values[prefix ? `${prefix}NameEn` : 'nameEn'] = person.nameEn || '';
+  });
+  return values;
+}
+
+/** 送出データを (region, templateKey, values) に解決する */
+function resolveGraphics(telopType, rowData) {
+  if (telopType === 'name') {
+    if (!rowData || !rowData.shotType || !rowData.persons) {
+      throw new Error('ショットタイプまたは出演者データが不正です。');
+    }
+    return { region: 'name', templateKey: `name-${rowData.shotType}`, values: nameValues(rowData) };
+  }
+  return {
+    region: 'side',
+    templateKey: 'side',
+    values: { textJp: (rowData && rowData.textJp) || '', textEn: (rowData && rowData.textEn) || '' },
+  };
+}
+
+/** LAN内のIPv4アドレス一覧 */
+function lanAddresses() {
+  const addrs = [];
+  Object.values(os.networkInterfaces()).forEach((ifaces) => {
+    (ifaces || []).forEach((iface) => {
+      if (iface.family === 'IPv4' && !iface.internal) addrs.push(iface.address);
+    });
+  });
+  return addrs;
+}
+
 function registerIpcHandlers() {
+  // --- グラフィックスエンジン初期化 ---
+  graphicsStore.init(app.getPath('userData'));
+  graphicsServer.configure({
+    staticDir: path.join(__dirname, '..', 'output'),
+    assetsDir: graphicsStore.getAssetsDir(),
+    getProject: graphicsStore.getProject,
+  });
+  const graphicsConfig = getGraphicsConfig();
+  if (graphicsConfig.autoStart) {
+    graphicsServer.start(graphicsConfig.port).catch(() => { /* 状態はgetStatusで通知 */ });
+  }
+
   // --- Excel ---
   ipcMain.handle('open-excel-file', async (_event, telopType) => {
     const result = await dialog.showOpenDialog({
@@ -27,81 +81,75 @@ function registerIpcHandlers() {
     }
   });
 
-  // --- Singular API ---
-  ipcMain.handle('singular-change', async (_event, telopType, rowData) => {
-    if (telopType === 'name') {
-      return handleNameChange(rowData);
-    }
-    // side telop
-    const config = getTelopConfig('side');
-    if (!config.appToken || !config.subCompositionName) {
-      return { ok: false, error: '設定が未入力です。設定タブでApp TokenとSub-Composition名を入力してください。' };
-    }
-    const fieldData = {};
-    if (rowData.textJp !== undefined) fieldData[config.fields.textJp] = rowData.textJp;
-    if (rowData.textEn !== undefined) fieldData[config.fields.textEn] = rowData.textEn;
+  // --- グラフィックス送出 (CHANGE / TAKE / CLEAR) ---
+  ipcMain.handle('graphics-take', async (_event, telopType, rowData) => {
     try {
-      return await singularApi.change(config.appToken, config.subCompositionName, fieldData);
+      if (!graphicsServer.isRunning()) {
+        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
+      }
+      const { region, templateKey, values } = resolveGraphics(telopType, rowData);
+      graphicsServer.take(region, templateKey, values, true);
+      return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
 
-  ipcMain.handle('singular-take', async (_event, telopType, shotType) => {
-    if (telopType === 'name') {
-      const config = getNameShotConfig(shotType);
-      if (!config.appToken || !config.subCompositionName) {
-        return { ok: false, error: `${shotType}の設定が未入力です。` };
-      }
-      try {
-        return await singularApi.take(config.appToken, config.subCompositionName);
-      } catch (err) {
-        return { ok: false, error: err.message };
-      }
-    }
-    // side telop
-    const config = getTelopConfig('side');
-    if (!config.appToken || !config.subCompositionName) {
-      return { ok: false, error: '設定が未入力です。' };
-    }
+  ipcMain.handle('graphics-change', async (_event, telopType, rowData) => {
     try {
-      return await singularApi.take(config.appToken, config.subCompositionName);
+      if (!graphicsServer.isRunning()) {
+        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
+      }
+      const { region, templateKey, values } = resolveGraphics(telopType, rowData);
+      graphicsServer.change(region, templateKey, values);
+      return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
 
-  ipcMain.handle('singular-clear', async (_event, telopType, shotType) => {
-    if (telopType === 'name') {
-      const config = getNameShotConfig(shotType);
-      if (!config.appToken || !config.subCompositionName) {
-        return { ok: false, error: `${shotType}の設定が未入力です。` };
-      }
-      try {
-        return await singularApi.clear(config.appToken, config.subCompositionName);
-      } catch (err) {
-        return { ok: false, error: err.message };
-      }
-    }
-    // side telop
-    const config = getTelopConfig('side');
-    if (!config.appToken || !config.subCompositionName) {
-      return { ok: false, error: '設定が未入力です。' };
-    }
+  ipcMain.handle('graphics-clear', async (_event, telopType) => {
     try {
-      return await singularApi.clear(config.appToken, config.subCompositionName);
+      if (!graphicsServer.isRunning()) {
+        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
+      }
+      graphicsServer.clear(telopType === 'name' ? 'name' : 'side');
+      return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
 
-  ipcMain.handle('singular-test-connection', async (_event, telopType) => {
-    const config = telopType === 'name' ? getTelopConfig('name') : getTelopConfig('side');
-    if (!config.appToken) {
-      return { ok: false, error: 'App Tokenが未入力です。' };
-    }
+  // --- 出力サーバ管理 ---
+  ipcMain.handle('graphics-server-start', async (_event, port) => {
     try {
-      return await singularApi.testConnection(config.appToken);
+      const p = Math.max(1, Math.min(65535, parseInt(port, 10) || 8790));
+      await graphicsServer.start(p);
+      return { ok: true, status: graphicsServer.getStatus() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-server-stop', async () => {
+    graphicsServer.stop();
+    return { ok: true };
+  });
+
+  ipcMain.handle('graphics-server-status', async () => {
+    return { ...graphicsServer.getStatus(), lanAddresses: lanAddresses() };
+  });
+
+  ipcMain.handle('graphics-open-project-file', async () => {
+    await shell.openPath(graphicsStore.getProjectPath());
+    return { ok: true, path: graphicsStore.getProjectPath() };
+  });
+
+  ipcMain.handle('graphics-reload-project', async () => {
+    try {
+      graphicsStore.reload();
+      graphicsServer.refreshProject();
+      return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
     }
@@ -173,82 +221,6 @@ function registerIpcHandlers() {
       return { success: false, error: err.message };
     }
   });
-  // --- GPIOリモートボタン (CONTEC DIO) ---
-  ipcMain.handle('gpio-connect', async (_event, options) => {
-    const cfg = getGpioConfig();
-    try {
-      gpioDio.connect({
-        deviceName: (options && options.deviceName) || cfg.deviceName,
-        pressLevel: (options && options.pressLevel) || cfg.pressLevel,
-      });
-      return { ok: true, status: gpioDio.getStatus() };
-    } catch (err) {
-      return { ok: false, error: err.message };
-    }
-  });
-
-  ipcMain.handle('gpio-disconnect', async () => {
-    gpioDio.disconnect();
-    return { ok: true };
-  });
-
-  ipcMain.handle('gpio-status', async () => {
-    return gpioDio.getStatus();
-  });
-
-  ipcMain.handle('gpio-list-devices', async () => {
-    try {
-      return { ok: true, devices: gpioDio.listDevices() };
-    } catch (err) {
-      return { ok: false, error: err.message };
-    }
-  });
-
-  // DIOイベントを全ウィンドウへ転送
-  const broadcastToWindows = (channel, payload) => {
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed()) win.webContents.send(channel, payload);
-    });
-  };
-  gpioDio.events.on('button', (bit) => broadcastToWindows('gpio-button', bit));
-  gpioDio.events.on('state', (state) => broadcastToWindows('gpio-state', state));
-  gpioDio.events.on('error', (message) => broadcastToWindows('gpio-error', message));
-
-  // --- リモート連携 (2台運用) ---
-  ipcMain.handle('remote-start', async (_event, options) => {
-    try {
-      const port = Math.max(1, Math.min(65535, parseInt(options.port, 10) || 8765));
-      if (options.mode === 'host') {
-        remoteLink.startHost(port);
-      } else if (options.mode === 'client') {
-        if (!options.hostAddress) {
-          return { ok: false, error: '接続先ホストのIPアドレスを入力してください。' };
-        }
-        remoteLink.connectClient(options.hostAddress, port);
-      } else {
-        remoteLink.stop();
-      }
-      return { ok: true, status: remoteLink.getStatus() };
-    } catch (err) {
-      return { ok: false, error: err.message };
-    }
-  });
-
-  ipcMain.handle('remote-stop', async () => {
-    remoteLink.stop();
-    return { ok: true };
-  });
-
-  ipcMain.handle('remote-status', async () => {
-    return remoteLink.getStatus();
-  });
-
-  ipcMain.handle('remote-send', async (_event, message) => {
-    return { sent: remoteLink.send(message) };
-  });
-
-  remoteLink.events.on('message', (msg) => broadcastToWindows('remote-message', msg));
-  remoteLink.events.on('status', (status) => broadcastToWindows('remote-status-changed', status));
 
   // --- Template Download ---
   ipcMain.handle('download-template', async (_event, telopType) => {
@@ -289,47 +261,84 @@ function registerIpcHandlers() {
       return { success: false, error: err.message };
     }
   });
-}
 
-/** 名前テロップ CHANGE処理 */
-function handleNameChange(rowData) {
-  const shotType = rowData.shotType;
-  const persons = rowData.persons;
-  if (!shotType || !persons) {
-    return { ok: false, error: 'ショットタイプまたは出演者データが不正です。' };
-  }
-
-  const config = getNameShotConfig(shotType);
-  if (!config.appToken || !config.subCompositionName) {
-    return { ok: false, error: `${shotType}の設定が未入力です。設定タブで設定してください。` };
-  }
-
-  const fieldData = {};
-  const fields = config.fields;
-
-  persons.forEach((person, i) => {
-    const prefix = PERSON_PREFIXES[i];
-    if (shotType === 'nameOnly' && i === 0) {
-      // 名前のみ: titleフィールドなし
-      if (fields.nameJp) fieldData[fields.nameJp] = person.nameJp || '';
-      if (fields.nameEn) fieldData[fields.nameEn] = person.nameEn || '';
-    } else {
-      const tJp = prefix ? `${prefix}TitleJp` : 'titleJp';
-      const nJp = prefix ? `${prefix}NameJp` : 'nameJp';
-      const tEn = prefix ? `${prefix}TitleEn` : 'titleEn';
-      const nEn = prefix ? `${prefix}NameEn` : 'nameEn';
-      if (fields[tJp]) fieldData[fields[tJp]] = person.titleJp || '';
-      if (fields[nJp]) fieldData[fields[nJp]] = person.nameJp || '';
-      if (fields[tEn]) fieldData[fields[tEn]] = person.titleEn || '';
-      if (fields[nEn]) fieldData[fields[nEn]] = person.nameEn || '';
+  // --- GPIOリモートボタン (CONTEC DIO) ---
+  ipcMain.handle('gpio-connect', async (_event, options) => {
+    const cfg = getGpioConfig();
+    try {
+      gpioDio.connect({
+        deviceName: (options && options.deviceName) || cfg.deviceName,
+        pressLevel: (options && options.pressLevel) || cfg.pressLevel,
+      });
+      return { ok: true, status: gpioDio.getStatus() };
+    } catch (err) {
+      return { ok: false, error: err.message };
     }
   });
 
-  try {
-    return singularApi.change(config.appToken, config.subCompositionName, fieldData);
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
+  ipcMain.handle('gpio-disconnect', async () => {
+    gpioDio.disconnect();
+    return { ok: true };
+  });
+
+  ipcMain.handle('gpio-status', async () => {
+    return gpioDio.getStatus();
+  });
+
+  ipcMain.handle('gpio-list-devices', async () => {
+    try {
+      return { ok: true, devices: gpioDio.listDevices() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // DIO/リンク/出力サーバのイベントを全ウィンドウへ転送
+  const broadcastToWindows = (channel, payload) => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send(channel, payload);
+    });
+  };
+  gpioDio.events.on('button', (bit) => broadcastToWindows('gpio-button', bit));
+  gpioDio.events.on('state', (state) => broadcastToWindows('gpio-state', state));
+  gpioDio.events.on('error', (message) => broadcastToWindows('gpio-error', message));
+  graphicsServer.events.on('status', () => broadcastToWindows('graphics-status-changed', graphicsServer.getStatus()));
+
+  // --- リモート連携 (2台運用) ---
+  ipcMain.handle('remote-start', async (_event, options) => {
+    try {
+      const port = Math.max(1, Math.min(65535, parseInt(options.port, 10) || 8765));
+      if (options.mode === 'host') {
+        remoteLink.startHost(port);
+      } else if (options.mode === 'client') {
+        if (!options.hostAddress) {
+          return { ok: false, error: '接続先ホストのIPアドレスを入力してください。' };
+        }
+        remoteLink.connectClient(options.hostAddress, port);
+      } else {
+        remoteLink.stop();
+      }
+      return { ok: true, status: remoteLink.getStatus() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('remote-stop', async () => {
+    remoteLink.stop();
+    return { ok: true };
+  });
+
+  ipcMain.handle('remote-status', async () => {
+    return remoteLink.getStatus();
+  });
+
+  ipcMain.handle('remote-send', async (_event, message) => {
+    return { sent: remoteLink.send(message) };
+  });
+
+  remoteLink.events.on('message', (msg) => broadcastToWindows('remote-message', msg));
+  remoteLink.events.on('status', (status) => broadcastToWindows('remote-status-changed', status));
 }
 
 module.exports = { registerIpcHandlers };

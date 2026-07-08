@@ -1,0 +1,43 @@
+/* 出力ページ: 透過背景・1920x1080キャンバスをウィンドウにフィット */
+html, body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+#stage {
+  position: absolute;
+  inset: 0;
+}
+
+#canvas {
+  position: absolute;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: top left;
+}
+
+.region {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.region.on-air {
+  opacity: 1;
+}
+
+.tl-layer {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.tl-text {
+  display: flex;
+  white-space: pre-line;
+  overflow: hidden;
+}

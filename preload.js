@@ -4,11 +4,18 @@ contextBridge.exposeInMainWorld('api', {
   // Excel
   openExcelFile: (telopType) => ipcRenderer.invoke('open-excel-file', telopType),
 
-  // Singular API
-  singularChange: (telopType, data) => ipcRenderer.invoke('singular-change', telopType, data),
-  singularTake: (telopType, shotType) => ipcRenderer.invoke('singular-take', telopType, shotType),
-  singularClear: (telopType, shotType) => ipcRenderer.invoke('singular-clear', telopType, shotType),
-  singularTestConnection: (telopType) => ipcRenderer.invoke('singular-test-connection', telopType),
+  // グラフィックス送出 (ローカルHTML5出力)
+  graphicsTake: (telopType, rowData) => ipcRenderer.invoke('graphics-take', telopType, rowData),
+  graphicsChange: (telopType, rowData) => ipcRenderer.invoke('graphics-change', telopType, rowData),
+  graphicsClear: (telopType) => ipcRenderer.invoke('graphics-clear', telopType),
+
+  // 出力サーバ管理
+  graphicsServerStart: (port) => ipcRenderer.invoke('graphics-server-start', port),
+  graphicsServerStop: () => ipcRenderer.invoke('graphics-server-stop'),
+  graphicsServerStatus: () => ipcRenderer.invoke('graphics-server-status'),
+  graphicsOpenProjectFile: () => ipcRenderer.invoke('graphics-open-project-file'),
+  graphicsReloadProject: () => ipcRenderer.invoke('graphics-reload-project'),
+  onGraphicsStatus: (callback) => ipcRenderer.on('graphics-status-changed', (_event, status) => callback(status)),
 
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),

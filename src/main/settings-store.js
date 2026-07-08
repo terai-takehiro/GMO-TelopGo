@@ -2,51 +2,9 @@ const Store = require('electron-store');
 
 const store = new Store({
   defaults: {
-    outputUrl: '',
-    nameTelop: {
-      appToken: '',
-      shots: {
-        nameOnly: {
-          subCompositionName: '',
-          fields: { nameJp: 'onlynameJp', nameEn: 'onlynameEn' },
-        },
-        '1S': {
-          subCompositionName: '',
-          fields: { titleJp: 'titleJp', nameJp: 'nameJp', titleEn: 'titleEn', nameEn: 'nameEn' },
-        },
-        '2S': {
-          subCompositionName: '',
-          fields: {
-            titleJp: 'titleJp', nameJp: 'nameJp', titleEn: 'titleEn', nameEn: 'nameEn',
-            '2ndTitleJp': '2ndTitleJp', '2ndNameJp': '2ndNameJp', '2ndTitleEn': '2ndTitleEn', '2ndNameEn': '2ndNameEn',
-          },
-        },
-        '3S': {
-          subCompositionName: '',
-          fields: {
-            titleJp: 'titleJp', nameJp: 'nameJp', titleEn: 'titleEn', nameEn: 'nameEn',
-            '2ndTitleJp': '2ndTitleJp', '2ndNameJp': '2ndNameJp', '2ndTitleEn': '2ndTitleEn', '2ndNameEn': '2ndNameEn',
-            '3rdTitleJp': '3rdTitleJp', '3rdNameJp': '3rdNameJp', '3rdTitleEn': '3rdTitleEn', '3rdNameEn': '3rdNameEn',
-          },
-        },
-        '4S': {
-          subCompositionName: '',
-          fields: {
-            titleJp: 'titleJp', nameJp: 'nameJp', titleEn: 'titleEn', nameEn: 'nameEn',
-            '2ndTitleJp': '2ndTitleJp', '2ndNameJp': '2ndNameJp', '2ndTitleEn': '2ndTitleEn', '2ndNameEn': '2ndNameEn',
-            '3rdTitleJp': '3rdTitleJp', '3rdNameJp': '3rdNameJp', '3rdTitleEn': '3rdTitleEn', '3rdNameEn': '3rdNameEn',
-            '4thTitleJp': '4thTitleJp', '4thNameJp': '4thNameJp', '4thTitleEn': '4thTitleEn', '4thNameEn': '4thNameEn',
-          },
-        },
-      },
-    },
-    sideTelop: {
-      appToken: '',
-      subCompositionName: '',
-      fields: {
-        textJp: 'textJp',
-        textEn: 'textEn',
-      },
+    graphics: {
+      port: 8790,        // 出力サーバのポート (任意指定可)
+      autoStart: true,   // アプリ起動時に出力サーバを自動起動
     },
     gpio: {
       enabled: false,
@@ -73,28 +31,29 @@ const store = new Store({
       },
     },
     remote: {
-      mode: 'standalone',   // 'standalone' | 'host' | 'client'
-      port: 8765,           // 待受/接続ポート (任意指定可)
-      hostAddress: '',      // クライアント時の接続先ホストIP
-      singularSide: 'host', // Singular API送信担当: 'host' | 'client' (ネットに出られるPCを指定)
+      mode: 'standalone', // 'standalone' | 'host' | 'client'
+      port: 8765,         // 待受/接続ポート (任意指定可)
+      hostAddress: '',    // クライアント時の接続先ホストIP
+      outputSide: 'host', // 出力担当PC (vMixが参照する出力サーバを動かすPC): 'host' | 'client'
     },
   },
 });
 
 function getSettings() {
+  const remote = store.get('remote');
+  // 旧設定 (singularSide) からの移行
+  if (remote && !remote.outputSide && remote.singularSide) {
+    remote.outputSide = remote.singularSide;
+  }
   return {
-    outputUrl: store.get('outputUrl'),
-    nameTelop: store.get('nameTelop'),
-    sideTelop: store.get('sideTelop'),
+    graphics: store.get('graphics'),
     gpio: store.get('gpio'),
-    remote: store.get('remote'),
+    remote,
   };
 }
 
 function saveSettings(settings) {
-  if (settings.outputUrl !== undefined) store.set('outputUrl', settings.outputUrl);
-  if (settings.nameTelop) store.set('nameTelop', settings.nameTelop);
-  if (settings.sideTelop) store.set('sideTelop', settings.sideTelop);
+  if (settings.graphics) store.set('graphics', settings.graphics);
   if (settings.gpio) store.set('gpio', settings.gpio);
   if (settings.remote) store.set('remote', settings.remote);
 }
@@ -104,20 +63,9 @@ function getGpioConfig() {
   return store.get('gpio');
 }
 
-function getTelopConfig(telopType) {
-  return store.get(telopType === 'name' ? 'nameTelop' : 'sideTelop');
+/** 出力サーバ設定を取得 */
+function getGraphicsConfig() {
+  return store.get('graphics');
 }
 
-/** ショットタイプ別の設定を取得 (name telop用) */
-function getNameShotConfig(shotType) {
-  const nameTelop = store.get('nameTelop');
-  const shotConfig = nameTelop.shots && nameTelop.shots[shotType];
-  if (!shotConfig) return { appToken: nameTelop.appToken, subCompositionName: '', fields: {} };
-  return {
-    appToken: nameTelop.appToken,
-    subCompositionName: shotConfig.subCompositionName,
-    fields: shotConfig.fields || {},
-  };
-}
-
-module.exports = { getSettings, saveSettings, getTelopConfig, getNameShotConfig, getGpioConfig };
+module.exports = { getSettings, saveSettings, getGpioConfig, getGraphicsConfig };

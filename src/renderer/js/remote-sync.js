@@ -7,13 +7,12 @@
  *   500ms間隔で全量スナップショットを比較し、変化があればピアへ送信 (最終書き込み優先)。
  *
  * 送出コマンドのルーティング:
- *   「Singular送信担当」でないPCで CHANGE / TAKE / CLEAR (GPIOボタン含む) を操作すると、
- *   コマンドが担当PCへ転送されて実行される。ホストがインターネットに出られない構成では
- *   担当をクライアントに設定することで、クライアント経由でSingular送信できる。
+ *   「出力担当」(vMixが参照する出力サーバを動かすPC) でないPCで CHANGE / TAKE / CLEAR
+ *   (GPIOボタン含む) を操作すると、コマンドが担当PCへ転送されて実行される。
  *
  * メッセージプロトコル (JSON):
  *   hello       {role}                     クライアント→ホスト (接続時)
- *   hello-ack   {config:{singularSide}}    ホスト→クライアント (設定配布 + 直後にstate-sync)
+ *   hello-ack   {config:{outputSide}}      ホスト→クライアント (設定配布 + 直後にstate-sync)
  *   state-sync  {snapshot}                 双方向 (ホストが他クライアントへ中継)
  *   command     {action, telopType}        送出コマンド (受信側は担当の場合のみ実行)
  */
@@ -23,7 +22,7 @@ const RemoteSync = {
 
   role: 'standalone',      // 'standalone' | 'host' | 'client'
   connected: false,
-  singularSide: 'host',    // Singular API送信担当 (ホストから配布された実効値)
+  outputSide: 'host',      // 出力担当PC (vMixが参照する出力サーバを動かすPC。ホストから配布された実効値)
   lastSnapshotJson: '',
   pendingSnapshot: null,   // 入力編集中に受信したスナップショット (blur後に適用)
   receivedInitialState: false, // クライアント: ホストの初期状態を受信するまで送信を抑止
@@ -56,8 +55,9 @@ const RemoteSync = {
     if (radio) radio.checked = true;
     document.getElementById('remote-port').value = remote.port || 8765;
     document.getElementById('remote-host-address').value = remote.hostAddress || '';
-    document.getElementById('remote-singular-side').value = remote.singularSide === 'client' ? 'client' : 'host';
-    this.singularSide = remote.singularSide === 'client' ? 'client' : 'host';
+    const side = (remote.outputSide || remote.singularSide) === 'client' ? 'client' : 'host';
+    document.getElementById('remote-output-side').value = side;
+    this.outputSide = side;
     this.updateModeUi();
 
     // 起動時自動開始 (初回のみ)
@@ -72,7 +72,7 @@ const RemoteSync = {
       mode: document.querySelector('input[name="remote-mode"]:checked').value,
       port: Math.max(1, Math.min(65535, parseInt(document.getElementById('remote-port').value, 10) || 8765)),
       hostAddress: document.getElementById('remote-host-address').value.trim(),
-      singularSide: document.getElementById('remote-singular-side').value === 'client' ? 'client' : 'host',
+      outputSide: document.getElementById('remote-output-side').value === 'client' ? 'client' : 'host',
     };
   },
 
@@ -91,7 +91,7 @@ const RemoteSync = {
 
   async startLink(silent) {
     const cfg = this.collectConfig();
-    this.singularSide = cfg.singularSide;
+    this.outputSide = cfg.outputSide;
     this.receivedInitialState = false;
 
     if (cfg.mode === 'standalone') {
@@ -158,8 +158,8 @@ const RemoteSync = {
       case 'hello':
         // ホスト: 実効設定を配布し、現在の状態を正として送る
         if (this.role === 'host') {
-          this.singularSide = this.collectConfig().singularSide;
-          window.api.remoteSend({ type: 'hello-ack', payload: { config: { singularSide: this.singularSide } } });
+          this.outputSide = this.collectConfig().outputSide;
+          window.api.remoteSend({ type: 'hello-ack', payload: { config: { outputSide: this.outputSide } } });
           this.lastSnapshotJson = JSON.stringify(this.snapshot());
           window.api.remoteSend({ type: 'state-sync', payload: this.snapshot() });
         }
@@ -167,8 +167,9 @@ const RemoteSync = {
 
       case 'hello-ack':
         if (this.role === 'client') {
-          this.singularSide = msg.payload.config.singularSide === 'client' ? 'client' : 'host';
-          document.getElementById('remote-singular-side').value = this.singularSide;
+          this.outputSide = msg.payload.config.outputSide === 'client' ? 'client' : 'host';
+          document.getElementById('remote-output-side').value = this.outputSide;
+          if (typeof GraphicsUI !== 'undefined') GraphicsUI.applyPreview(GraphicsUI.status);
         }
         break;
 
@@ -182,7 +183,7 @@ const RemoteSync = {
         break;
 
       case 'command':
-        // Singular送信担当のPCのみ実行 (担当のBroadcastメソッドはローカル実行になる)
+        // 出力担当のPCのみ実行 (担当のBroadcastメソッドはローカル実行になる)
         if (this.isExecutor()) {
           const { action, telopType } = msg.payload;
           if (action === 'change') Broadcast.doChange(telopType);
@@ -198,10 +199,10 @@ const RemoteSync = {
 
   // ===== 送出コマンドのルーティング =====
 
-  /** このPCがSingular API送信を実行すべきか */
+  /** このPCが送出 (出力サーバへの配信) を実行すべきか */
   isExecutor() {
     if (this.role === 'standalone' || !this.connected) return true; // 未接続時はローカル実行にフォールバック
-    return this.role === this.singularSide;
+    return this.role === this.outputSide;
   },
 
   /** 送出操作を相手PCへ委譲すべきか (Broadcastから呼ばれる) */
@@ -212,7 +213,7 @@ const RemoteSync = {
   async sendCommand(action, telopType) {
     const result = await window.api.remoteSend({ type: 'command', payload: { action, telopType } });
     if (result.sent) {
-      App.setStatus(`${action.toUpperCase()} コマンドを${this.singularSide === 'host' ? 'ホスト' : 'クライアント'}PCへ送信しました`);
+      App.setStatus(`${action.toUpperCase()} コマンドを${this.outputSide === 'host' ? 'ホスト' : 'クライアント'}PCへ送信しました`);
     } else {
       App.setStatus('リンク未接続のためコマンドを送信できませんでした', 'error');
     }

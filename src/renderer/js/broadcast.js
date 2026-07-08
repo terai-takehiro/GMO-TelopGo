@@ -247,7 +247,7 @@ const Broadcast = {
   // --- API呼び出し ---
 
   async doChange(type) {
-    // リモート連携時: Singular送信担当でなければ担当PCへコマンドを委譲
+    // リモート連携時: 出力担当でなければ担当PCへコマンドを委譲
     if (typeof RemoteSync !== 'undefined' && RemoteSync.shouldDelegate()) {
       return RemoteSync.sendCommand('change', type);
     }
@@ -257,7 +257,8 @@ const Broadcast = {
     if (idx < 0 || idx >= data.length) return;
 
     App.setStatus('CHANGE 送信中...');
-    const result = await window.api.singularChange(type, data[idx]);
+    // CHANGE = アニメーションなしの即時差し替え
+    const result = await window.api.graphicsChange(type, data[idx]);
     if (result.ok) {
       // NEXTをON AIRに繰り上げ
       state.isOnAir = true;
@@ -296,83 +297,33 @@ const Broadcast = {
 
     const item = data[idx];
 
-    if (type === 'name') {
-      const newShotType = item.shotType;
-      const oldShotType = state.onAirShotType;
-
-      // 1. CHANGE: 新しいデータを送信
-      App.setStatus('CHANGE + TAKE 送信中...');
-      const changeResult = await window.api.singularChange(type, item);
-      if (!changeResult.ok) {
-        App.setStatus(`CHANGE エラー: ${changeResult.error || changeResult.status}`, 'error');
-        return;
+    App.setStatus('TAKE 送信中...');
+    // ローカルエンジンはテンプレート差し替えを一括処理する (旧ショットのCLEARは不要)
+    const result = await window.api.graphicsTake(type, item);
+    if (result.ok) {
+      state.isOnAir = true;
+      state.onAirIndex = idx;
+      if (type === 'name') {
+        state.onAirShotType = item.shotType;
       }
+      this.highlightRows(type);
+      this.updateInfo(type);
+      this.updateButtons(type);
 
-      // 2. ショットタイプが変わる場合、旧サブコンポジションをCLEAR
-      if (state.isOnAir && oldShotType && oldShotType !== newShotType) {
-        const clearResult = await window.api.singularClear(type, oldShotType);
-        if (!clearResult.ok) {
-          App.setStatus(`旧CLEAR エラー: ${clearResult.error || clearResult.status}`, 'error');
-          return;
+      // スケジュールモード: 次へ進む
+      if (state.mode === 'schedule') {
+        if (state.currentIndex < data.length - 1) {
+          state.currentIndex++;
+        } else {
+          state.currentIndex = -1;
         }
-      }
-
-      // 3. 新サブコンポジションをTAKE
-      const takeResult = await window.api.singularTake(type, newShotType);
-      if (takeResult.ok) {
-        state.isOnAir = true;
-        state.onAirIndex = idx;
-        state.onAirShotType = newShotType;
         this.highlightRows(type);
         this.updateInfo(type);
-        this.updateButtons(type);
-
-        // スケジュールモード: 次へ進む
-        if (state.mode === 'schedule') {
-          if (state.currentIndex < data.length - 1) {
-            state.currentIndex++;
-          } else {
-            state.currentIndex = -1;
-          }
-          this.highlightRows(type);
-          this.updateInfo(type);
-        }
-
-        App.setStatus('TAKE 完了 - ON AIR', 'success');
-      } else {
-        App.setStatus(`TAKE エラー: ${takeResult.error || takeResult.status}`, 'error');
       }
+
+      App.setStatus('TAKE 完了 - ON AIR', 'success');
     } else {
-      // サイドテロップ: 従来通り
-      App.setStatus('CHANGE + TAKE 送信中...');
-      const changeResult = await window.api.singularChange(type, item);
-      if (!changeResult.ok) {
-        App.setStatus(`CHANGE エラー: ${changeResult.error || changeResult.status}`, 'error');
-        return;
-      }
-
-      const result = await window.api.singularTake(type);
-      if (result.ok) {
-        state.isOnAir = true;
-        state.onAirIndex = idx;
-        this.highlightRows(type);
-        this.updateInfo(type);
-        this.updateButtons(type);
-
-        if (state.mode === 'schedule') {
-          if (state.currentIndex < data.length - 1) {
-            state.currentIndex++;
-          } else {
-            state.currentIndex = -1;
-          }
-          this.highlightRows(type);
-          this.updateInfo(type);
-        }
-
-        App.setStatus('TAKE 完了 - ON AIR', 'success');
-      } else {
-        App.setStatus(`TAKE エラー: ${result.error || result.status}`, 'error');
-      }
+      App.setStatus(`TAKE エラー: ${result.error || result.status}`, 'error');
     }
   },
 
@@ -383,14 +334,7 @@ const Broadcast = {
     const state = App.broadcast[type];
 
     App.setStatus('CLEAR 送信中...');
-
-    let result;
-    if (type === 'name' && state.onAirShotType) {
-      // 名前テロップ: ON AIR中のショットタイプのサブコンポジションをCLEAR
-      result = await window.api.singularClear(type, state.onAirShotType);
-    } else {
-      result = await window.api.singularClear(type);
-    }
+    const result = await window.api.graphicsClear(type);
 
     if (result.ok) {
       state.isOnAir = false;
