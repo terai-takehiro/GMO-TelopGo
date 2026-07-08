@@ -53,6 +53,9 @@ const DesignEditor = {
     document.getElementById('de-play-in').addEventListener('click', () => this.playAnimation('in'));
     document.getElementById('de-play-out').addEventListener('click', () => this.playAnimation('out'));
     document.getElementById('de-copy-lang').addEventListener('click', () => this.copyJpToEn());
+    document.getElementById('de-add-font').addEventListener('click', () => this.addFont());
+    document.getElementById('de-export').addEventListener('click', () => this.exportDesign());
+    document.getElementById('de-import').addEventListener('click', () => this.importDesign());
     document.getElementById('de-undo').addEventListener('click', () => this.undo());
     document.getElementById('de-redo').addEventListener('click', () => this.redo());
     document.getElementById('de-reload').addEventListener('click', () => this.reload());
@@ -108,7 +111,63 @@ const DesignEditor = {
       this.templateKey = Object.keys(this.project.templates)[0];
       select.value = this.templateKey;
     }
+    this.applyImportedFonts();
     this.renderAll();
+  },
+
+  /** 持ち込みフォントを@font-face適用し、フォント候補リストへ追加 */
+  applyImportedFonts() {
+    const fonts = (this.project.assets && this.project.assets.fonts) || [];
+    TelopRenderer.applyFonts(fonts, this.assetBase());
+    const datalist = document.getElementById('de-fonts');
+    datalist.querySelectorAll('option[data-imported]').forEach((o) => o.remove());
+    fonts.forEach((f) => {
+      const opt = document.createElement('option');
+      opt.value = `"${f.family}"`;
+      opt.dataset.imported = '1';
+      datalist.appendChild(opt);
+    });
+  },
+
+  async addFont() {
+    const result = await window.api.graphicsImportFont();
+    if (!result) return;
+    if (!result.ok) {
+      App.setStatus(`フォント取り込みエラー: ${result.error}`, 'error');
+      return;
+    }
+    this.beginChange();
+    this.project.assets = this.project.assets || { images: [], fonts: [] };
+    this.project.assets.fonts = this.project.assets.fonts || [];
+    this.project.assets.fonts.push({ family: result.family, file: result.file });
+    this.applyImportedFonts();
+    this.renderArtboard();
+    App.setStatus(`フォント「${result.family}」を追加しました。テキストのファミリー欄で選択できます (保存で出力にも反映)`, 'success');
+  },
+
+  async exportDesign() {
+    // 未保存の変更も含めて書き出すため、先に保存する
+    await this.save();
+    const result = await window.api.graphicsExportDesign();
+    if (!result) return;
+    if (result.ok) {
+      App.setStatus(`デザインをエクスポートしました: ${result.filePath}`, 'success');
+    } else {
+      App.setStatus(`エクスポートエラー: ${result.error}`, 'error');
+    }
+  },
+
+  async importDesign() {
+    if (!confirm('デザインファイルを読み込みます。現在のテンプレート・素材は置き換えられます。よろしいですか?')) return;
+    const result = await window.api.graphicsImportDesign();
+    if (!result) return;
+    if (result.ok) {
+      this.selectedId = null;
+      await this.loadProject();
+      App.setStatus('デザインをインポートし、出力へ反映しました', 'success');
+    } else {
+      App.setStatus(`インポートエラー: ${result.error}`, 'error');
+    }
   },
 
   // ===== モデルアクセス =====
@@ -508,7 +567,7 @@ const DesignEditor = {
     this.renderAll();
   },
 
-  /** キャンバス中央・端へのスナップ */
+  /** キャンバス中央・端 + 他レイヤーの端/中央へのスナップ */
   applySnap(layer, nx, ny) {
     const threshold = this.SNAP_PX / this.zoom;
     const guideV = document.getElementById('de-guide-v');
@@ -516,21 +575,22 @@ const DesignEditor = {
     let snapV = null;
     let snapH = null;
 
-    // X方向: 左端/中央/右端
-    const xTargets = [
-      { pos: 0, at: 'left' },
-      { pos: this.CANVAS_W / 2, at: 'center' },
-      { pos: this.CANVAS_W, at: 'right' },
-    ];
-    for (const t of xTargets) {
-      if (Math.abs(nx - t.pos) < threshold) { nx = t.pos; snapV = t.pos; break; }
-      if (Math.abs(nx + layer.w / 2 - t.pos) < threshold) { nx = Math.round(t.pos - layer.w / 2); snapV = t.pos; break; }
-      if (Math.abs(nx + layer.w - t.pos) < threshold) { nx = Math.round(t.pos - layer.w); snapV = t.pos; break; }
-    }
-    // Y方向: 上端/中央/下端
+    // スナップ先: キャンバスの端/中央 + 他レイヤーの端/中央
+    const xTargets = [0, this.CANVAS_W / 2, this.CANVAS_W];
     const yTargets = [0, this.CANVAS_H / 2, this.CANVAS_H];
+    this.layers().forEach((other) => {
+      if (other === layer || other.visible === false) return;
+      xTargets.push(other.x, other.x + other.w / 2, other.x + other.w);
+      yTargets.push(other.y, other.y + other.h / 2, other.y + other.h);
+    });
+
+    for (const t of xTargets) {
+      if (Math.abs(nx - t) < threshold) { nx = Math.round(t); snapV = t; break; }
+      if (Math.abs(nx + layer.w / 2 - t) < threshold) { nx = Math.round(t - layer.w / 2); snapV = t; break; }
+      if (Math.abs(nx + layer.w - t) < threshold) { nx = Math.round(t - layer.w); snapV = t; break; }
+    }
     for (const t of yTargets) {
-      if (Math.abs(ny - t) < threshold) { ny = t; snapH = t; break; }
+      if (Math.abs(ny - t) < threshold) { ny = Math.round(t); snapH = t; break; }
       if (Math.abs(ny + layer.h / 2 - t) < threshold) { ny = Math.round(t - layer.h / 2); snapH = t; break; }
       if (Math.abs(ny + layer.h - t) < threshold) { ny = Math.round(t - layer.h); snapH = t; break; }
     }
@@ -737,6 +797,30 @@ const DesignEditor = {
       num(() => layer.rotation || 0, (v) => { layer.rotation = v; }),
       num(() => Math.round((layer.opacity !== undefined ? layer.opacity : 1) * 100), (v) => { layer.opacity = Math.max(0, Math.min(100, v)) / 100; }, { min: 0, max: 100 }));
 
+    // キャンバス基準の整列ボタン
+    const alignBtn = (label, title, apply) => {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn--small de-align-btn';
+      btn.textContent = label;
+      btn.title = title;
+      btn.addEventListener('click', () => {
+        this.beginChange();
+        apply();
+        this.renderArtboard();
+        this.renderSelection();
+        this.renderPropsValues();
+      });
+      return btn;
+    };
+    row('整列 (横)',
+      alignBtn('左', '左端へ', () => { layer.x = 0; }),
+      alignBtn('中央', '水平中央へ', () => { layer.x = Math.round((this.CANVAS_W - layer.w) / 2); }),
+      alignBtn('右', '右端へ', () => { layer.x = this.CANVAS_W - layer.w; }));
+    row('整列 (縦)',
+      alignBtn('上', '上端へ', () => { layer.y = 0; }),
+      alignBtn('中央', '垂直中央へ', () => { layer.y = Math.round((this.CANVAS_H - layer.h) / 2); }),
+      alignBtn('下', '下端へ', () => { layer.y = this.CANVAS_H - layer.h; }));
+
     // --- テキスト ---
     if (layer.type === 'text') {
       section('テキスト');
@@ -759,6 +843,9 @@ const DesignEditor = {
       row('揃え',
         select([['left', '左'], ['center', '中央'], ['right', '右']], () => layer.align || 'left', (v) => { layer.align = v; }),
         select([['top', '上'], ['middle', '中央'], ['bottom', '下']], () => layer.vAlign || 'middle', (v) => { layer.vAlign = v; }));
+      row('自動調整', select(
+        [['none', 'なし'], ['condense', '長体 (横に圧縮して収める)'], ['shrink', '縮小 (フォントを小さくして収める)']],
+        () => layer.autoFit || 'none', (v) => { layer.autoFit = v; }));
 
       section('縁取り / 影');
       layer.stroke = layer.stroke || { width: 0, color: '#000000' };

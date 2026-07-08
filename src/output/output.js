@@ -99,6 +99,7 @@
         case 'init':
         case 'refresh':
           project = msg.payload.project;
+          TelopRenderer.applyFonts((project.assets && project.assets.fonts) || [], '/assets/');
           applyState(msg.payload.state);
           break;
         case 'take':

@@ -41,3 +41,7 @@ html, body {
   white-space: pre-line;
   overflow: hidden;
 }
+
+.tl-text-inner {
+  display: inline-block;
+}

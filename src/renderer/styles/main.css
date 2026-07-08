@@ -1122,6 +1122,9 @@ body {
   white-space: pre-line;
   overflow: hidden;
 }
+.de-canvas .tl-text-inner {
+  display: inline-block;
+}
 
 .de-overlay {
   position: absolute;
@@ -1229,3 +1232,6 @@ body {
   justify-content: space-between;
   align-items: center;
 }
+
+/* 整列ボタン */
+.de-align-btn { padding: 3px 7px; font-size: 11px; }

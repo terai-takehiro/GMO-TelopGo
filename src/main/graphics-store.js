@@ -121,17 +121,19 @@ function namePersonLayers(pi, lang, box, opts) {
   const layers = [boxLayer(`box${pi + 1}`, box.x, box.y, box.w, box.h)];
 
   if (!opts.nameOnly) {
-    layers.push(textLayer({
+    const title = textLayer({
       id: `title${pi + 1}`, name: `肩書${pi + 1}`,
       binding: bindTitle,
       sample: lang === 'Jp' ? '最優秀新人賞\nGMOペイメントゲートウェイ' : 'Rookie of the Year\nGMO Payment Gateway',
       x: box.x + pad, y: box.y + 10, w: box.w - nameW - pad * 2, h: box.h - 20,
       size: opts.titleSize, weight: 700, align: 'left', vAlign: 'middle',
       lineHeight: 1.35,
-    }));
+    });
+    title.autoFit = 'condense'; // 長い肩書は長体で自動調整
+    layers.push(title);
   }
 
-  layers.push(textLayer({
+  const name = textLayer({
     id: `name${pi + 1}`, name: `名前${pi + 1}`,
     binding: bindName,
     sample: lang === 'Jp' ? '森山 真吾' : 'Shingo Moriyama',
@@ -141,7 +143,9 @@ function namePersonLayers(pi, lang, box, opts) {
     h: box.h - 20,
     size: opts.nameSize, weight: 800,
     align: opts.nameOnly ? 'center' : 'right', vAlign: 'middle',
-  }));
+  });
+  name.autoFit = 'condense'; // 長い名前は長体で自動調整
+  layers.push(name);
 
   return layers;
 }
@@ -220,4 +224,20 @@ function buildDefaultProject() {
   };
 }
 
-module.exports = { init, reload, getProject, setProject, getProjectPath, getAssetsDir, buildDefaultProject };
+/** プロジェクトが参照している素材ファイル名の一覧 (エクスポート用) */
+function referencedAssetFiles(proj) {
+  const files = new Set();
+  const assets = proj.assets || {};
+  (assets.fonts || []).forEach((f) => { if (f.file) files.add(f.file); });
+  (assets.images || []).forEach((f) => { if (f.file) files.add(f.file); });
+  Object.values(proj.templates || {}).forEach((template) => {
+    Object.values(template.variants || {}).forEach((variant) => {
+      (variant.layers || []).forEach((layer) => {
+        if (layer.type === 'image' && layer.file) files.add(layer.file);
+      });
+    });
+  });
+  return [...files];
+}
+
+module.exports = { init, reload, getProject, setProject, getProjectPath, getAssetsDir, buildDefaultProject, referencedAssetFiles };

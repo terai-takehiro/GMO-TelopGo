@@ -176,6 +176,73 @@ function registerIpcHandlers() {
     }
   });
 
+  ipcMain.handle('graphics-import-font', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'フォントファイルを選択',
+      filters: [{ name: 'フォント', extensions: ['ttf', 'otf', 'woff', 'woff2'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    try {
+      const src = result.filePaths[0];
+      const base = path.basename(src);
+      const safe = base.replace(/[\\/:*?"<>|\s]/g, '_');
+      const file = `${Date.now()}_${safe}`;
+      fs.copyFileSync(src, path.join(graphicsStore.getAssetsDir(), file));
+      // ファミリー名の初期値は拡張子を除いたファイル名
+      const family = base.replace(/\.(ttf|otf|woff2?|TTF|OTF)$/, '');
+      return { ok: true, file, family };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // --- デザイン一式のエクスポート/インポート (テンプレート+素材をJSONに同梱) ---
+  ipcMain.handle('graphics-export-design', async () => {
+    const result = await dialog.showSaveDialog({
+      title: 'デザインをエクスポート',
+      defaultPath: 'telop-design.tgdesign',
+      filters: [{ name: 'Telop Design', extensions: ['tgdesign'] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    try {
+      const project = graphicsStore.getProject();
+      const files = {};
+      graphicsStore.referencedAssetFiles(project).forEach((file) => {
+        const p = path.join(graphicsStore.getAssetsDir(), path.basename(file));
+        if (fs.existsSync(p)) files[file] = fs.readFileSync(p).toString('base64');
+      });
+      const data = { format: 'gmo-telopgo-design', version: 1, exportedAt: new Date().toISOString(), project, files };
+      fs.writeFileSync(result.filePath, JSON.stringify(data), 'utf-8');
+      return { ok: true, filePath: result.filePath };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-import-design', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'デザインをインポート',
+      filters: [{ name: 'Telop Design', extensions: ['tgdesign', 'json'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    try {
+      const data = JSON.parse(fs.readFileSync(result.filePaths[0], 'utf-8'));
+      if (data.format !== 'gmo-telopgo-design' || !data.project || !data.project.templates) {
+        return { ok: false, error: 'デザインファイルの形式が不正です。' };
+      }
+      Object.entries(data.files || {}).forEach(([file, base64]) => {
+        fs.writeFileSync(path.join(graphicsStore.getAssetsDir(), path.basename(file)), Buffer.from(base64, 'base64'));
+      });
+      graphicsStore.setProject(data.project);
+      graphicsServer.refreshProject();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('graphics-open-project-file', async () => {
     await shell.openPath(graphicsStore.getProjectPath());
     return { ok: true, path: graphicsStore.getProjectPath() };

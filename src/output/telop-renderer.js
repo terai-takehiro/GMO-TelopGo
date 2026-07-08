@@ -19,11 +19,28 @@
     container.innerHTML = '';
     if (!variant || !variant.layers) return;
 
+    const fitQueue = [];
     variant.layers.forEach((layer) => {
       if (layer.visible === false) return;
       const el = buildLayer(layer, values || {}, assetBase, opts);
-      if (el) container.appendChild(el);
+      if (!el) return;
+      container.appendChild(el);
+      if (layer.type === 'text' && layer.autoFit && layer.autoFit !== 'none') {
+        fitQueue.push([el, layer]);
+      }
     });
+
+    // 自動調整 (縮小/長体) — DOM接続後に計測する
+    fitQueue.forEach(([el, layer]) => fitText(el, layer));
+
+    // Webフォント読込後に文字幅が変わるため再調整
+    if (fitQueue.length && document.fonts && document.fonts.status !== 'loaded') {
+      document.fonts.ready.then(() => {
+        fitQueue.forEach(([el, layer]) => {
+          if (el.isConnected) fitText(el, layer);
+        });
+      });
+    }
   }
 
   function buildLayer(layer, values, assetBase, opts) {
@@ -77,7 +94,13 @@
     if ((value === undefined || value === null || value === '') && opts.useSample) {
       value = layer.sample || '';
     }
-    el.textContent = value || '';
+    // 自動調整の計測用に内側spanへ入れる
+    const inner = document.createElement('span');
+    inner.className = 'tl-text-inner';
+    inner.textContent = value || '';
+    // 自動調整時は折り返しを禁止 (折り返すと横のはみ出しを検出できない。改行は明示的な改行のみ)
+    if (layer.autoFit && layer.autoFit !== 'none') inner.style.whiteSpace = 'pre';
+    el.appendChild(inner);
 
     const font = layer.font || {};
     el.style.fontFamily = font.family || 'sans-serif';
@@ -103,5 +126,58 @@
     }
   }
 
-  global.TelopRenderer = { renderVariant };
+  /**
+   * テキストの自動調整
+   *   shrink:   枠に収まるまでフォントサイズを縮小
+   *   condense: 長体 (横方向のみ圧縮 — 放送テロップの定番)
+   */
+  function fitText(el, layer) {
+    const inner = el.querySelector('.tl-text-inner');
+    if (!inner || !inner.textContent) return;
+
+    // リセットしてから計測
+    inner.style.transform = '';
+    el.style.fontSize = `${(layer.font && layer.font.size) || 30}px`;
+    const contentW = inner.scrollWidth;
+    if (!contentW || !el.clientWidth) return;
+
+    if (layer.autoFit === 'condense') {
+      const ratio = el.clientWidth / contentW;
+      if (ratio < 1) {
+        const originMap = { left: 'left center', center: 'center center', right: 'right center' };
+        inner.style.transformOrigin = originMap[layer.align] || 'left center';
+        inner.style.transform = `scaleX(${ratio})`;
+      }
+      return;
+    }
+
+    // shrink: 幅と高さの両方が収まる倍率にフォントサイズを縮小
+    const ratioW = el.clientWidth / contentW;
+    const ratioH = el.clientHeight / (inner.scrollHeight || 1);
+    const ratio = Math.min(1, ratioW, ratioH);
+    if (ratio < 1) {
+      const size = (layer.font && layer.font.size) || 30;
+      el.style.fontSize = `${Math.max(8, Math.floor(size * ratio))}px`;
+    }
+  }
+
+  /**
+   * 持ち込みフォントの @font-face をドキュメントへ適用する
+   * @param {Array<{family: string, file: string}>} fonts
+   * @param {string} assetBase フォントファイルの配信ベースURL
+   */
+  function applyFonts(fonts, assetBase) {
+    let style = document.getElementById('tl-fonts');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'tl-fonts';
+      document.head.appendChild(style);
+    }
+    style.textContent = (fonts || [])
+      .filter((f) => f.family && f.file)
+      .map((f) => `@font-face { font-family: ${JSON.stringify(f.family)}; src: url("${assetBase}${encodeURIComponent(f.file)}"); }`)
+      .join('\n');
+  }
+
+  global.TelopRenderer = { renderVariant, applyFonts };
 })(typeof window !== 'undefined' ? window : globalThis);
