@@ -167,8 +167,8 @@ function buildNameVariant(shotType, lang) {
   return {
     layers,
     animation: {
-      in: { preset: 'fade', duration: 350, easing: 'ease-out' },
-      out: { preset: 'fade', duration: 300, easing: 'ease-in' },
+      in: { preset: 'slide', direction: 'up', distance: 50, duration: 450, easing: 'ease-out', stagger: 70 },
+      out: { preset: 'fade', duration: 250, easing: 'ease-in' },
     },
   };
 }
@@ -187,8 +187,8 @@ function buildSideVariant(lang) {
       }),
     ],
     animation: {
-      in: { preset: 'fade', duration: 350, easing: 'ease-out' },
-      out: { preset: 'fade', duration: 300, easing: 'ease-in' },
+      in: { preset: 'wipe', direction: 'right', duration: 500, easing: 'ease-out' },
+      out: { preset: 'fade', duration: 250, easing: 'ease-in' },
     },
   };
 }

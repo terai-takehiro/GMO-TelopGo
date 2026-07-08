@@ -616,24 +616,14 @@ const DesignEditor = {
 
   playAnimation(direction) {
     const canvas = document.getElementById('de-canvas');
-    const anim = (this.variant().animation && this.variant().animation[direction]) || {};
-    const duration = anim.duration !== undefined ? anim.duration : 350;
-    const easing = anim.easing || (direction === 'in' ? 'ease-out' : 'ease-in');
-
-    canvas.style.transition = 'none';
-    canvas.style.opacity = direction === 'in' ? '0' : '1';
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        canvas.style.transition = `opacity ${duration}ms ${easing}`;
-        canvas.style.opacity = direction === 'in' ? '1' : '0';
-        if (direction === 'out') {
-          setTimeout(() => {
-            canvas.style.transition = 'none';
-            canvas.style.opacity = '1';
-          }, duration + 600);
-        }
+    if (direction === 'in') {
+      TelopAnimator.play(canvas, this.variant(), 'in');
+    } else {
+      TelopAnimator.play(canvas, this.variant(), 'out').then(() => {
+        // OUT後は少し待ってから元の表示に戻す
+        setTimeout(() => this.renderArtboard(), 400);
       });
-    });
+    }
   },
 
   // ===== JP→ENコピー =====
@@ -662,7 +652,8 @@ const DesignEditor = {
     const layer = this.selected();
     panel.innerHTML = '';
     if (!layer) {
-      panel.innerHTML = '<div class="de-props-empty">レイヤーを選択してください</div>';
+      // レイヤー未選択時はテンプレートのアニメーション設定を表示
+      this.renderAnimationProps(panel);
       return;
     }
 
@@ -831,6 +822,107 @@ const DesignEditor = {
       row('フィット', select([['fill', '引き伸ばし'], ['contain', '全体表示'], ['cover', '切り抜き']],
         () => layer.objectFit || 'fill', (v) => { layer.objectFit = v; }));
     }
+  },
+
+  /** アニメーション設定パネル (レイヤー未選択時) */
+  renderAnimationProps(panel) {
+    const variant = this.variant();
+    variant.animation = variant.animation || {};
+
+    const PRESETS = [
+      ['cut', 'カット'], ['fade', 'フェード'], ['slide', 'スライド'], ['wipe', 'ワイプ'],
+      ['pop', 'ポップ'], ['blur', 'ブラー'], ['chars', '文字送り'],
+    ];
+    const EASINGS = [
+      ['ease-out', 'イーズアウト'], ['ease-in', 'イーズイン'], ['ease-in-out', 'イーズ両端'],
+      ['ease', 'イーズ'], ['linear', 'リニア'], ['cubic-bezier(0.34,1.56,0.64,1)', 'バウンス'],
+    ];
+    const DIRECTIONS = [['up', '上へ'], ['down', '下へ'], ['left', '左へ'], ['right', '右へ']];
+
+    const intro = document.createElement('div');
+    intro.className = 'de-props-hint';
+    intro.textContent = 'テンプレートのIN/OUTアニメーション設定です。レイヤーをクリックするとレイヤー編集に切り替わります。順次ディレイで「座布団→肩書→名前」のような順出しができます。';
+    panel.appendChild(intro);
+
+    ['in', 'out'].forEach((dir) => {
+      const anim = variant.animation[dir] = variant.animation[dir]
+        || { preset: 'fade', duration: dir === 'in' ? 350 : 250, easing: dir === 'in' ? 'ease-out' : 'ease-in' };
+
+      // セクション見出し + 試写ボタン
+      const head = document.createElement('div');
+      head.className = 'de-props-section de-anim-head';
+      const title = document.createElement('span');
+      title.textContent = dir === 'in' ? 'IN アニメーション' : 'OUT アニメーション';
+      const playBtn = document.createElement('button');
+      playBtn.className = 'btn btn--small';
+      playBtn.textContent = '▶試写';
+      playBtn.addEventListener('click', () => this.playAnimation(dir));
+      head.append(title, playBtn);
+      panel.appendChild(head);
+
+      const row = (label, ...inputs) => {
+        const div = document.createElement('div');
+        div.className = 'de-prop-row';
+        const lab = document.createElement('label');
+        lab.textContent = label;
+        div.appendChild(lab);
+        inputs.forEach((i) => div.appendChild(i));
+        panel.appendChild(div);
+      };
+      const bind = (input, getter, setter, rerender) => {
+        input.addEventListener('change', () => {
+          this.beginChange();
+          setter(input);
+          if (rerender) this.renderProps();
+        });
+        getter(input);
+        return input;
+      };
+      const num = (getter, setter, attrs = {}) => {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'input input--small de-prop-num';
+        Object.entries(attrs).forEach(([k, v]) => input.setAttribute(k, v));
+        return bind(input, (i) => { i.value = getter(); }, (i) => setter(parseFloat(i.value) || 0));
+      };
+      const select = (options, getter, setter, rerender) => {
+        const sel = document.createElement('select');
+        sel.className = 'input input--small';
+        options.forEach(([value, label]) => {
+          const opt = document.createElement('option');
+          opt.value = value;
+          opt.textContent = label;
+          sel.appendChild(opt);
+        });
+        return bind(sel, (i) => { i.value = getter(); }, (i) => setter(i.value), rerender);
+      };
+
+      // プリセット (変更時はパネルを再描画して関連パラメータを出し分け)
+      row('プリセット', select(PRESETS, () => anim.preset || 'fade', (v) => { anim.preset = v; }, true));
+
+      if (anim.preset !== 'cut') {
+        row('時間 (ms)', num(() => anim.duration !== undefined ? anim.duration : 350, (v) => { anim.duration = Math.max(0, v); }, { step: '50' }));
+        row('イージング', select(EASINGS, () => anim.easing || (dir === 'in' ? 'ease-out' : 'ease-in'), (v) => { anim.easing = v; }));
+
+        if (anim.preset === 'slide') {
+          row('方向', select(DIRECTIONS, () => anim.direction || 'up', (v) => { anim.direction = v; }));
+          row('距離 (px)', num(() => anim.distance !== undefined ? anim.distance : 60, (v) => { anim.distance = v; }, { step: '10' }));
+        }
+        if (anim.preset === 'wipe') {
+          row('拭き出し方向', select(DIRECTIONS, () => anim.direction || 'right', (v) => { anim.direction = v; }));
+        }
+        if (anim.preset === 'pop') {
+          row('開始スケール', num(() => anim.scaleFrom !== undefined ? anim.scaleFrom : 0.6, (v) => { anim.scaleFrom = v; }, { step: '0.1' }));
+        }
+        if (anim.preset === 'blur') {
+          row('ぼかし量 (px)', num(() => anim.blurFrom !== undefined ? anim.blurFrom : 14, (v) => { anim.blurFrom = Math.max(0, v); }));
+        }
+        if (anim.preset === 'chars') {
+          row('文字間隔 (ms)', num(() => anim.charDelay !== undefined ? anim.charDelay : 40, (v) => { anim.charDelay = Math.max(0, v); }, { step: '10' }));
+        }
+        row('順次ディレイ (ms)', num(() => anim.stagger || 0, (v) => { anim.stagger = Math.max(0, v); }, { step: '10' }));
+      }
+    });
   },
 
   /** ドラッグ中のX/Y/W/H入力欄だけ更新 */

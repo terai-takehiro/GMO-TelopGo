@@ -88,6 +88,7 @@ function handleRequest(req, res) {
   // 出力ページ用の静的ファイル
   if (p === '/static/output.js') { sendFile(res, path.join(staticDir, 'output.js')); return; }
   if (p === '/static/telop-renderer.js') { sendFile(res, path.join(staticDir, 'telop-renderer.js')); return; }
+  if (p === '/static/telop-animator.js') { sendFile(res, path.join(staticDir, 'telop-animator.js')); return; }
   if (p === '/static/output.css') { sendFile(res, path.join(staticDir, 'output.css')); return; }
 
   // 素材 (画像/フォント) — パストラバーサル対策にbasenameのみ許可

@@ -5,6 +5,9 @@
  * take / change / clear を描画に反映する。
  *   /output/jp        → lang=jp, regions=[name, side]
  *   /output/jp/name   → lang=jp, regions=[name]
+ *
+ * アニメーションは TelopAnimator (WAAPI) で再生。
+ * OUT再生中に次のTAKEが来た場合は世代カウンタで古い完了処理を無効化する。
  */
 (function () {
   const m = location.pathname.match(/^\/output\/(jp|en)(?:\/(name|side))?\/?$/);
@@ -12,6 +15,7 @@
   const regions = m && m[2] ? [m[2]] : ['name', 'side'];
 
   let project = null;
+  const generation = { name: 0, side: 0 };
 
   const containers = {
     name: document.getElementById('region-name'),
@@ -45,24 +49,28 @@
     const variant = findVariant(templateKey);
     if (!variant) return;
 
+    generation[region]++;
     TelopRenderer.renderVariant(container, variant, values || {});
-
-    const anim = (variant.animation && variant.animation.in) || {};
-    const duration = animate ? (anim.duration !== undefined ? anim.duration : 350) : 0;
-    container.style.transition = duration ? `opacity ${duration}ms ${anim.easing || 'ease-out'}` : 'none';
-    // 再描画を挟んでからon-air化 (transitionを確実に効かせる)
-    requestAnimationFrame(() => container.classList.add('on-air'));
+    container.classList.add('on-air');
     container.dataset.templateKey = templateKey;
+
+    if (animate) {
+      TelopAnimator.play(container, variant, 'in');
+    }
   }
 
   function hide(region) {
     if (!regions.includes(region)) return;
     const container = containers[region];
+    if (!container.classList.contains('on-air')) return;
     const variant = findVariant(container.dataset.templateKey);
-    const anim = (variant && variant.animation && variant.animation.out) || {};
-    const duration = anim.duration !== undefined ? anim.duration : 300;
-    container.style.transition = `opacity ${duration}ms ${anim.easing || 'ease-in'}`;
-    container.classList.remove('on-air');
+
+    const gen = ++generation[region];
+    TelopAnimator.play(container, variant, 'out').then(() => {
+      if (generation[region] !== gen) return; // OUT中に新しいTAKEが来た
+      container.classList.remove('on-air');
+      container.innerHTML = '';
+    });
   }
 
   function applyState(state) {
@@ -71,8 +79,9 @@
       if (s && s.onAir && s.templateKey) {
         show(region, s.templateKey, s.values, false);
       } else {
-        containers[region].style.transition = 'none';
+        generation[region]++;
         containers[region].classList.remove('on-air');
+        containers[region].innerHTML = '';
       }
     });
   }

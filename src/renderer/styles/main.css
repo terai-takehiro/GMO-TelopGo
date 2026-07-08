@@ -1216,3 +1216,16 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* アニメーション設定パネル */
+.de-props-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+.de-anim-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
