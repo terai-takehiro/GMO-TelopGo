@@ -5,14 +5,6 @@
  * 監視開始で送出中テロップへ自動反映する。
  */
 const LiveDataUI = {
-  FIELDS_NAME: [
-    'titleJp', 'nameJp', 'titleEn', 'nameEn',
-    '2ndTitleJp', '2ndNameJp', '2ndTitleEn', '2ndNameEn',
-    '3rdTitleJp', '3rdNameJp', '3rdTitleEn', '3rdNameEn',
-    '4thTitleJp', '4thNameJp', '4thTitleEn', '4thNameEn',
-  ],
-  FIELDS_SIDE: ['textJp', 'textEn'],
-
   file: '',
   mappings: [{ field: '', cell: '' }],
 
@@ -25,6 +17,7 @@ const LiveDataUI = {
         document.getElementById('ld-file').value = r.file;
       }
     });
+    this.renderRegionOptions();
     document.getElementById('ld-region').addEventListener('change', () => this.renderMappings());
     document.getElementById('ld-start').addEventListener('click', () => this.start());
     document.getElementById('ld-stop').addEventListener('click', () => this.stop());
@@ -37,8 +30,31 @@ const LiveDataUI = {
     }
   },
 
+  /** 反映先チャンネルの選択肢を再生成 */
+  renderRegionOptions() {
+    const sel = document.getElementById('ld-region');
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '';
+    (App.channels.length ? App.channels : [{ id: 'name', label: '名前', region: 'name' }, { id: 'side', label: 'サイド', region: 'side' }])
+      .forEach((ch) => {
+        const opt = document.createElement('option');
+        opt.value = ch.region;
+        opt.textContent = `${ch.label}チャンネル`;
+        sel.appendChild(opt);
+      });
+    if ([...sel.options].some((o) => o.value === current)) sel.value = current;
+  },
+
+  /** 選択チャンネルのテンプレートが持つbindingフィールドの和集合 */
   fieldsForRegion() {
-    return document.getElementById('ld-region').value === 'side' ? this.FIELDS_SIDE : this.FIELDS_NAME;
+    const region = document.getElementById('ld-region').value;
+    const fields = [];
+    Object.values(App.templates || {}).forEach((tpl) => {
+      if (tpl.region !== region) return;
+      (tpl.bindings || []).forEach((b) => { if (!fields.includes(b)) fields.push(b); });
+    });
+    return fields;
   },
 
   renderMappings() {
@@ -102,7 +118,10 @@ const LiveDataUI = {
   },
 
   populateConfig(cfg) {
-    if (!cfg || !document.getElementById('ld-file')) return;
+    if (!document.getElementById('ld-file')) return;
+    this.renderRegionOptions();
+    this.renderMappings();
+    if (!cfg) return;
     this.file = cfg.file || '';
     document.getElementById('ld-file').value = this.file;
     if (cfg.region) document.getElementById('ld-region').value = cfg.region;

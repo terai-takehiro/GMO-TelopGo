@@ -6,6 +6,11 @@ const store = new Store({
       port: 8790,        // 出力サーバのポート (任意指定可)
       autoStart: true,   // アプリ起動時に出力サーバを自動起動
     },
+    // 出力チャンネル (region=URLスラッグ)。設定タブで追加/編集できる
+    channels: [
+      { id: 'name', label: '名前', region: 'name', color: '#e8b93c' },
+      { id: 'side', label: 'サイド', region: 'side', color: '#4da3ff' },
+    ],
     gpio: {
       enabled: false,
       deviceName: 'DIO000',
@@ -47,6 +52,7 @@ function getSettings() {
   }
   return {
     graphics: store.get('graphics'),
+    channels: getChannels(),
     gpio: store.get('gpio'),
     remote,
     liveData: store.get('liveData'),
@@ -55,9 +61,38 @@ function getSettings() {
 
 function saveSettings(settings) {
   if (settings.graphics) store.set('graphics', settings.graphics);
+  if (Array.isArray(settings.channels) && settings.channels.length > 0) {
+    store.set('channels', sanitizeChannels(settings.channels));
+  }
   if (settings.gpio) store.set('gpio', settings.gpio);
   if (settings.remote) store.set('remote', settings.remote);
   if (settings.liveData) store.set('liveData', settings.liveData);
+}
+
+/** 出力チャンネル一覧 (region重複や不正スラッグを除去) */
+function sanitizeChannels(channels) {
+  const seen = new Set();
+  const out = [];
+  channels.forEach((ch) => {
+    const region = String(ch.region || ch.id || '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    if (!region || region === 'jp' || region === 'en' || seen.has(region)) return;
+    seen.add(region);
+    out.push({
+      id: region,
+      label: String(ch.label || region).slice(0, 20),
+      region,
+      color: /^#[0-9a-fA-F]{6}$/.test(ch.color || '') ? ch.color : '#4da3ff',
+    });
+  });
+  return out.length ? out : undefined;
+}
+
+function getChannels() {
+  const channels = store.get('channels');
+  return Array.isArray(channels) && channels.length ? channels : [
+    { id: 'name', label: '名前', region: 'name', color: '#e8b93c' },
+    { id: 'side', label: 'サイド', region: 'side', color: '#4da3ff' },
+  ];
 }
 
 /** GPIOリモートボタン設定を取得 */
@@ -70,4 +105,4 @@ function getGraphicsConfig() {
   return store.get('graphics');
 }
 
-module.exports = { getSettings, saveSettings, getGpioConfig, getGraphicsConfig };
+module.exports = { getSettings, saveSettings, getGpioConfig, getGraphicsConfig, getChannels };

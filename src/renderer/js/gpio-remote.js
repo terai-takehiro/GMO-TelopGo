@@ -19,15 +19,24 @@ const GpioRemote = {
   /** ボタンに割当可能なアクション */
   ACTION_DEFS: [
     { key: 'none',   label: 'なし' },
-    { key: 'take',   label: 'TAKE (CHANGE+TAKE送出)' },
-    { key: 'change', label: 'CHANGE (内容差し替え)' },
+    { key: 'take',   label: 'TAKE (アニメ送出)' },
+    { key: 'update', label: 'UPDATE (即時差し替え)' },
     { key: 'clear',  label: 'CLEAR (表示消去)' },
-    { key: 'top',    label: '先頭へ (NEXTを1行目に)' },
+    { key: 'stop',   label: 'STOP (アニメ一時停止)' },
+    { key: 'top',    label: '先頭へ (NEXTをコーナー先頭に)' },
     { key: 'skip',   label: '次へ (NEXTを1つ進める)' },
     { key: 'rev',    label: '前へ (NEXTを1つ戻す)' },
   ],
 
-  TELOP_LABELS: { name: '名前テロップ', side: 'サイドテロップ' },
+  /** マッピング対象のチャンネル一覧 (設定読込時に確定) */
+  channelIds() {
+    return App.channels.length ? App.channels.map((c) => c.id) : ['name', 'side'];
+  },
+
+  channelLabel(id) {
+    const ch = App.channelById ? App.channelById(id) : null;
+    return ch ? `${ch.label}チャンネル` : id;
+  },
 
   /** 現在のマッピング設定 (UIと同期) */
   config: null,
@@ -40,9 +49,7 @@ const GpioRemote = {
   init() {
     this.config = this.defaultConfig();
 
-    // マッピングテーブル生成
-    this.renderMappingTable('name');
-    this.renderMappingTable('side');
+    // マッピングテーブルはチャンネル確定後 (populateConfig) に生成
     this.renderMonitor();
 
     // 接続操作
@@ -66,13 +73,35 @@ const GpioRemote = {
 
   defaultConfig() {
     const buttons = {};
-    ['name', 'side'].forEach((type) => {
+    this.channelIds().forEach((type) => {
       buttons[type] = {};
       this.BUTTON_DEFS.forEach((def) => {
         buttons[type][def.key] = { bit: -1, action: def.defaultAction };
       });
     });
     return { enabled: false, deviceName: 'DIO000', pressLevel: 'on', buttons };
+  },
+
+  /** チャンネルごとのマッピングテーブル群を生成 */
+  renderMappingTables() {
+    const container = document.getElementById('gpio-mapping-columns');
+    container.innerHTML = '';
+    this.channelIds().forEach((type) => {
+      const col = document.createElement('div');
+      col.className = 'gpio-mapping-col';
+      const h3 = document.createElement('h3');
+      h3.textContent = this.channelLabel(type);
+      col.appendChild(h3);
+      const table = document.createElement('table');
+      table.className = 'gpio-mapping-table';
+      table.innerHTML = '<thead><tr><th>ボタン</th><th>入力ビット</th><th></th><th>動作</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      tbody.id = `gpio-map-${type}`;
+      table.appendChild(tbody);
+      col.appendChild(table);
+      container.appendChild(col);
+      this.renderMappingTable(type);
+    });
   },
 
   // ===== 設定UI =====
@@ -162,22 +191,24 @@ const GpioRemote = {
     });
   },
 
-  /** 保存済み設定をUIに反映 */
+  /** 保存済み設定をUIに反映 (チャンネル確定後に呼ばれる) */
   populateConfig(gpio) {
-    if (!gpio) return;
+    this.renderMappingTables();
     this.config = this.defaultConfig();
+    if (!gpio) return;
     this.config.enabled = !!gpio.enabled;
     this.config.deviceName = gpio.deviceName || 'DIO000';
     this.config.pressLevel = gpio.pressLevel === 'off' ? 'off' : 'on';
 
-    ['name', 'side'].forEach((type) => {
+    this.channelIds().forEach((type) => {
       const saved = (gpio.buttons && gpio.buttons[type]) || {};
       this.BUTTON_DEFS.forEach((def) => {
         const entry = saved[def.key];
         if (!entry) return;
         const target = this.config.buttons[type][def.key];
         target.bit = typeof entry.bit === 'number' ? entry.bit : -1;
-        target.action = entry.action || def.defaultAction;
+        // 旧アクション名の互換 (change→update)
+        target.action = entry.action === 'change' ? 'update' : (entry.action || def.defaultAction);
       });
     });
 
@@ -185,7 +216,7 @@ const GpioRemote = {
     document.getElementById('gpio-device-name').value = this.config.deviceName;
     document.getElementById('gpio-press-level').value = this.config.pressLevel;
 
-    ['name', 'side'].forEach((type) => {
+    this.channelIds().forEach((type) => {
       document.querySelectorAll(`#gpio-map-${type} tr`).forEach((tr) => {
         const entry = this.config.buttons[type][tr.dataset.key];
         tr.querySelector('.gpio-bit-select').value = String(entry.bit);
@@ -287,7 +318,7 @@ const GpioRemote = {
     this.learnTarget = { type, key };
     tr.classList.add('gpio-learning');
     const label = this.BUTTON_DEFS.find((d) => d.key === key).label;
-    App.setStatus(`${hadPrevious ? '(前の検出をキャンセルしました) ' : ''}[${this.TELOP_LABELS[type]} ${label}] リモートのボタンを押してください... (10秒でキャンセル)`);
+    App.setStatus(`${hadPrevious ? '(前の検出をキャンセルしました) ' : ''}[${this.channelLabel(type)} ${label}] リモートのボタンを押してください... (10秒でキャンセル)`);
     this.learnTimer = setTimeout(() => {
       this.cancelLearn();
       App.setStatus('ボタン検出がタイムアウトしました。');
@@ -309,8 +340,8 @@ const GpioRemote = {
     this.cancelLearn();
 
     // 他のボタンに同じビットが割当済みなら解除 (1ビット=1ボタン)
-    ['name', 'side'].forEach((t) => {
-      Object.entries(this.config.buttons[t]).forEach(([k, entry]) => {
+    this.channelIds().forEach((t) => {
+      Object.entries(this.config.buttons[t] || {}).forEach(([k, entry]) => {
         if (entry.bit === bit && !(t === type && k === key)) {
           entry.bit = -1;
           const row = document.querySelector(`#gpio-map-${t} tr[data-key="${k}"]`);
@@ -327,7 +358,7 @@ const GpioRemote = {
     window.api.saveSettings(SettingsUI.collectSettings());
 
     const label = this.BUTTON_DEFS.find((d) => d.key === key).label;
-    App.setStatus(`[${this.TELOP_LABELS[type]} ${label}] に IN ${bit} を割り当てて保存しました。`, 'success');
+    App.setStatus(`[${this.channelLabel(type)} ${label}] に IN ${bit} を割り当てて保存しました。`, 'success');
   },
 
   // ===== ボタン押下 → アクション実行 =====
@@ -337,8 +368,8 @@ const GpioRemote = {
       this.assignBit(bit);
       return;
     }
-    ['name', 'side'].forEach((type) => {
-      Object.entries(this.config.buttons[type]).forEach(([key, entry]) => {
+    this.channelIds().forEach((type) => {
+      Object.entries(this.config.buttons[type] || {}).forEach(([key, entry]) => {
         if (entry.bit === bit && entry.action !== 'none') {
           this.executeAction(type, entry.action, key);
         }
@@ -346,44 +377,18 @@ const GpioRemote = {
     });
   },
 
-  executeAction(type, action, buttonKey) {
-    const data = Broadcast.getData(type);
-    const state = App.broadcast[type];
-    const label = `リモート[${this.TELOP_LABELS[type]} ${buttonKey.toUpperCase()}]`;
-
+  executeAction(channelId, action, buttonKey) {
+    void buttonKey;
     switch (action) {
-      case 'take':
-        Broadcast.doTake(type);
-        break;
-      case 'change':
-        Broadcast.doChange(type);
-        break;
-      case 'clear':
-        Broadcast.doClear(type);
-        break;
-      case 'top':
-        if (data.length === 0) break;
-        Broadcast.selectItem(type, 0);
-        App.setStatus(`${label} NEXTを先頭にしました`);
-        break;
-      case 'skip': {
-        if (data.length === 0) break;
-        const idx = state.currentIndex;
-        const next = idx < 0 ? 0 : Math.min(idx + 1, data.length - 1);
-        Broadcast.selectItem(type, next);
-        App.setStatus(`${label} NEXT: ${next + 1}行目`);
-        break;
-      }
-      case 'rev': {
-        if (data.length === 0) break;
-        const idx = state.currentIndex;
-        const prev = idx < 0 ? data.length - 1 : Math.max(idx - 1, 0);
-        Broadcast.selectItem(type, prev);
-        App.setStatus(`${label} NEXT: ${prev + 1}行目`);
-        break;
-      }
-      default:
-        break;
+      case 'take': Broadcast.doTake(channelId); break;
+      case 'update':
+      case 'change': Broadcast.doUpdate(channelId); break;
+      case 'clear': Broadcast.doClear(channelId); break;
+      case 'stop': Broadcast.doStop(channelId); break;
+      case 'top': Broadcast.goTop(channelId); break;
+      case 'skip': Broadcast.moveNext(channelId, 1); break;
+      case 'rev': Broadcast.moveNext(channelId, -1); break;
+      default: break;
     }
   },
 };

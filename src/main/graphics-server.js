@@ -46,16 +46,26 @@ let staticDir = '';
 let assetsDir = '';
 let getProject = () => null;
 
-/** リージョンごとのオンエア状態 */
-const state = {
-  name: { onAir: false, templateKey: null, values: {} },
-  side: { onAir: false, templateKey: null, values: {} },
-};
+/** リージョン(チャンネル)ごとのオンエア状態。任意のリージョン名に対応する */
+const state = {};
+
+function regionState(region) {
+  if (!state[region]) state[region] = { onAir: false, templateKey: null, values: {} };
+  return state[region];
+}
+
+let getChannels = () => [
+  { id: 'name', label: '名前', region: 'name' },
+  { id: 'side', label: 'サイド', region: 'side' },
+];
 
 function configure(options) {
   staticDir = options.staticDir;
   assetsDir = options.assetsDir;
   getProject = options.getProject;
+  if (options.getChannels) getChannels = options.getChannels;
+  // 既知チャンネルの状態スロットを用意 (出力ページのinit復元用)
+  getChannels().forEach((ch) => regionState(ch.region));
 }
 
 // ===== HTTP =====
@@ -79,8 +89,8 @@ function handleRequest(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const p = url.pathname;
 
-  // 出力ページ: /output/:lang(/:region)?
-  if (/^\/output\/(jp|en)(\/(name|side))?\/?$/.test(p)) {
+  // 出力ページ: /output/:lang(/:region)? — regionは任意のチャンネルスラッグ
+  if (/^\/output\/(jp|en)(\/[a-z0-9_-]+)?\/?$/.test(p)) {
     sendFile(res, path.join(staticDir, 'output.html'));
     return;
   }
@@ -100,12 +110,15 @@ function handleRequest(req, res) {
   }
 
   if (p === '/') {
+    const links = ['/output/jp', '/output/en'];
+    getChannels().forEach((ch) => {
+      links.push(`/output/jp/${ch.region}`, `/output/en/${ch.region}`);
+    });
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end('<meta charset="utf-8"><title>GMO TelopGo Output</title>'
-      + '<h3>GMO TelopGo 出力サーバ</h3>'
-      + '<ul><li><a href="/output/jp">/output/jp</a></li><li><a href="/output/en">/output/en</a></li>'
-      + '<li><a href="/output/jp/name">/output/jp/name</a></li><li><a href="/output/jp/side">/output/jp/side</a></li>'
-      + '<li><a href="/output/en/name">/output/en/name</a></li><li><a href="/output/en/side">/output/en/side</a></li></ul>');
+      + '<h3>GMO TelopGo 出力サーバ</h3><ul>'
+      + links.map((l) => `<li><a href="${l}">${l}</a></li>`).join('')
+      + '</ul>');
     return;
   }
 
@@ -123,7 +136,7 @@ function broadcast(msg) {
 }
 
 function initMessage() {
-  return { type: 'init', payload: { project: getProject(), state } };
+  return { type: 'init', payload: { project: getProject(), state, channels: getChannels() } };
 }
 
 // ===== 制御API =====
@@ -193,7 +206,10 @@ function getStatus() {
  * values は全言語分のフィールド値。各出力ページが自分の言語分を描画する。
  */
 function take(region, templateKey, values, animate = true) {
-  state[region] = { onAir: true, templateKey, values };
+  const st = regionState(region);
+  st.onAir = true;
+  st.templateKey = templateKey;
+  st.values = values;
   broadcast({ type: 'take', region, templateKey, values, animate });
 }
 
@@ -204,16 +220,24 @@ function change(region, templateKey, values) {
 
 /** CLEAR: OUTアニメーションで消去 */
 function clear(region) {
-  state[region] = { onAir: false, templateKey: null, values: {} };
+  const st = regionState(region);
+  st.onAir = false;
+  st.templateKey = null;
+  st.values = {};
   broadcast({ type: 'clear', region });
+}
+
+/** STOP: 再生中のアニメーションを一時停止/再開 (トグル) */
+function stopAnim(region) {
+  broadcast({ type: 'stop', region });
 }
 
 /** テンプレート再読込を全出力ページへ配信 (エディタ保存時など) */
 function refreshProject() {
-  broadcast({ type: 'refresh', payload: { project: getProject(), state } });
+  broadcast({ type: 'refresh', payload: { project: getProject(), state, channels: getChannels() } });
 }
 
 module.exports = {
   events, configure, start, stop, isRunning, getStatus,
-  take, change, clear, refreshProject,
+  take, change, clear, stopAnim, refreshProject,
 };

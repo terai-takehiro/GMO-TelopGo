@@ -11,37 +11,49 @@ const graphicsStore = require('./graphics-store');
 const graphicsServer = require('./graphics-server');
 const liveData = require('./live-data');
 const googleFonts = require('./google-fonts');
-const { getSettings, saveSettings, getGpioConfig, getGraphicsConfig } = require('./settings-store');
+const { getSettings, saveSettings, getGpioConfig, getGraphicsConfig, getChannels } = require('./settings-store');
+const rundownStore = require('./rundown-store');
 
-/** ショットタイプのフィールドプレフィックス */
-const PERSON_PREFIXES = ['', '2nd', '3rd', '4th'];
-
-/** 名前テロップの行データをテンプレートのバインド値へ変換 */
-function nameValues(rowData) {
-  const values = {};
-  (rowData.persons || []).forEach((person, i) => {
-    const prefix = PERSON_PREFIXES[i];
-    values[prefix ? `${prefix}TitleJp` : 'titleJp'] = person.titleJp || '';
-    values[prefix ? `${prefix}NameJp` : 'nameJp'] = person.nameJp || '';
-    values[prefix ? `${prefix}TitleEn` : 'titleEn'] = person.titleEn || '';
-    values[prefix ? `${prefix}NameEn` : 'nameEn'] = person.nameEn || '';
+/** テンプレートのbindingフィールド一覧 (レイヤー順・重複なし) */
+function templateBindings(templateKey) {
+  const project = graphicsStore.getProject();
+  const template = project && project.templates && project.templates[templateKey];
+  if (!template) return [];
+  const bindings = [];
+  ['jp', 'en'].forEach((lang) => {
+    const variant = template.variants && template.variants[lang];
+    ((variant && variant.layers) || []).forEach((layer) => {
+      if (layer.type === 'text' && layer.binding && !bindings.includes(layer.binding)) {
+        bindings.push(layer.binding);
+      }
+    });
   });
-  return values;
+  return bindings;
 }
 
-/** 送出データを (region, templateKey, values) に解決する */
-function resolveGraphics(telopType, rowData) {
-  if (telopType === 'name') {
-    if (!rowData || !rowData.shotType || !rowData.persons) {
-      throw new Error('ショットタイプまたは出演者データが不正です。');
-    }
-    return { region: 'name', templateKey: `name-${rowData.shotType}`, values: nameValues(rowData) };
+/** テンプレートの出力リージョン(チャンネル)を解決 */
+function templateRegion(templateKey) {
+  const project = graphicsStore.getProject();
+  const template = project && project.templates && project.templates[templateKey];
+  if (!template || !template.region) {
+    throw new Error(`テンプレートが見つかりません: ${templateKey}`);
   }
-  return {
-    region: 'side',
-    templateKey: 'side',
-    values: { textJp: (rowData && rowData.textJp) || '', textEn: (rowData && rowData.textEn) || '' },
-  };
+  return template.region;
+}
+
+// ===== オンエア操作ログ =====
+let logsDirPath = '';
+function appendOnairLog(action, detail) {
+  if (!logsDirPath) return;
+  try {
+    fs.mkdirSync(logsDirPath, { recursive: true });
+    const now = new Date();
+    const day = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const time = now.toTimeString().slice(0, 8);
+    fs.appendFileSync(
+      path.join(logsDirPath, `onair-${day}.log`),
+      `${time}\t${action}\t${detail || ''}\n`, 'utf-8');
+  } catch (_) { /* ログ失敗は送出を妨げない */ }
 }
 
 /** インストール済みフォントのファミリー名一覧 (初回のみ取得しキャッシュ) */
@@ -121,10 +133,13 @@ function lanAddresses() {
 function registerIpcHandlers() {
   // --- グラフィックスエンジン初期化 ---
   graphicsStore.init(app.getPath('userData'));
+  rundownStore.init(app.getPath('userData'));
+  logsDirPath = path.join(app.getPath('userData'), 'logs');
   graphicsServer.configure({
     staticDir: path.join(__dirname, '..', 'output'),
     assetsDir: graphicsStore.getAssetsDir(),
     getProject: graphicsStore.getProject,
+    getChannels,
   });
   const graphicsConfig = getGraphicsConfig();
   if (graphicsConfig.autoStart) {
@@ -148,42 +163,99 @@ function registerIpcHandlers() {
     }
   });
 
-  // --- グラフィックス送出 (CHANGE / TAKE / CLEAR) ---
-  ipcMain.handle('graphics-take', async (_event, telopType, rowData) => {
+  // --- グラフィックス送出 (ページ = テンプレート + 値 を直接送出) ---
+  ipcMain.handle('graphics-take', async (_event, templateKey, values, animate, logDetail) => {
     try {
       if (!graphicsServer.isRunning()) {
         return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
       }
-      const { region, templateKey, values } = resolveGraphics(telopType, rowData);
-      graphicsServer.take(region, templateKey, values, true);
+      const region = templateRegion(templateKey);
+      graphicsServer.take(region, templateKey, values || {}, animate !== false);
+      appendOnairLog(animate !== false ? 'TAKE' : 'UPDATE', logDetail || `${region} ${templateKey}`);
+      return { ok: true, region };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-clear', async (_event, region, logDetail) => {
+    try {
+      if (!graphicsServer.isRunning()) {
+        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
+      }
+      graphicsServer.clear(region);
+      appendOnairLog('CLEAR', logDetail || region);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
 
-  ipcMain.handle('graphics-change', async (_event, telopType, rowData) => {
+  ipcMain.handle('graphics-stop', async (_event, region) => {
     try {
       if (!graphicsServer.isRunning()) {
         return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
       }
-      const { region, templateKey, values } = resolveGraphics(telopType, rowData);
-      graphicsServer.change(region, templateKey, values);
+      graphicsServer.stopAnim(region);
+      appendOnairLog('STOP', region);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
 
-  ipcMain.handle('graphics-clear', async (_event, telopType) => {
+  ipcMain.handle('open-onair-logs', async () => {
+    fs.mkdirSync(logsDirPath, { recursive: true });
+    await shell.openPath(logsDirPath);
+    return { ok: true };
+  });
+
+  // --- ランダウン (番組>放送>コーナー>ページ) の永続化 ---
+  ipcMain.handle('rundown-get', async () => {
+    return rundownStore.get();
+  });
+
+  ipcMain.handle('rundown-set', async (_event, data) => {
     try {
-      if (!graphicsServer.isRunning()) {
-        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
-      }
-      graphicsServer.clear(telopType === 'name' ? 'name' : 'side');
+      rundownStore.set(data);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
+    }
+  });
+
+  // --- テンプレート情報 (ページエディタ用) ---
+  ipcMain.handle('template-bindings', async (_event, templateKey) => {
+    return { bindings: templateBindings(templateKey), region: (() => {
+      try { return templateRegion(templateKey); } catch (_) { return null; }
+    })() };
+  });
+
+  // --- Excel取込 (ページ一括: テンプレートのbinding列順) ---
+  ipcMain.handle('excel-import-pages', async (_event, templateKey) => {
+    const bindings = templateBindings(templateKey);
+    if (bindings.length === 0) {
+      return { success: false, error: 'このテンプレートには文字フィールドがありません。' };
+    }
+    const result = await dialog.showOpenDialog({
+      title: 'Excelファイルを選択',
+      filters: [{ name: 'Excel', extensions: ['xlsx', 'xls', 'csv'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    try {
+      const workbook = XLSX.readFile(result.filePaths[0]);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      const dataRows = rows.slice(1).filter((row) => row.some((cell) => String(cell).trim() !== ''));
+      const pages = dataRows.map((row) => {
+        const values = {};
+        bindings.forEach((b, i) => { values[b] = String(row[i] !== undefined ? row[i] : ''); });
+        return values;
+      });
+      return { success: true, pages, filePath: result.filePaths[0] };
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   });
 
@@ -452,19 +524,19 @@ function registerIpcHandlers() {
   });
 
   // --- Project Save/Load ---
-  ipcMain.handle('save-project', async (_event, projectData) => {
+  ipcMain.handle('save-project', async () => {
     const result = await dialog.showSaveDialog({
-      title: 'プロジェクトを保存',
-      defaultPath: 'telop-project.json',
-      filters: [{ name: 'Telop Project', extensions: ['json'] }],
+      title: 'ランダウンを書き出し',
+      defaultPath: 'telop-rundown.json',
+      filters: [{ name: 'Telop Rundown/Project', extensions: ['json'] }],
     });
     if (result.canceled || !result.filePath) return { success: false };
     try {
       const data = {
-        version: 2,
+        version: 3,
         savedAt: new Date().toISOString(),
         settings: getSettings(),
-        ...projectData,
+        rundown: rundownStore.get(),
       };
       fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2), 'utf-8');
       return { success: true, filePath: result.filePath };
@@ -475,8 +547,8 @@ function registerIpcHandlers() {
 
   ipcMain.handle('load-project', async () => {
     const result = await dialog.showOpenDialog({
-      title: 'プロジェクトを読込',
-      filters: [{ name: 'Telop Project', extensions: ['json'] }],
+      title: 'ランダウンを読込 (旧プロジェクト形式も自動変換)',
+      filters: [{ name: 'Telop Rundown/Project', extensions: ['json'] }],
       properties: ['openFile'],
     });
     if (result.canceled || result.filePaths.length === 0) return null;
@@ -484,25 +556,27 @@ function registerIpcHandlers() {
       const raw = fs.readFileSync(result.filePaths[0], 'utf-8');
       const data = JSON.parse(raw);
 
-      // v1 → v2 マイグレーション
-      if (data.version === 1) {
-        if (data.nameData) {
-          data.nameData = data.nameData.map(item => ({
+      let rundown;
+      if (data.version === 3 && data.rundown) {
+        rundown = data.rundown;
+      } else if (data.version === 1 || data.version === 2 || data.nameData || data.sideData) {
+        // 旧形式 (name/side行データ) → ランダウンへ自動移行
+        if (data.version === 1 && data.nameData) {
+          data.nameData = data.nameData.map((item) => ({
             shotType: '1S',
             persons: [{ titleJp: item.titleJp || '', nameJp: item.nameJp || '', titleEn: item.titleEn || '', nameEn: item.nameEn || '' }],
           }));
         }
-        if (!data.namePool) data.namePool = [];
-        data.version = 2;
-      }
-
-      if (data.version !== 2) {
+        rundown = rundownStore.migrateLegacy(data);
+      } else {
         return { success: false, error: 'サポートされていないプロジェクトバージョンです。' };
       }
+
+      rundownStore.set(rundown);
       if (data.settings) {
         saveSettings(data.settings);
       }
-      return { success: true, data };
+      return { success: true, rundown, migrated: data.version !== 3 };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -520,12 +594,18 @@ function registerIpcHandlers() {
         ['代表取締役', '見本 太郎', 'CEO', 'Taro Mihon'],
       ];
       defaultFilename = 'name-telop-template.xlsx';
-    } else {
+    } else if (telopType === 'side') {
       wsData = [
         ['テキスト(JP)', 'テキスト(EN)'],
         ['サンプルテキスト', 'Sample text'],
       ];
       defaultFilename = 'side-telop-template.xlsx';
+    } else {
+      // 任意テンプレート: bindingフィールドをそのまま列ヘッダに
+      const bindings = templateBindings(telopType);
+      if (bindings.length === 0) return { success: false, error: 'テンプレートに文字フィールドがありません。' };
+      wsData = [bindings];
+      defaultFilename = `${String(telopType).replace(/[^\w-]/g, '_')}-template.xlsx`;
     }
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);

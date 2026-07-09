@@ -22,6 +22,9 @@ const GraphicsUI = {
     document.getElementById('graphics-open-backups').addEventListener('click', async () => {
       if (window.api.graphicsOpenBackups) await window.api.graphicsOpenBackups();
     });
+    document.getElementById('graphics-open-logs').addEventListener('click', async () => {
+      if (window.api.openOnairLogs) await window.api.openOnairLogs();
+    });
 
     window.api.onGraphicsStatus((status) => this.applyStatus(status));
     this.refreshStatus();
@@ -94,13 +97,13 @@ const GraphicsUI = {
     }
     const host = (status.lanAddresses && status.lanAddresses[0]) || '127.0.0.1';
     const urls = [
-      { label: '日本語 (名前+サイド)', path: '/output/jp' },
-      { label: '英語 (名前+サイド)', path: '/output/en' },
-      { label: '日本語 名前のみ', path: '/output/jp/name' },
-      { label: '日本語 サイドのみ', path: '/output/jp/side' },
-      { label: '英語 名前のみ', path: '/output/en/name' },
-      { label: '英語 サイドのみ', path: '/output/en/side' },
+      { label: '日本語 (全チャンネル)', path: '/output/jp' },
+      { label: '英語 (全チャンネル)', path: '/output/en' },
     ];
+    (App.channels || []).forEach((ch) => {
+      urls.push({ label: `日本語 ${ch.label}のみ`, path: `/output/jp/${ch.region}` });
+      urls.push({ label: `英語 ${ch.label}のみ`, path: `/output/en/${ch.region}` });
+    });
     urls.forEach(({ label, path }) => {
       const url = `http://${host}:${status.port}${path}`;
       const row = document.createElement('div');
@@ -123,8 +126,8 @@ const GraphicsUI = {
    * 2台運用でこのPCが出力担当でない場合は、担当PC (ホスト) の出力を参照する。
    */
   applyPreview(status) {
-    const namePreview = document.getElementById('name-preview');
-    const sidePreview = document.getElementById('side-preview');
+    const pgm = document.getElementById('od-pgm-iframe');
+    if (!pgm) return;
 
     let base = null;
     if (status && status.running) {
@@ -139,8 +142,7 @@ const GraphicsUI = {
     }
 
     const url = base ? `${base}/output/jp?preview=1` : 'about:blank';
-    if (namePreview.src !== url) namePreview.src = url;
-    if (sidePreview.src !== url) sidePreview.src = url;
+    if (pgm.src !== url) pgm.src = url;
   },
 };
 

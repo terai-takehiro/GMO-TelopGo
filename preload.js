@@ -4,10 +4,17 @@ contextBridge.exposeInMainWorld('api', {
   // Excel
   openExcelFile: (telopType) => ipcRenderer.invoke('open-excel-file', telopType),
 
-  // グラフィックス送出 (ローカルHTML5出力)
-  graphicsTake: (telopType, rowData) => ipcRenderer.invoke('graphics-take', telopType, rowData),
-  graphicsChange: (telopType, rowData) => ipcRenderer.invoke('graphics-change', telopType, rowData),
-  graphicsClear: (telopType) => ipcRenderer.invoke('graphics-clear', telopType),
+  // グラフィックス送出 (ページ = テンプレート + 値)
+  graphicsTake: (templateKey, values, animate, logDetail) => ipcRenderer.invoke('graphics-take', templateKey, values, animate, logDetail),
+  graphicsClear: (region, logDetail) => ipcRenderer.invoke('graphics-clear', region, logDetail),
+  graphicsStop: (region) => ipcRenderer.invoke('graphics-stop', region),
+  openOnairLogs: () => ipcRenderer.invoke('open-onair-logs'),
+
+  // ランダウン (番組>放送>コーナー>ページ)
+  rundownGet: () => ipcRenderer.invoke('rundown-get'),
+  rundownSet: (data) => ipcRenderer.invoke('rundown-set', data),
+  templateBindings: (templateKey) => ipcRenderer.invoke('template-bindings', templateKey),
+  excelImportPages: (templateKey) => ipcRenderer.invoke('excel-import-pages', templateKey),
 
   // 出力サーバ管理
   graphicsServerStart: (port) => ipcRenderer.invoke('graphics-server-start', port),

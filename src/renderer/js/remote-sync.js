@@ -185,10 +185,12 @@ const RemoteSync = {
       case 'command':
         // 出力担当のPCのみ実行 (担当のBroadcastメソッドはローカル実行になる)
         if (this.isExecutor()) {
-          const { action, telopType } = msg.payload;
-          if (action === 'change') Broadcast.doChange(telopType);
-          else if (action === 'take') Broadcast.doTake(telopType);
+          const { action, telopType } = msg.payload; // telopType = チャンネルID
+          if (action === 'take') Broadcast.doTake(telopType);
+          else if (action === 'update' || action === 'change') Broadcast.doUpdate(telopType);
           else if (action === 'clear') Broadcast.doClear(telopType);
+          else if (action === 'stop') Broadcast.doStop(telopType);
+          else if (action === 'apply-edit') Broadcast.applyOnAirEdit(telopType);
         }
         break;
 
@@ -223,23 +225,20 @@ const RemoteSync = {
 
   snapshot() {
     return {
-      data: {
-        namePool: App.namePool,
-        nameData: App.nameData,
-        sideData: App.sideData,
-      },
+      v: 2,
+      rundown: App.rundown,
       broadcast: App.broadcast,
     };
   },
 
-  /** テーブル内の入力欄を編集中か (編集中はリモート状態の適用を保留) */
+  /** 送出タブの入力欄を編集中か (編集中はリモート状態の適用を保留) */
   isEditing() {
     const el = document.activeElement;
-    return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !!el.closest('.data-table');
+    return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !!el.closest('#tab-onair');
   },
 
   poll() {
-    if (this.role === 'standalone' || !this.connected) return;
+    if (this.role === 'standalone' || !this.connected || !App.rundown) return;
 
     // 編集が終わったら保留中のリモート状態を適用
     if (this.pendingSnapshot && !this.isEditing()) {
@@ -259,36 +258,23 @@ const RemoteSync = {
   },
 
   applySnapshot(snap) {
-    if (!snap || !snap.data) return;
+    if (!snap || !snap.rundown) return;
 
-    App.namePool = snap.data.namePool || [];
-    App.nameData = snap.data.nameData || [];
-    App.sideData = snap.data.sideData || [];
-
+    App.rundown = snap.rundown;
     if (snap.broadcast) {
-      ['name', 'side'].forEach((type) => {
-        if (snap.broadcast[type]) Object.assign(App.broadcast[type], snap.broadcast[type]);
+      Object.entries(snap.broadcast).forEach(([channelId, st]) => {
+        Object.assign(App.chState(channelId), st);
       });
     }
 
-    // UI再描画
-    NameTelop.renderPool();
-    NameTelop.updateDatalist();
-    NameTelop.renderAll();
-    SideTelop.renderAll();
-
-    ['name', 'side'].forEach((type) => {
-      const state = App.broadcast[type];
-      const radio = document.querySelector(`input[name="${type}-mode"][value="${state.mode}"]`);
-      if (radio && !radio.checked) {
-        radio.checked = true;
-        Broadcast.updateModeVisibility(type);
-      }
-      Broadcast.highlightRows(type);
-      Broadcast.updateInfo(type);
-      Broadcast.updateButtons(type);
-      if (state.mode === 'karuta') Broadcast.renderKarutaList(type);
-    });
+    // ランダウンの永続化とUI再描画
+    App.saveRundown();
+    if (typeof RundownUI !== 'undefined' && RundownUI.loaded) {
+      RundownUI.ensureSelections();
+      RundownUI.renderAll();
+      RundownUI.updateNamePool();
+    }
+    Broadcast.updateGlobalOnAir();
 
     // 適用結果を自分の最新状態として記録 (エコー送信を防ぐ)
     this.lastSnapshotJson = JSON.stringify(this.snapshot());

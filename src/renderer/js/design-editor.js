@@ -92,6 +92,11 @@ const DesignEditor = {
       this.selectedId = null;
       this.renderAll();
     });
+    document.getElementById('de-tpl-add').addEventListener('click', () => this.openTplDialog());
+    document.getElementById('de-tpl-rename').addEventListener('click', () => this.renameTemplate());
+    document.getElementById('de-tpl-delete').addEventListener('click', () => this.deleteTemplate());
+    document.getElementById('de-tpl-cancel').addEventListener('click', () => document.getElementById('de-tpl-dialog').close());
+    document.getElementById('de-tpl-ok').addEventListener('click', () => this.submitTplDialog());
     document.getElementById('de-lang-jp').addEventListener('click', () => this.setLang('jp'));
     document.getElementById('de-lang-en').addEventListener('click', () => this.setLang('en'));
     document.getElementById('de-zoom').addEventListener('change', (e) => {
@@ -293,6 +298,101 @@ const DesignEditor = {
     App.setStatus(`デザインセット「${entry.name}」を削除し、「${others[0].name}」に切り替えました`, 'success');
   },
 
+  templateLabel(key) {
+    const tpl = this.project && this.project.templates && this.project.templates[key];
+    return (tpl && tpl.label) || this.TEMPLATE_LABELS[key] || key;
+  },
+
+  // ===== テンプレート管理 (追加/名前変更/削除) =====
+
+  openTplDialog() {
+    const chSel = document.getElementById('de-tpl-channel');
+    chSel.innerHTML = '';
+    (App.channels.length ? App.channels : [{ id: 'name', label: '名前', region: 'name' }, { id: 'side', label: 'サイド', region: 'side' }])
+      .forEach((ch) => {
+        const opt = document.createElement('option');
+        opt.value = ch.region;
+        opt.textContent = `${ch.label} (${ch.region})`;
+        chSel.appendChild(opt);
+      });
+    const cur = this.region();
+    if ([...chSel.options].some((o) => o.value === cur)) chSel.value = cur;
+    document.getElementById('de-tpl-name').value = '';
+    document.getElementById('de-tpl-dialog').showModal();
+  },
+
+  submitTplDialog() {
+    const name = document.getElementById('de-tpl-name').value.trim();
+    const region = document.getElementById('de-tpl-channel').value;
+    const base = document.getElementById('de-tpl-base').value;
+    if (!name) {
+      App.setStatus('テンプレート名を入力してください', 'error');
+      return;
+    }
+    document.getElementById('de-tpl-dialog').close();
+    const key = `tpl_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
+    this.beginChange();
+    let template;
+    if (base === 'copy') {
+      template = JSON.parse(JSON.stringify(this.project.templates[this.templateKey]));
+      // レイヤーIDを振り直す
+      Object.values(template.variants).forEach((variant) => {
+        (variant.layers || []).forEach((layer) => { layer.id = this.newLayerId(); });
+      });
+    } else {
+      template = {
+        variants: {
+          jp: { layers: [], animation: { in: { preset: 'fade', duration: 350 }, out: { preset: 'fade', duration: 250 } } },
+          en: { layers: [], animation: { in: { preset: 'fade', duration: 350 }, out: { preset: 'fade', duration: 250 } } },
+        },
+      };
+    }
+    template.region = region;
+    template.label = name;
+    this.project.templates[key] = template;
+    this.templateKey = key;
+    this.selectedId = null;
+    this.refreshTemplateSelect();
+    this.renderAll();
+    App.setStatus(`テンプレート「${name}」を追加しました (保存で送出タブでも使えます)`, 'success');
+  },
+
+  renameTemplate() {
+    const name = prompt('テンプレート名', this.templateLabel(this.templateKey));
+    if (!name) return;
+    this.beginChange();
+    this.project.templates[this.templateKey].label = name;
+    this.refreshTemplateSelect();
+    this.renderAll();
+  },
+
+  deleteTemplate() {
+    const keys = Object.keys(this.project.templates);
+    if (keys.length <= 1) {
+      App.setStatus('最後のテンプレートは削除できません', 'error');
+      return;
+    }
+    if (!confirm(`テンプレート「${this.templateLabel(this.templateKey)}」を削除しますか?\nこのテンプレートを使うページは送出できなくなります。`)) return;
+    this.beginChange();
+    delete this.project.templates[this.templateKey];
+    this.templateKey = Object.keys(this.project.templates)[0];
+    this.selectedId = null;
+    this.refreshTemplateSelect();
+    this.renderAll();
+  },
+
+  refreshTemplateSelect() {
+    const select = document.getElementById('de-template');
+    select.innerHTML = '';
+    Object.keys(this.project.templates).forEach((key) => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = this.templateLabel(key);
+      select.appendChild(opt);
+    });
+    select.value = this.templateKey;
+  },
+
   async loadProject() {
     this.project = await window.api.graphicsGetProject();
     this.loaded = true;
@@ -306,7 +406,7 @@ const DesignEditor = {
     Object.keys(this.project.templates).forEach((key) => {
       const opt = document.createElement('option');
       opt.value = key;
-      opt.textContent = this.TEMPLATE_LABELS[key] || key;
+      opt.textContent = this.templateLabel(key);
       if (key === this.templateKey) opt.selected = true;
       select.appendChild(opt);
     });
@@ -466,12 +566,17 @@ const DesignEditor = {
 
   /** 現在のテンプレート(サンプル値)をCanvasに描画する。scale=1で1920x1080 */
   async renderToCanvas(scale) {
+    return this.renderVariantToCanvas(this.variant(), null, scale);
+  },
+
+  /** 任意のバリアント+値をCanvasに描画する (送出タブのページサムネイル等) */
+  async renderVariantToCanvas(variant, values, scale) {
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(this.CANVAS_W * scale));
     canvas.height = Math.max(1, Math.round(this.CANVAS_H * scale));
     const ctx = canvas.getContext('2d');
     ctx.scale(scale, scale);
-    for (const layer of this.variant().layers) {
+    for (const layer of (variant && variant.layers) || []) {
       if (layer.visible === false) continue;
       ctx.save();
       ctx.globalAlpha = layer.opacity !== undefined ? layer.opacity : 1;
@@ -484,7 +589,7 @@ const DesignEditor = {
       }
       if (layer.type === 'rect') this.drawRectLayer(ctx, layer);
       else if (layer.type === 'image') await this.drawImageLayer(ctx, layer);
-      else if (layer.type === 'text') this.drawTextLayer(ctx, layer);
+      else if (layer.type === 'text') this.drawTextLayer(ctx, layer, values);
       ctx.restore();
     }
     return canvas;
@@ -567,9 +672,9 @@ const DesignEditor = {
     });
   },
 
-  drawTextLayer(ctx, layer) {
+  drawTextLayer(ctx, layer, boundValues) {
     if (layer.vertical) {
-      this.drawVerticalTextLayer(ctx, layer);
+      this.drawVerticalTextLayer(ctx, layer, boundValues);
       return;
     }
     const font = layer.font || {};
@@ -582,7 +687,9 @@ const DesignEditor = {
     const mSx = font.scaleX !== undefined ? font.scaleX : 1;
     const mSy = font.scaleY !== undefined ? font.scaleY : 1;
     const skewTan = font.skewX ? Math.tan((font.skewX * Math.PI) / 180) : 0;
-    const value = layer.binding ? (layer.sample || '') : (layer.text || layer.sample || '');
+    const value = layer.binding
+      ? ((boundValues && boundValues[layer.binding]) || (boundValues ? '' : layer.sample) || '')
+      : (layer.text || layer.sample || '');
     if (!value) return;
     const tokenLines = String(value).split('\n').map((l) => this.parseRubyTokens(l));
     const lines = tokenLines.map((ts) => ts.map((t) => t.text).join(''));
@@ -735,7 +842,7 @@ const DesignEditor = {
   },
 
   /** 縦書きテキストのCanvas描画 (PNG/サムネイル用の近似描画) */
-  drawVerticalTextLayer(ctx, layer) {
+  drawVerticalTextLayer(ctx, layer, boundValues) {
     const font = layer.font || {};
     let size = font.size || 30;
     const family = font.family || 'sans-serif';
@@ -745,7 +852,9 @@ const DesignEditor = {
     const ls = font.letterSpacing || 0;
     const mSx = font.scaleX !== undefined ? font.scaleX : 1;
     const mSy = font.scaleY !== undefined ? font.scaleY : 1;
-    const value = layer.binding ? (layer.sample || '') : (layer.text || layer.sample || '');
+    const value = layer.binding
+      ? ((boundValues && boundValues[layer.binding]) || (boundValues ? '' : layer.sample) || '')
+      : (layer.text || layer.sample || '');
     if (!value) return;
     const tcyOn = layer.tcy !== false;
 
@@ -1048,15 +1157,30 @@ const DesignEditor = {
     return this.project.templates[this.templateKey].region;
   },
 
-  /** リージョンで使用可能なバインドフィールド一覧 */
+  /** 使用可能なバインドフィールド一覧 (リージョン既定候補 + テンプレート内で使用中のもの) */
   bindings() {
-    if (this.region() === 'side') return ['textJp', 'textEn'];
-    const list = [];
-    ['', '2nd', '3rd', '4th'].forEach((prefix) => {
-      ['Title', 'Name'].forEach((kind) => {
-        ['Jp', 'En'].forEach((lng) => {
-          list.push(prefix ? `${prefix}${kind}${lng}` : `${kind.toLowerCase()}${lng}`);
+    let list;
+    if (this.region() === 'side') {
+      list = ['textJp', 'textEn'];
+    } else if (this.region() === 'name') {
+      list = [];
+      ['', '2nd', '3rd', '4th'].forEach((prefix) => {
+        ['Title', 'Name'].forEach((kind) => {
+          ['Jp', 'En'].forEach((lng) => {
+            list.push(prefix ? `${prefix}${kind}${lng}` : `${kind.toLowerCase()}${lng}`);
+          });
         });
+      });
+    } else {
+      // カスタムチャンネル: 汎用フィールド候補
+      list = ['textJp', 'textEn', 'text2Jp', 'text2En', 'text3Jp', 'text3En'];
+    }
+    // テンプレート内で実際に使われているbindingを追加
+    Object.values(this.project.templates[this.templateKey].variants).forEach((variant) => {
+      (variant.layers || []).forEach((layer) => {
+        if (layer.type === 'text' && layer.binding && !list.includes(layer.binding)) {
+          list.push(layer.binding);
+        }
       });
     });
     return list;
@@ -1109,6 +1233,7 @@ const DesignEditor = {
       this.updateStatus();
       App.setStatus('デザインを保存し、出力へ反映しました', 'success');
       this.updateSetThumb(); // セット一覧用サムネイルを更新 (非同期・失敗は無視)
+      if (typeof RundownUI !== 'undefined' && RundownUI.loaded) RundownUI.refreshTemplates();
     } else {
       App.setStatus(`デザイン保存エラー: ${result.error}`, 'error');
     }
@@ -1605,7 +1730,7 @@ const DesignEditor = {
   // ===== JP→ENコピー =====
 
   copyJpToEn() {
-    if (!confirm(`「${this.TEMPLATE_LABELS[this.templateKey] || this.templateKey}」のJPレイアウトをENへコピーします。\nENの現在のレイアウトは上書きされます。よろしいですか?`)) return;
+    if (!confirm(`「${this.templateLabel(this.templateKey)}」のJPレイアウトをENへコピーします。\nENの現在のレイアウトは上書きされます。よろしいですか?`)) return;
     this.beginChange();
     const template = this.project.templates[this.templateKey];
     const copy = JSON.parse(JSON.stringify(template.variants.jp));

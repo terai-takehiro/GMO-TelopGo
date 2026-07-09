@@ -1,42 +1,119 @@
 /**
- * ショットタイプ定義
- */
-const SHOT_TYPES = {
-  nameOnly: { label: '名前のみ', personCount: 1, hasTitle: false },
-  '1S':     { label: '1S',       personCount: 1, hasTitle: true },
-  '2S':     { label: '2S',       personCount: 2, hasTitle: true },
-  '3S':     { label: '3S',       personCount: 3, hasTitle: true },
-  '4S':     { label: '4S',       personCount: 4, hasTitle: true },
-};
-
-/**
  * グローバルアプリケーション状態
+ *
+ * v2.0: ランダウン (番組 > 放送 > コーナー > ページ) を中核データにする。
+ * ページ = { id, pageNo, templateKey, values, note, duration, locked }
+ * ページの出力チャンネルはテンプレートの region から決まる。
  */
 const App = {
-  // 名前プール (Excelインポート元): [{ titleJp, nameJp, titleEn, nameEn }, ...]
-  namePool: [],
-  // 名前テロップ スケジュール: [{ shotType, persons: [{ titleJp, nameJp, titleEn, nameEn }] }, ...]
-  nameData: [],
-  // サイドテロップデータ: [{ textJp, textEn }, ...]
-  sideData: [],
+  /** 出力チャンネル [{id, label, region, color}] (settingsから) */
+  channels: [],
 
-  // 送出状態
-  broadcast: {
-    name: {
-      mode: 'schedule',    // 'schedule' | 'karuta'
-      currentIndex: 0,     // スケジュールモードの現在位置
-      selectedIndex: -1,   // かるたモードの選択位置
-      isOnAir: false,
-      onAirIndex: -1,
-      onAirShotType: null, // 現在ON AIR中のショットタイプ
-    },
-    side: {
-      mode: 'schedule',
-      currentIndex: 0,
-      selectedIndex: -1,
-      isOnAir: false,
-      onAirIndex: -1,
-    },
+  /** ランダウン全体 { programs, activeProgramId, activeBroadcastId, namePool } */
+  rundown: null,
+
+  /** グラフィックステンプレート情報 { key: { region, bindings: [] } } */
+  templates: {},
+
+  /** チャンネルごとの送出状態 { [channelId]: { onAirPageId, nextPageId, onAirSummary, onAirAt } } */
+  broadcast: {},
+
+  /** リハーサルモード (ONの間は出力サーバへ送らない) */
+  rehearsal: false,
+
+  // ===== ランダウンアクセサ =====
+
+  activeProgram() {
+    if (!this.rundown) return null;
+    return this.rundown.programs.find((p) => p.id === this.rundown.activeProgramId)
+      || this.rundown.programs[0] || null;
+  },
+
+  activeBroadcast() {
+    const program = this.activeProgram();
+    if (!program) return null;
+    return program.broadcasts.find((b) => b.id === this.rundown.activeBroadcastId)
+      || program.broadcasts[0] || null;
+  },
+
+  corners() {
+    const broadcast = this.activeBroadcast();
+    return broadcast ? broadcast.corners : [];
+  },
+
+  /** ページIDから {page, corner, list} を探す (pages/standby両方) */
+  findPage(pageId) {
+    for (const corner of this.corners()) {
+      for (const listName of ['pages', 'standby']) {
+        const page = (corner[listName] || []).find((pg) => pg.id === pageId);
+        if (page) return { page, corner, list: listName };
+      }
+    }
+    return null;
+  },
+
+  /** ページ番号からページを探す (アクティブ放送内・プレイリストのみ) */
+  findPageByNo(pageNo) {
+    const target = String(pageNo).trim();
+    for (const corner of this.corners()) {
+      const page = (corner.pages || []).find((pg) => String(pg.pageNo) === target);
+      if (page) return { page, corner };
+    }
+    return null;
+  },
+
+  /** ページの出力チャンネルID (テンプレートのregion) */
+  channelOfPage(page) {
+    const tpl = this.templates[page.templateKey];
+    return tpl ? tpl.region : null;
+  },
+
+  channelById(id) {
+    return this.channels.find((c) => c.id === id) || null;
+  },
+
+  /** チャンネルの送出状態スロット */
+  chState(channelId) {
+    if (!this.broadcast[channelId]) {
+      this.broadcast[channelId] = { onAirPageId: null, nextPageId: null, onAirSummary: '', onAirAt: 0 };
+    }
+    return this.broadcast[channelId];
+  },
+
+  anyOnAir() {
+    return Object.values(this.broadcast).some((st) => st && st.onAirPageId !== null);
+  },
+
+  // ===== 永続化 (デバウンス自動保存) =====
+
+  _saveTimer: null,
+  saveRundown() {
+    if (this._saveTimer) clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => {
+      this._saveTimer = null;
+      if (this.rundown && window.api.rundownSet) {
+        window.api.rundownSet(JSON.parse(JSON.stringify(this.rundown)));
+      }
+    }, 400);
+  },
+
+  /** グラフィックスプロジェクトからテンプレート情報を取り込む */
+  loadTemplatesFrom(project) {
+    const templates = {};
+    Object.entries((project && project.templates) || {}).forEach(([key, tpl]) => {
+      const bindings = [];
+      ['jp', 'en'].forEach((lang) => {
+        const variant = tpl.variants && tpl.variants[lang];
+        ((variant && variant.layers) || []).forEach((layer) => {
+          if (layer.type === 'text' && layer.binding && !bindings.includes(layer.binding)) {
+            bindings.push(layer.binding);
+          }
+        });
+      });
+      templates[key] = { region: tpl.region || 'name', bindings, label: tpl.label || key };
+    });
+    this.templates = templates;
+    this.graphicsProject = project;
   },
 
   /**
@@ -55,7 +132,7 @@ window.addEventListener('beforeunload', (e) => {
   if (allowAppClose) return;
 
   const reasons = [];
-  if (App.broadcast.name.isOnAir || App.broadcast.side.isOnAir) {
+  if (App.anyOnAir()) {
     reasons.push('・テロップが送出中です (終了するとvMixの表示が消えます)');
   }
   if (typeof DesignEditor !== 'undefined' && DesignEditor.dirty) {
@@ -72,23 +149,4 @@ window.addEventListener('beforeunload', (e) => {
       window.close();
     }
   }, 0);
-});
-
-// --- テンプレートダウンロード ---
-document.getElementById('dl-template-name')?.addEventListener('click', async () => {
-  const result = await window.api.downloadTemplate('name');
-  if (result?.success) {
-    App.setStatus('名前テロップテンプレートを保存しました', 'success');
-  } else if (result?.error) {
-    App.setStatus(`テンプレート保存エラー: ${result.error}`, 'error');
-  }
-});
-
-document.getElementById('dl-template-side')?.addEventListener('click', async () => {
-  const result = await window.api.downloadTemplate('side');
-  if (result?.success) {
-    App.setStatus('サイドテロップテンプレートを保存しました', 'success');
-  } else if (result?.error) {
-    App.setStatus(`テンプレート保存エラー: ${result.error}`, 'error');
-  }
 });
