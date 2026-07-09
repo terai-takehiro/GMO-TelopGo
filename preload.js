@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('api', {
   graphicsSaveProject: (project) => ipcRenderer.invoke('graphics-save-project', project),
   graphicsImportAsset: () => ipcRenderer.invoke('graphics-import-asset'),
   graphicsImportFont: () => ipcRenderer.invoke('graphics-import-font'),
+  graphicsFetchGoogleFont: (family, weights) => ipcRenderer.invoke('graphics-fetch-gfont', family, weights),
   getSystemFonts: () => ipcRenderer.invoke('system-fonts'),
   graphicsExportDesign: () => ipcRenderer.invoke('graphics-export-design'),
   graphicsImportDesign: () => ipcRenderer.invoke('graphics-import-design'),

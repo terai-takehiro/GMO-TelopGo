@@ -228,7 +228,11 @@ function buildDefaultProject() {
 function referencedAssetFiles(proj) {
   const files = new Set();
   const assets = proj.assets || {};
-  (assets.fonts || []).forEach((f) => { if (f.file) files.add(f.file); });
+  (assets.fonts || []).forEach((f) => {
+    if (f.file) files.add(f.file);
+    if (f.cssFile) files.add(f.cssFile);
+    (f.files || []).forEach((sub) => files.add(sub)); // WebフォントのCSSが参照するファイル群
+  });
   (assets.images || []).forEach((f) => { if (f.file) files.add(f.file); });
   Object.values(proj.templates || {}).forEach((template) => {
     Object.values(template.variants || {}).forEach((variant) => {

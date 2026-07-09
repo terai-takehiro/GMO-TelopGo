@@ -25,6 +25,33 @@ const DesignEditor = {
   ],
   ANIM_DIRECTIONS: [['up', '上へ'], ['down', '下へ'], ['left', '左へ'], ['right', '右へ']],
 
+  /** Webフォント取得の候補 (Google Fontsの日本語対応+定番、[ファミリー, 取得ウェイト]) */
+  GOOGLE_FONTS: [
+    ['Noto Sans JP', [400, 700, 900]],
+    ['Noto Serif JP', [400, 700, 900]],
+    ['M PLUS 1p', [400, 700, 900]],
+    ['M PLUS Rounded 1c', [400, 700]],
+    ['Zen Kaku Gothic New', [400, 700, 900]],
+    ['Zen Maru Gothic', [400, 700, 900]],
+    ['Zen Antique', [400]],
+    ['BIZ UDPGothic', [400, 700]],
+    ['BIZ UDPMincho', [400]],
+    ['Shippori Mincho', [400, 700]],
+    ['Kosugi Maru', [400]],
+    ['Sawarabi Gothic', [400]],
+    ['Kiwi Maru', [400, 500]],
+    ['Dela Gothic One', [400]],
+    ['DotGothic16', [400]],
+    ['RocknRoll One', [400]],
+    ['Yusei Magic', [400]],
+    ['Mochiy Pop One', [400]],
+    ['Train One', [400]],
+    ['Reggae One', [400]],
+    ['Roboto', [400, 700]],
+    ['Oswald', [400, 700]],
+    ['Montserrat', [400, 700, 800]],
+  ],
+
   TEMPLATE_LABELS: {
     'name-nameOnly': '名前スーパー: 名前のみ',
     'name-1S': '名前スーパー: 1S',
@@ -64,6 +91,9 @@ const DesignEditor = {
     document.getElementById('de-play-out').addEventListener('click', () => this.playAnimation('out'));
     document.getElementById('de-copy-lang').addEventListener('click', () => this.copyJpToEn());
     document.getElementById('de-add-font').addEventListener('click', () => this.addFont());
+    document.getElementById('de-add-gfont').addEventListener('click', () => this.openGFontDialog());
+    document.getElementById('de-gfont-cancel').addEventListener('click', () => document.getElementById('de-gfont-dialog').close());
+    document.getElementById('de-gfont-fetch').addEventListener('click', () => this.fetchGoogleFont());
     document.getElementById('de-export').addEventListener('click', () => this.exportDesign());
     document.getElementById('de-import').addEventListener('click', () => this.importDesign());
     document.getElementById('de-undo').addEventListener('click', () => this.undo());
@@ -158,7 +188,7 @@ const DesignEditor = {
     const imported = (this.project.assets && this.project.assets.fonts) || [];
     if (imported.length > 0) {
       const group = document.createElement('optgroup');
-      group.label = '持ち込みフォント';
+      group.label = '持ち込み / Webフォント';
       imported.forEach((f) => addOption(group, `"${f.family}"`, f.family, f.family));
       sel.appendChild(group);
     }
@@ -191,6 +221,51 @@ const DesignEditor = {
       this.renderSelection();
     });
     return sel;
+  },
+
+  // ===== Webフォント取得 (Google Fonts) =====
+
+  openGFontDialog() {
+    const select = document.getElementById('de-gfont-family');
+    if (select.options.length === 0) {
+      this.GOOGLE_FONTS.forEach(([family, weights]) => {
+        const opt = document.createElement('option');
+        opt.value = family;
+        opt.textContent = `${family} (${weights.join('/')})`;
+        select.appendChild(opt);
+      });
+    }
+    document.getElementById('de-gfont-status').textContent = '';
+    document.getElementById('de-gfont-dialog').showModal();
+  },
+
+  async fetchGoogleFont() {
+    const family = document.getElementById('de-gfont-family').value;
+    const entry = this.GOOGLE_FONTS.find(([f]) => f === family);
+    const weights = entry ? entry[1] : [400, 700];
+    const fetchBtn = document.getElementById('de-gfont-fetch');
+    const statusEl = document.getElementById('de-gfont-status');
+
+    fetchBtn.disabled = true;
+    statusEl.textContent = 'ダウンロード中... (数十秒かかる場合があります)';
+    const result = await window.api.graphicsFetchGoogleFont(family, weights);
+    fetchBtn.disabled = false;
+
+    if (!result.ok) {
+      statusEl.textContent = `取得エラー: ${result.error}`;
+      return;
+    }
+
+    this.beginChange();
+    this.project.assets = this.project.assets || { images: [], fonts: [] };
+    this.project.assets.fonts = this.project.assets.fonts || [];
+    // 同名ファミリーは差し替え
+    this.project.assets.fonts = this.project.assets.fonts.filter((f) => f.family !== family);
+    this.project.assets.fonts.push({ family: result.family, cssFile: result.cssFile, files: result.files });
+    this.applyImportedFonts();
+    this.renderProps();
+    document.getElementById('de-gfont-dialog').close();
+    App.setStatus(`Webフォント「${family}」を取り込みました (${result.files.length}ファイル)。保存で出力にも反映されます`, 'success');
   },
 
   async addFont() {

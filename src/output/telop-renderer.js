@@ -162,11 +162,15 @@
   }
 
   /**
-   * 持ち込みフォントの @font-face をドキュメントへ適用する
-   * @param {Array<{family: string, file: string}>} fonts
-   * @param {string} assetBase フォントファイルの配信ベースURL
+   * 持ち込み/Webフォントをドキュメントへ適用する
+   * @param {Array<{family: string, file?: string, cssFile?: string}>} fonts
+   *   file: フォントファイル単体 (@font-faceを生成)
+   *   cssFile: Google Fonts等から取得したCSS (unicode-range分割等をそのまま<link>で読込)
+   * @param {string} assetBase 素材の配信ベースURL
    */
   function applyFonts(fonts, assetBase) {
+    // 前回適用分を除去
+    document.querySelectorAll('link.tl-font-node').forEach((n) => n.remove());
     let style = document.getElementById('tl-fonts');
     if (!style) {
       style = document.createElement('style');
@@ -177,6 +181,14 @@
       .filter((f) => f.family && f.file)
       .map((f) => `@font-face { font-family: ${JSON.stringify(f.family)}; src: url("${assetBase}${encodeURIComponent(f.file)}"); }`)
       .join('\n');
+
+    (fonts || []).filter((f) => f.cssFile).forEach((f) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.className = 'tl-font-node';
+      link.href = assetBase + encodeURIComponent(f.cssFile);
+      document.head.appendChild(link);
+    });
   }
 
   global.TelopRenderer = { renderVariant, applyFonts };

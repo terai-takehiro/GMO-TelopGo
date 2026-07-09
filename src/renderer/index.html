@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: http:; frame-src http: https:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' http:; font-src 'self' data: http:; img-src 'self' data: http:; frame-src http: https:;">
   <title>GMO TelopGo</title>
   <link rel="stylesheet" href="styles/main.css">
 </head>
@@ -240,6 +240,7 @@
         <button class="btn btn--small" id="de-play-out">&#9654; OUT</button>
         <button class="btn btn--small" id="de-copy-lang">JP&#8594;ENコピー</button>
         <button class="btn btn--small" id="de-add-font">フォント追加</button>
+        <button class="btn btn--small" id="de-add-gfont">Webフォント</button>
         <button class="btn btn--small" id="de-export">書き出し</button>
         <button class="btn btn--small" id="de-import">読み込み</button>
         <span class="de-spacer"></span>
@@ -282,6 +283,25 @@
       </div>
     </div>
   </div>
+
+  <!-- Webフォント取得ダイアログ -->
+  <dialog id="de-gfont-dialog" class="de-dialog">
+    <h3>Webフォントを取得 (Google Fonts)</h3>
+    <p class="de-props-hint">
+      選んだフォントをこのPCへダウンロードして取り込みます (取得時のみインターネット接続が必要)。
+      取り込み後は出力サーバから配信されるため、vMix側のPCにフォントが入っていなくても文字化けしません。
+      Google FontsはOFL等の再配布可能なライセンスで提供されています。
+    </p>
+    <div class="settings-row">
+      <label for="de-gfont-family">フォント</label>
+      <select id="de-gfont-family" class="input"></select>
+    </div>
+    <div class="de-dialog-actions">
+      <span class="settings-inline-hint" id="de-gfont-status"></span>
+      <button class="btn btn--small" id="de-gfont-cancel">キャンセル</button>
+      <button class="btn btn--small btn--primary" id="de-gfont-fetch">取得して追加</button>
+    </div>
+  </dialog>
 
   <!-- ===== 設定 タブ ===== -->
   <div class="tab-content" id="tab-settings">

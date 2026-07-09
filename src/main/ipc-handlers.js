@@ -9,6 +9,7 @@ const gpioDio = require('./gpio-dio');
 const remoteLink = require('./remote-link');
 const graphicsStore = require('./graphics-store');
 const graphicsServer = require('./graphics-server');
+const googleFonts = require('./google-fonts');
 const { getSettings, saveSettings, getGpioConfig, getGraphicsConfig } = require('./settings-store');
 
 /** ショットタイプのフィールドプレフィックス */
@@ -216,6 +217,15 @@ function registerIpcHandlers() {
 
   ipcMain.handle('system-fonts', async () => {
     return listSystemFonts();
+  });
+
+  ipcMain.handle('graphics-fetch-gfont', async (_event, family, weights) => {
+    try {
+      const result = await googleFonts.fetchFamily(family, weights, graphicsStore.getAssetsDir());
+      return { ok: true, ...result };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
   });
 
   ipcMain.handle('graphics-import-font', async () => {
