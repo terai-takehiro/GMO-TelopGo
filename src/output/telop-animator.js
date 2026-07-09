@@ -14,9 +14,30 @@
  *   blurFrom:  blurのぼかし量 (px, 既定14)
  *   charDelay: charsの1文字ごとの遅れ (ms, 既定40)
  *   stagger:   レイヤーごとの順次ディレイ (ms, 背面レイヤーから順に)
+ *
+ * レイヤー個別設定 (layer.anim.in / .out):
+ *   上記と同じ項目 + delay (再生開始からの遅れms)。
+ *   設定されたレイヤーはテンプレート既定より優先される (PowerPointの個別アニメーション相当)。
  */
 (function (global) {
   const DEFAULTS = { preset: 'fade', duration: 350 };
+
+  /**
+   * レイヤーの実効アニメーション設定を解決する
+   * @param {Object} variant テンプレートのバリアント
+   * @param {Object|null} layer レイヤー定義 (個別設定の参照用)
+   * @param {number} index 表示レイヤー中のインデックス (既定のstagger計算用)
+   * @param {'in'|'out'} direction
+   * @returns {{anim: Object, delay: number, custom: boolean}}
+   */
+  function resolve(variant, layer, index, direction) {
+    const own = layer && layer.anim && layer.anim[direction];
+    if (own) {
+      return { anim: Object.assign({}, DEFAULTS, own), delay: own.delay || 0, custom: true };
+    }
+    const tpl = Object.assign({}, DEFAULTS, (variant && variant.animation && variant.animation[direction]) || {});
+    return { anim: tpl, delay: (tpl.stagger || 0) * index, custom: false };
+  }
 
   /** プリセットごとの「隠れた状態」のフレームを作る (INは→表示, OUTは表示→) */
   function hiddenFrame(anim, baseTransform) {
@@ -88,25 +109,28 @@
    * @returns {Promise} 全レイヤーの再生完了
    */
   function play(container, variant, direction) {
-    const anim = Object.assign({}, DEFAULTS, (variant && variant.animation && variant.animation[direction]) || {});
-    const layers = Array.from(container.querySelectorAll('.tl-layer'));
-    if (layers.length === 0) return Promise.resolve();
+    const layerEls = Array.from(container.querySelectorAll('.tl-layer'));
+    if (layerEls.length === 0) return Promise.resolve();
 
     // 進行中のアニメーションを破棄
-    layers.forEach((el) => {
+    layerEls.forEach((el) => {
       el.getAnimations({ subtree: true }).forEach((a) => a.cancel());
     });
 
-    if (anim.preset === 'cut' || !anim.duration) {
-      return Promise.resolve();
-    }
-
-    const stagger = anim.stagger || 0;
-    const easing = anim.easing || (direction === 'in' ? 'ease-out' : 'ease-in');
+    const layerDefs = (variant && variant.layers) || [];
     const finished = [];
 
-    layers.forEach((el, i) => {
-      const delay = stagger * i;
+    layerEls.forEach((el, i) => {
+      const layer = layerDefs.find((l) => l.id === el.dataset.layerId) || null;
+      const resolved = resolve(variant, layer, i, direction);
+      const delay = resolved.delay;
+      // カットは「指定時刻に出現/消滅」として1msのフェードで表現
+      const anim = resolved.anim.preset === 'cut'
+        ? Object.assign({}, resolved.anim, { preset: 'fade', duration: 1 })
+        : resolved.anim;
+      if (!anim.duration) return;
+
+      const easing = anim.easing || (direction === 'in' ? 'ease-out' : 'ease-in');
       const baseTransform = el.style.transform;
 
       if (anim.preset === 'chars' && el.classList.contains('tl-text')) {
@@ -141,5 +165,5 @@
     return Promise.allSettled(finished);
   }
 
-  global.TelopAnimator = { play };
+  global.TelopAnimator = { play, resolve };
 })(typeof window !== 'undefined' ? window : globalThis);

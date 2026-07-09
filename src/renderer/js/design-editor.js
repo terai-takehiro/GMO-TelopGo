@@ -15,6 +15,16 @@ const DesignEditor = {
   CANVAS_H: 1080,
   SNAP_PX: 8, // スナップ判定 (画面px)
 
+  ANIM_PRESETS: [
+    ['cut', 'カット (出現)'], ['fade', 'フェード'], ['slide', 'スライド'], ['wipe', 'ワイプ'],
+    ['pop', 'ポップ'], ['blur', 'ブラー'], ['chars', '文字送り'],
+  ],
+  ANIM_EASINGS: [
+    ['ease-out', 'イーズアウト'], ['ease-in', 'イーズイン'], ['ease-in-out', 'イーズ両端'],
+    ['ease', 'イーズ'], ['linear', 'リニア'], ['cubic-bezier(0.34,1.56,0.64,1)', 'バウンス'],
+  ],
+  ANIM_DIRECTIONS: [['up', '上へ'], ['down', '下へ'], ['left', '左へ'], ['right', '右へ']],
+
   TEMPLATE_LABELS: {
     'name-nameOnly': '名前スーパー: 名前のみ',
     'name-1S': '名前スーパー: 1S',
@@ -963,6 +973,184 @@ const DesignEditor = {
       row('フィット', select([['fill', '引き伸ばし'], ['contain', '全体表示'], ['cover', '切り抜き']],
         () => layer.objectFit || 'fill', (v) => { layer.objectFit = v; }));
     }
+
+    // --- アニメーション (レイヤー個別設定 — PowerPointの個別アニメーション相当) ---
+    section('アニメーション');
+    row('動き', select(
+      [['default', 'テンプレートの既定に従う'], ['custom', 'このレイヤーだけ個別設定']],
+      () => (layer.anim ? 'custom' : 'default'),
+      (v) => {
+        if (v === 'custom') {
+          layer.anim = layer.anim || {
+            in: { preset: 'fade', duration: 350, easing: 'ease-out', delay: 0 },
+            out: { preset: 'fade', duration: 250, easing: 'ease-in', delay: 0 },
+          };
+        } else {
+          delete layer.anim;
+        }
+        this.renderProps();
+      }));
+
+    if (layer.anim) {
+      ['in', 'out'].forEach((dir) => {
+        layer.anim[dir] = layer.anim[dir]
+          || { preset: 'fade', duration: dir === 'in' ? 350 : 250, easing: dir === 'in' ? 'ease-out' : 'ease-in', delay: 0 };
+
+        const head = document.createElement('div');
+        head.className = 'de-props-section de-anim-head';
+        const title = document.createElement('span');
+        title.textContent = dir === 'in' ? 'IN (このレイヤー)' : 'OUT (このレイヤー)';
+        const playBtn = document.createElement('button');
+        playBtn.className = 'btn btn--small';
+        playBtn.textContent = '▶試写';
+        playBtn.addEventListener('click', () => this.playAnimation(dir));
+        head.append(title, playBtn);
+        panel.appendChild(head);
+
+        this.renderAnimFields(panel, layer.anim[dir], {
+          includeDelay: true,
+          defaultEasing: dir === 'in' ? 'ease-out' : 'ease-in',
+        });
+      });
+
+      const hint = document.createElement('div');
+      hint.className = 'de-props-hint';
+      hint.textContent = '「開始」はTAKEからの時間です。全レイヤーのタイミングは、選択を解除するとタイムラインで確認できます。';
+      panel.appendChild(hint);
+    }
+  },
+
+  /**
+   * アニメーション設定フィールド群 (テンプレート既定/レイヤー個別 共通)
+   * @param {HTMLElement} panel
+   * @param {Object} anim 設定オブジェクト (直接書き換える)
+   * @param {Object} opts { includeStagger, includeDelay, defaultEasing }
+   */
+  renderAnimFields(panel, anim, opts = {}) {
+    const row = (label, ...inputs) => {
+      const div = document.createElement('div');
+      div.className = 'de-prop-row';
+      const lab = document.createElement('label');
+      lab.textContent = label;
+      div.appendChild(lab);
+      inputs.forEach((i) => div.appendChild(i));
+      panel.appendChild(div);
+    };
+    const bind = (input, getter, setter, rerender) => {
+      input.addEventListener('change', () => {
+        this.beginChange();
+        setter(input);
+        if (rerender) this.renderProps();
+      });
+      getter(input);
+      return input;
+    };
+    const num = (getter, setter, attrs = {}) => {
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.className = 'input input--small de-prop-num';
+      Object.entries(attrs).forEach(([k, v]) => input.setAttribute(k, v));
+      return bind(input, (i) => { i.value = getter(); }, (i) => setter(parseFloat(i.value) || 0));
+    };
+    const select = (options, getter, setter, rerender) => {
+      const sel = document.createElement('select');
+      sel.className = 'input input--small';
+      options.forEach(([value, label]) => {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = label;
+        sel.appendChild(opt);
+      });
+      return bind(sel, (i) => { i.value = getter(); }, (i) => setter(i.value), rerender);
+    };
+
+    // プリセット (変更時はパネルを再描画して関連パラメータを出し分け)
+    row('プリセット', select(this.ANIM_PRESETS, () => anim.preset || 'fade', (v) => { anim.preset = v; }, true));
+
+    // 開始タイミング (レイヤー個別設定ではカット=「指定時刻に出現」なので常に表示)
+    if (opts.includeDelay) {
+      row('開始 (ms後)', num(() => anim.delay || 0, (v) => { anim.delay = Math.max(0, v); }, { step: '50' }));
+    }
+
+    if (anim.preset !== 'cut') {
+      row('時間 (ms)', num(() => anim.duration !== undefined ? anim.duration : 350, (v) => { anim.duration = Math.max(0, v); }, { step: '50' }));
+      row('イージング', select(this.ANIM_EASINGS, () => anim.easing || opts.defaultEasing || 'ease-out', (v) => { anim.easing = v; }));
+
+      if (anim.preset === 'slide') {
+        row('方向', select(this.ANIM_DIRECTIONS, () => anim.direction || 'up', (v) => { anim.direction = v; }));
+        row('距離 (px)', num(() => anim.distance !== undefined ? anim.distance : 60, (v) => { anim.distance = v; }, { step: '10' }));
+      }
+      if (anim.preset === 'wipe') {
+        row('拭き出し方向', select(this.ANIM_DIRECTIONS, () => anim.direction || 'right', (v) => { anim.direction = v; }));
+      }
+      if (anim.preset === 'pop') {
+        row('開始スケール', num(() => anim.scaleFrom !== undefined ? anim.scaleFrom : 0.6, (v) => { anim.scaleFrom = v; }, { step: '0.1' }));
+      }
+      if (anim.preset === 'blur') {
+        row('ぼかし量 (px)', num(() => anim.blurFrom !== undefined ? anim.blurFrom : 14, (v) => { anim.blurFrom = Math.max(0, v); }));
+      }
+      if (anim.preset === 'chars') {
+        row('文字間隔 (ms)', num(() => anim.charDelay !== undefined ? anim.charDelay : 40, (v) => { anim.charDelay = Math.max(0, v); }, { step: '10' }));
+      }
+    }
+
+    if (opts.includeStagger) {
+      row('順次ディレイ (ms)', num(() => anim.stagger || 0, (v) => { anim.stagger = Math.max(0, v); }, { step: '10' }));
+    }
+  },
+
+  /**
+   * 再生タイムライン (PowerPointのアニメーションウィンドウ相当)
+   * 各レイヤーの開始タイミングと長さを横棒で可視化。行クリックでレイヤー選択。
+   */
+  renderTimeline(panel, dir) {
+    const layers = this.layers().filter((l) => l.visible !== false);
+    if (layers.length === 0) return;
+
+    const items = layers.map((layer, i) => {
+      const r = TelopAnimator.resolve(this.variant(), layer, i, dir);
+      return {
+        layer,
+        delay: r.delay,
+        duration: r.anim.preset === 'cut' ? 0 : (r.anim.duration || 0),
+        custom: r.custom,
+      };
+    });
+    const total = Math.max(500, ...items.map((it) => it.delay + it.duration));
+
+    const wrap = document.createElement('div');
+    wrap.className = 'de-timeline';
+
+    items.forEach((it) => {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'de-tl-row';
+      rowEl.title = `${it.layer.name || it.layer.id}: ${(it.delay / 1000).toFixed(2)}秒後に開始`
+        + (it.duration ? ` / ${it.duration}ms` : ' (出現)') + (it.custom ? ' [個別設定]' : ' [既定]');
+
+      const name = document.createElement('span');
+      name.className = 'de-tl-name';
+      name.textContent = it.layer.name || it.layer.id;
+
+      const track = document.createElement('div');
+      track.className = 'de-tl-track';
+      const bar = document.createElement('div');
+      bar.className = 'de-tl-bar' + (it.custom ? ' de-tl-bar--custom' : '');
+      bar.style.left = `${(it.delay / total) * 100}%`;
+      bar.style.width = it.duration ? `${Math.max(2, (it.duration / total) * 100)}%` : '6px';
+      bar.textContent = `${(it.delay / 1000).toFixed(2)}s`;
+      track.appendChild(bar);
+
+      rowEl.append(name, track);
+      rowEl.addEventListener('click', () => {
+        this.selectedId = it.layer.id;
+        this.renderLayerList();
+        this.renderProps();
+        this.renderSelection();
+      });
+      wrap.appendChild(rowEl);
+    });
+
+    panel.appendChild(wrap);
   },
 
   /** アニメーション設定パネル (レイヤー未選択時) */
@@ -970,19 +1158,9 @@ const DesignEditor = {
     const variant = this.variant();
     variant.animation = variant.animation || {};
 
-    const PRESETS = [
-      ['cut', 'カット'], ['fade', 'フェード'], ['slide', 'スライド'], ['wipe', 'ワイプ'],
-      ['pop', 'ポップ'], ['blur', 'ブラー'], ['chars', '文字送り'],
-    ];
-    const EASINGS = [
-      ['ease-out', 'イーズアウト'], ['ease-in', 'イーズイン'], ['ease-in-out', 'イーズ両端'],
-      ['ease', 'イーズ'], ['linear', 'リニア'], ['cubic-bezier(0.34,1.56,0.64,1)', 'バウンス'],
-    ];
-    const DIRECTIONS = [['up', '上へ'], ['down', '下へ'], ['left', '左へ'], ['right', '右へ']];
-
     const intro = document.createElement('div');
     intro.className = 'de-props-hint';
-    intro.textContent = 'テンプレートのIN/OUTアニメーション設定です。レイヤーをクリックするとレイヤー編集に切り替わります。順次ディレイで「座布団→肩書→名前」のような順出しができます。';
+    intro.textContent = 'テンプレート全体のIN/OUTアニメーション設定です。タイムラインの行をクリックすると、そのレイヤーだけ動きを個別設定できます (PowerPointのアニメーション個別指定に相当)。';
     panel.appendChild(intro);
 
     ['in', 'out'].forEach((dir) => {
@@ -993,7 +1171,7 @@ const DesignEditor = {
       const head = document.createElement('div');
       head.className = 'de-props-section de-anim-head';
       const title = document.createElement('span');
-      title.textContent = dir === 'in' ? 'IN アニメーション' : 'OUT アニメーション';
+      title.textContent = dir === 'in' ? 'IN アニメーション (既定)' : 'OUT アニメーション (既定)';
       const playBtn = document.createElement('button');
       playBtn.className = 'btn btn--small';
       playBtn.textContent = '▶試写';
@@ -1001,68 +1179,17 @@ const DesignEditor = {
       head.append(title, playBtn);
       panel.appendChild(head);
 
-      const row = (label, ...inputs) => {
-        const div = document.createElement('div');
-        div.className = 'de-prop-row';
-        const lab = document.createElement('label');
-        lab.textContent = label;
-        div.appendChild(lab);
-        inputs.forEach((i) => div.appendChild(i));
-        panel.appendChild(div);
-      };
-      const bind = (input, getter, setter, rerender) => {
-        input.addEventListener('change', () => {
-          this.beginChange();
-          setter(input);
-          if (rerender) this.renderProps();
-        });
-        getter(input);
-        return input;
-      };
-      const num = (getter, setter, attrs = {}) => {
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.className = 'input input--small de-prop-num';
-        Object.entries(attrs).forEach(([k, v]) => input.setAttribute(k, v));
-        return bind(input, (i) => { i.value = getter(); }, (i) => setter(parseFloat(i.value) || 0));
-      };
-      const select = (options, getter, setter, rerender) => {
-        const sel = document.createElement('select');
-        sel.className = 'input input--small';
-        options.forEach(([value, label]) => {
-          const opt = document.createElement('option');
-          opt.value = value;
-          opt.textContent = label;
-          sel.appendChild(opt);
-        });
-        return bind(sel, (i) => { i.value = getter(); }, (i) => setter(i.value), rerender);
-      };
+      this.renderAnimFields(panel, anim, {
+        includeStagger: true,
+        defaultEasing: dir === 'in' ? 'ease-out' : 'ease-in',
+      });
 
-      // プリセット (変更時はパネルを再描画して関連パラメータを出し分け)
-      row('プリセット', select(PRESETS, () => anim.preset || 'fade', (v) => { anim.preset = v; }, true));
-
-      if (anim.preset !== 'cut') {
-        row('時間 (ms)', num(() => anim.duration !== undefined ? anim.duration : 350, (v) => { anim.duration = Math.max(0, v); }, { step: '50' }));
-        row('イージング', select(EASINGS, () => anim.easing || (dir === 'in' ? 'ease-out' : 'ease-in'), (v) => { anim.easing = v; }));
-
-        if (anim.preset === 'slide') {
-          row('方向', select(DIRECTIONS, () => anim.direction || 'up', (v) => { anim.direction = v; }));
-          row('距離 (px)', num(() => anim.distance !== undefined ? anim.distance : 60, (v) => { anim.distance = v; }, { step: '10' }));
-        }
-        if (anim.preset === 'wipe') {
-          row('拭き出し方向', select(DIRECTIONS, () => anim.direction || 'right', (v) => { anim.direction = v; }));
-        }
-        if (anim.preset === 'pop') {
-          row('開始スケール', num(() => anim.scaleFrom !== undefined ? anim.scaleFrom : 0.6, (v) => { anim.scaleFrom = v; }, { step: '0.1' }));
-        }
-        if (anim.preset === 'blur') {
-          row('ぼかし量 (px)', num(() => anim.blurFrom !== undefined ? anim.blurFrom : 14, (v) => { anim.blurFrom = Math.max(0, v); }));
-        }
-        if (anim.preset === 'chars') {
-          row('文字間隔 (ms)', num(() => anim.charDelay !== undefined ? anim.charDelay : 40, (v) => { anim.charDelay = Math.max(0, v); }, { step: '10' }));
-        }
-        row('順次ディレイ (ms)', num(() => anim.stagger || 0, (v) => { anim.stagger = Math.max(0, v); }, { step: '10' }));
-      }
+      // 再生タイムライン
+      const tlLabel = document.createElement('div');
+      tlLabel.className = 'de-tl-label';
+      tlLabel.textContent = `タイムライン (${dir.toUpperCase()})`;
+      panel.appendChild(tlLabel);
+      this.renderTimeline(panel, dir);
     });
   },
 
