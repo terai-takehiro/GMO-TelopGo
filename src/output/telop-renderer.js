@@ -75,6 +75,38 @@
       el.style.border = `${layer.border.width}px solid ${layer.border.color || '#ffffff'}`;
     }
     if (layer.radius) el.style.borderRadius = `${layer.radius}px`;
+
+    // 図形の種類 (rect以外はclip-path/角丸で切り抜く)
+    if (layer.shape === 'ellipse') {
+      el.style.borderRadius = '50%';
+    } else if (layer.shape === 'polygon' || layer.shape === 'star') {
+      const pts = shapePoints(layer)
+        .map(([x, y]) => `${(x * 100).toFixed(2)}% ${(y * 100).toFixed(2)}%`);
+      el.style.clipPath = `polygon(${pts.join(', ')})`;
+    }
+  }
+
+  /**
+   * 正多角形/星形の頂点座標 (0..1正規化) を返す
+   * layer.sides=頂点数(3..24), layer.starInset=星の谷の深さ(0.2..0.9, 既定0.5)
+   */
+  function shapePoints(layer) {
+    const n = Math.max(3, Math.min(24, layer.sides || 5));
+    const pts = [];
+    if (layer.shape === 'star') {
+      const inner = Math.max(0.1, Math.min(0.9, layer.starInset !== undefined ? layer.starInset : 0.5)) * 0.5;
+      for (let i = 0; i < n * 2; i++) {
+        const r = i % 2 === 0 ? 0.5 : inner;
+        const a = -Math.PI / 2 + (Math.PI * i) / n;
+        pts.push([0.5 + r * Math.cos(a), 0.5 + r * Math.sin(a)]);
+      }
+    } else {
+      for (let i = 0; i < n; i++) {
+        const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
+        pts.push([0.5 + 0.5 * Math.cos(a), 0.5 + 0.5 * Math.sin(a)]);
+      }
+    }
+    return pts;
   }
 
   function applyImage(el, layer, assetBase) {
@@ -97,7 +129,9 @@
     // 自動調整の計測用に内側spanへ入れる
     const inner = document.createElement('span');
     inner.className = 'tl-text-inner';
-    inner.textContent = value || '';
+    const richOpts = { vertical: !!layer.vertical, tcy: !!layer.vertical && layer.tcy !== false };
+    const rich = fillRichText(inner, value || '', richOpts);
+    if (rich) inner.dataset.noSplit = '1'; // ルビ/縦中横はcharsアニメの分割不可
     // 自動調整時は折り返しを禁止 (折り返すと横のはみ出しを検出できない。改行は明示的な改行のみ)
     if (layer.autoFit && layer.autoFit !== 'none') inner.style.whiteSpace = 'pre';
     el.appendChild(inner);
@@ -107,15 +141,36 @@
     el.style.fontSize = `${font.size || 30}px`;
     el.style.fontWeight = font.weight || 700;
     el.style.color = font.color || '#ffffff';
+    if (font.italic) el.style.fontStyle = 'italic';
     if (font.letterSpacing) el.style.letterSpacing = `${font.letterSpacing}em`;
     el.style.lineHeight = font.lineHeight || 1.25;
 
-    // 揃え (flexで水平/垂直とも制御)
-    const alignMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
+    // 縦書き (縦中横はfillRichTextで数字連続をspan化済み)
+    if (layer.vertical) {
+      el.style.writingMode = 'vertical-rl';
+      inner.dataset.noSplit = '1';
+    }
+
+    // 揃え (flexで水平/垂直とも制御。縦書き時は論理方向に従う)
+    const alignMap = { left: 'flex-start', center: 'center', right: 'flex-end', justify: 'flex-start' };
     const vAlignMap = { top: 'flex-start', middle: 'center', bottom: 'flex-end' };
     el.style.justifyContent = alignMap[layer.align] || 'flex-start';
     el.style.alignItems = vAlignMap[layer.vAlign] || 'center';
-    el.style.textAlign = layer.align || 'left';
+    el.style.textAlign = layer.align === 'justify' ? 'justify' : (layer.align || 'left');
+
+    // 均等割り付け: 行を枠幅いっぱいに割り付ける
+    if (layer.align === 'justify') {
+      if (layer.vertical) inner.style.height = '100%';
+      else inner.style.width = '100%';
+      inner.style.textAlignLast = 'justify';
+    }
+
+    // 変体率 (横幅率/縦幅率) と歪み (transformで表現。長体autoFitはfitTextで合成)
+    const baseT = innerBaseTransform(layer);
+    if (baseT) {
+      inner.style.transform = baseT;
+      inner.style.transformOrigin = transformOrigin(layer);
+    }
 
     // 縁取り(外側)と影は text-shadow を重ねて表現する
     // (-webkit-text-stroke は中央基準で文字の内側に食い込むため使用しない)
@@ -162,11 +217,11 @@
       inner.textContent = '';
       const under = document.createElement('span');
       under.className = 'tl-txt-under';
-      under.textContent = value || '';
+      fillRichText(under, value || '', richOpts);
       if (shadows.length) under.style.textShadow = shadows.join(', ');
       const fillSpan = document.createElement('span');
       fillSpan.className = 'tl-txt-fill';
-      fillSpan.textContent = value || '';
+      fillRichText(fillSpan, value || '', richOpts);
       applyTextGradient(fillSpan, gradCss);
       inner.appendChild(under);
       inner.appendChild(fillSpan);
@@ -180,6 +235,70 @@
     node.style.webkitBackgroundClip = 'text';
     node.style.backgroundClip = 'text';
     node.style.webkitTextFillColor = 'transparent';
+  }
+
+  /**
+   * ルビ記法・縦中横を解釈してテキストをノードに流し込む。
+   *   ルビ:   【文字|よみ】 → <ruby>文字<rt>よみ</rt></ruby>
+   *   縦中横: 縦書き時、1〜3桁の数字を横組みにする (<span class="tl-tcy">)
+   * @returns {boolean} リッチ要素 (ruby/tcy) を使ったか
+   */
+  function fillRichText(node, value, opts) {
+    node.textContent = '';
+    let rich = false;
+    const appendPlain = (text) => {
+      if (!text) return;
+      if (opts && opts.tcy) {
+        text.split(/(\d+)/).forEach((seg) => {
+          if (!seg) return;
+          if (/^\d{1,3}$/.test(seg)) {
+            const tcy = document.createElement('span');
+            tcy.className = 'tl-tcy';
+            tcy.textContent = seg;
+            node.appendChild(tcy);
+            rich = true;
+          } else {
+            node.appendChild(document.createTextNode(seg));
+          }
+        });
+      } else {
+        node.appendChild(document.createTextNode(text));
+      }
+    };
+    const parts = String(value).split(/【([^【】|]+)\|([^【】]+)】/g);
+    for (let i = 0; i < parts.length; i += 3) {
+      appendPlain(parts[i]);
+      if (i + 2 < parts.length) {
+        const ruby = document.createElement('ruby');
+        ruby.appendChild(document.createTextNode(parts[i + 1]));
+        const rt = document.createElement('rt');
+        rt.textContent = parts[i + 2];
+        ruby.appendChild(rt);
+        node.appendChild(ruby);
+        rich = true;
+      }
+    }
+    return rich;
+  }
+
+  /** 変体率 (scaleX/scaleY) と歪み (skewX) のtransform文字列 */
+  function innerBaseTransform(layer) {
+    const font = layer.font || {};
+    const parts = [];
+    if (font.skewX) parts.push(`skewX(${-font.skewX}deg)`);
+    const sx = font.scaleX !== undefined ? font.scaleX : 1;
+    const sy = font.scaleY !== undefined ? font.scaleY : 1;
+    if (sx !== 1 || sy !== 1) parts.push(`scale(${sx}, ${sy})`);
+    return parts.join(' ');
+  }
+
+  function transformOrigin(layer) {
+    if (layer.vertical) {
+      const map = { left: 'center top', center: 'center center', right: 'center bottom' };
+      return map[layer.align] || 'center top';
+    }
+    const map = { left: 'left center', center: 'center center', right: 'right center' };
+    return map[layer.align] || 'left center';
   }
 
   /**
@@ -226,29 +345,39 @@
   function fitText(el, layer) {
     const inner = el.querySelector('.tl-text-inner');
     if (!inner || !inner.textContent) return;
+    if (layer.align === 'justify') return; // 均等割り付けは常に枠幅いっぱい
 
-    // リセットしてから計測
-    inner.style.transform = '';
-    el.style.fontSize = `${(layer.font && layer.font.size) || 30}px`;
-    const contentW = inner.scrollWidth;
-    if (!contentW || !el.clientWidth) return;
+    const font = layer.font || {};
+    const sx = font.scaleX !== undefined ? font.scaleX : 1;
+    const sy = font.scaleY !== undefined ? font.scaleY : 1;
+    const vertical = !!layer.vertical;
+
+    // 変体率のみの状態にリセットしてから計測
+    inner.style.transform = innerBaseTransform(layer);
+    el.style.fontSize = `${font.size || 30}px`;
+    const main = vertical ? inner.scrollHeight : inner.scrollWidth; // 文字の進行方向のサイズ
+    const avail = vertical ? el.clientHeight : el.clientWidth;
+    if (!main || !avail) return;
+    const visualMain = main * (vertical ? sy : sx); // 変体率を掛けた見た目サイズ
 
     if (layer.autoFit === 'condense') {
-      const ratio = el.clientWidth / contentW;
+      const ratio = avail / visualMain;
       if (ratio < 1) {
-        const originMap = { left: 'left center', center: 'center center', right: 'right center' };
-        inner.style.transformOrigin = originMap[layer.align] || 'left center';
-        inner.style.transform = `scaleX(${ratio})`;
+        inner.style.transformOrigin = transformOrigin(layer);
+        const skew = font.skewX ? `skewX(${-font.skewX}deg) ` : '';
+        const csx = vertical ? sx : sx * ratio;
+        const csy = vertical ? sy * ratio : sy;
+        inner.style.transform = `${skew}scale(${csx}, ${csy})`;
       }
       return;
     }
 
-    // shrink: 幅と高さの両方が収まる倍率にフォントサイズを縮小
-    const ratioW = el.clientWidth / contentW;
-    const ratioH = el.clientHeight / (inner.scrollHeight || 1);
-    const ratio = Math.min(1, ratioW, ratioH);
+    // shrink: 進行方向と直交方向の両方が収まる倍率にフォントサイズを縮小
+    const cross = (vertical ? inner.scrollWidth : inner.scrollHeight) * (vertical ? sx : sy);
+    const availCross = vertical ? el.clientWidth : el.clientHeight;
+    const ratio = Math.min(1, avail / visualMain, availCross / (cross || 1));
     if (ratio < 1) {
-      const size = (layer.font && layer.font.size) || 30;
+      const size = font.size || 30;
       el.style.fontSize = `${Math.max(8, Math.floor(size * ratio))}px`;
     }
   }
@@ -283,5 +412,5 @@
     });
   }
 
-  global.TelopRenderer = { renderVariant, applyFonts, edgeOffsets };
+  global.TelopRenderer = { renderVariant, applyFonts, edgeOffsets, shapePoints };
 })(typeof window !== 'undefined' ? window : globalThis);

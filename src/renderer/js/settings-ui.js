@@ -24,6 +24,9 @@ const SettingsUI = {
 
     // リモート連携
     RemoteSync.populateConfig(settings.remote);
+
+    // ライブデータ連携
+    if (typeof LiveDataUI !== 'undefined') LiveDataUI.populateConfig(settings.liveData);
   },
 
   async save() {
@@ -46,6 +49,7 @@ const SettingsUI = {
       graphics: GraphicsUI.collectConfig(),
       gpio: GpioRemote.collectConfig(),
       remote: RemoteSync.collectConfig(),
+      liveData: typeof LiveDataUI !== 'undefined' ? LiveDataUI.collectConfig() : undefined,
     };
   },
 

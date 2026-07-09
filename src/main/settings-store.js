@@ -49,6 +49,7 @@ function getSettings() {
     graphics: store.get('graphics'),
     gpio: store.get('gpio'),
     remote,
+    liveData: store.get('liveData'),
   };
 }
 
@@ -56,6 +57,7 @@ function saveSettings(settings) {
   if (settings.graphics) store.set('graphics', settings.graphics);
   if (settings.gpio) store.set('gpio', settings.gpio);
   if (settings.remote) store.set('remote', settings.remote);
+  if (settings.liveData) store.set('liveData', settings.liveData);
 }
 
 /** GPIOリモートボタン設定を取得 */

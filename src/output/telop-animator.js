@@ -6,13 +6,15 @@
  *
  * アニメーション設定 (variant.animation.in / .out):
  *   preset:    'cut' | 'fade' | 'slide' | 'wipe' | 'pop' | 'blur' | 'chars'
+ *              | 'push' | 'zoom' | 'flip'
  *   duration:  再生時間 (ms)
  *   easing:    CSSイージング
- *   direction: 'up'|'down'|'left'|'right' (slide=進入方向, wipe=拭き出し方向)
+ *   direction: 'up'|'down'|'left'|'right' (slide/push=進入方向, wipe=拭き出し方向)
  *   distance:  slideの移動距離 (px)
- *   scaleFrom: popの開始スケール (既定0.6)
+ *   scaleFrom: pop/zoomの開始スケール (pop既定0.6, zoom既定1.25)
  *   blurFrom:  blurのぼかし量 (px, 既定14)
  *   charDelay: charsの1文字ごとの遅れ (ms, 既定40)
+ *   charOrder: charsの表示順 'forward'(既定) | 'random'
  *   stagger:   レイヤーごとの順次ディレイ (ms, 背面レイヤーから順に)
  *
  * レイヤー個別設定 (layer.anim.in / .out):
@@ -65,6 +67,27 @@
       case 'blur': {
         const blur = anim.blurFrom !== undefined ? anim.blurFrom : 14;
         return { opacity: 0, filter: `blur(${blur}px)` };
+      }
+      case 'push': {
+        // スライド+ワイプの複合: 自分の枠から押し出されるように出入りする
+        const d = anim.distance !== undefined ? anim.distance : 80;
+        const map = {
+          up: [[0, d], 'inset(100% 0 0 0)'],
+          down: [[0, -d], 'inset(0 0 100% 0)'],
+          left: [[d, 0], 'inset(0 0 0 100%)'],
+          right: [[-d, 0], 'inset(0 100% 0 0)'],
+        };
+        const [[x, y], clip] = map[anim.direction] || map.up;
+        return { transform: `translate(${x}px, ${y}px)${base}`, clipPath: clip };
+      }
+      case 'zoom': {
+        // ズーム: 大きい状態から等倍へ (Ken Burns風)
+        const from = anim.scaleFrom !== undefined ? anim.scaleFrom : 1.25;
+        return { opacity: 0, transform: `scale(${from})${base}` };
+      }
+      case 'flip': {
+        // フリップ: 奥行き回転しながら出現
+        return { opacity: 0, transform: `perspective(900px) rotateY(70deg)${base}` };
       }
       case 'fade':
       case 'chars':
@@ -144,10 +167,24 @@
         if (direction === 'in') {
           const spans = splitChars(el);
           const charDelay = anim.charDelay !== undefined ? anim.charDelay : 40;
+          // 表示順: forward=先頭から / random=決定的シャッフル
+          // (文字数でシードするため、試写と本番で同じ順序になる)
+          const order = spans.map((_, i) => i);
+          if (anim.charOrder === 'random') {
+            let seed = (spans.length * 2654435761) % 4294967296;
+            const rand = () => {
+              seed = (seed * 1664525 + 1013904223) % 4294967296;
+              return seed / 4294967296;
+            };
+            for (let i = order.length - 1; i > 0; i--) {
+              const j = Math.floor(rand() * (i + 1));
+              [order[i], order[j]] = [order[j], order[i]];
+            }
+          }
           spans.forEach((span, ci) => {
             const a = span.animate([{ opacity: 0 }, { opacity: 1 }], {
               duration: anim.duration,
-              delay: delay + ci * charDelay,
+              delay: delay + order[ci] * charDelay,
               easing,
               fill: 'both',
             });

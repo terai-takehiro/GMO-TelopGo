@@ -37,6 +37,13 @@ contextBridge.exposeInMainWorld('api', {
   graphicsImportDesign: () => ipcRenderer.invoke('graphics-import-design'),
   onGraphicsStatus: (callback) => ipcRenderer.on('graphics-status-changed', (_event, status) => callback(status)),
 
+  // ライブデータ連携 (CSV/Excel監視)
+  liveDataChooseFile: () => ipcRenderer.invoke('live-data-choose-file'),
+  liveDataStart: (cfg) => ipcRenderer.invoke('live-data-start', cfg),
+  liveDataStop: () => ipcRenderer.invoke('live-data-stop'),
+  liveDataStatus: () => ipcRenderer.invoke('live-data-status'),
+  onLiveDataUpdate: (callback) => ipcRenderer.on('live-data-update', (_event, status) => callback(status)),
+
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),

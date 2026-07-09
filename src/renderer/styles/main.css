@@ -1553,3 +1553,37 @@ body {
   white-space: nowrap;
 }
 .de-set-card.active .de-set-card-name { color: var(--accent); }
+
+/* 縦中横 (縦書き内の数字横組み) */
+.de-canvas .tl-tcy { text-combine-upright: all; }
+/* ルビ */
+.de-canvas .tl-text rt { font-size: 0.4em; font-weight: 500; letter-spacing: 0; }
+
+/* グリッド / セーフティエリア (v1.18.0) */
+.de-grid-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(120, 170, 255, 0.25) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(120, 170, 255, 0.25) 1px, transparent 1px);
+}
+.de-safety-box {
+  position: absolute;
+  inset: 5%;
+  pointer-events: none;
+  border: 1px dashed rgba(255, 210, 80, 0.85);
+}
+.de-safety-box::after {
+  content: 'SAFETY 90%';
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 9px;
+  color: rgba(255, 210, 80, 0.9);
+}
+
+/* ライブデータ連携 (v1.18.0) */
+.ld-mappings { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.ld-map-row { display: flex; gap: 6px; align-items: center; }
+.ld-cell { max-width: 90px; }

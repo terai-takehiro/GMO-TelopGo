@@ -17,7 +17,8 @@ const DesignEditor = {
 
   ANIM_PRESETS: [
     ['cut', 'カット (出現)'], ['fade', 'フェード'], ['slide', 'スライド'], ['wipe', 'ワイプ'],
-    ['pop', 'ポップ'], ['blur', 'ブラー'], ['chars', '文字送り'],
+    ['push', 'プッシュ (押し出し)'], ['pop', 'ポップ'], ['zoom', 'ズーム'],
+    ['flip', 'フリップ (回転)'], ['blur', 'ブラー'], ['chars', '文字送り'],
   ],
   ANIM_EASINGS: [
     ['ease-out', 'イーズアウト'], ['ease-in', 'イーズイン'], ['ease-in-out', 'イーズ両端'],
@@ -72,6 +73,8 @@ const DesignEditor = {
   undoStack: [],
   redoStack: [],
   drag: null,          // 進行中のドラッグ {kind:'move'|'resize', ...}
+  gridSize: 0,         // グリッド間隔 (px, 0=非表示)
+  safety: false,       // セーフティエリア表示
   loaded: false,
 
   init() {
@@ -123,6 +126,16 @@ const DesignEditor = {
     // レイヤー操作
     document.getElementById('de-layer-up').addEventListener('click', () => this.moveLayer(1));
     document.getElementById('de-layer-down').addEventListener('click', () => this.moveLayer(-1));
+    document.getElementById('de-layer-top').addEventListener('click', () => this.moveLayerEnd(true));
+    document.getElementById('de-layer-bottom').addEventListener('click', () => this.moveLayerEnd(false));
+    document.getElementById('de-grid').addEventListener('change', (e) => {
+      this.gridSize = parseInt(e.target.value, 10) || 0;
+      this.updateOverlayAids();
+    });
+    document.getElementById('de-safety').addEventListener('change', (e) => {
+      this.safety = e.target.checked;
+      this.updateOverlayAids();
+    });
     document.getElementById('de-add-text').addEventListener('click', () => this.addLayer('text'));
     document.getElementById('de-add-rect').addEventListener('click', () => this.addLayer('rect'));
     document.getElementById('de-add-image').addEventListener('click', () => this.addLayer('image'));
@@ -494,7 +507,18 @@ const DesignEditor = {
   drawRectLayer(ctx, layer) {
     const fill = layer.fill || {};
     ctx.beginPath();
-    ctx.roundRect(layer.x, layer.y, layer.w, layer.h, layer.radius || 0);
+    if (layer.shape === 'ellipse') {
+      ctx.ellipse(layer.x + layer.w / 2, layer.y + layer.h / 2, layer.w / 2, layer.h / 2, 0, 0, Math.PI * 2);
+    } else if (layer.shape === 'polygon' || layer.shape === 'star') {
+      TelopRenderer.shapePoints(layer).forEach(([px, py], i) => {
+        const x = layer.x + px * layer.w;
+        const y = layer.y + py * layer.h;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+    } else {
+      ctx.roundRect(layer.x, layer.y, layer.w, layer.h, layer.radius || 0);
+    }
     ctx.fillStyle = fill.type === 'gradient'
       ? this.canvasGradient(ctx, fill, layer.x, layer.y, layer.w, layer.h)
       : (fill.color || '#000000');
@@ -504,6 +528,17 @@ const DesignEditor = {
       ctx.strokeStyle = layer.border.color || '#ffffff';
       ctx.stroke();
     }
+  },
+
+  /** ルビ記法 【文字|よみ】 を [{text, ruby?}] のトークン列にする */
+  parseRubyTokens(line) {
+    const tokens = [];
+    const parts = line.split(/【([^【】|]+)\|([^【】]+)】/g);
+    for (let i = 0; i < parts.length; i += 3) {
+      if (parts[i]) tokens.push({ text: parts[i] });
+      if (i + 2 < parts.length) tokens.push({ text: parts[i + 1], ruby: parts[i + 2] });
+    }
+    return tokens;
   },
 
   drawImageLayer(ctx, layer) {
@@ -533,18 +568,29 @@ const DesignEditor = {
   },
 
   drawTextLayer(ctx, layer) {
+    if (layer.vertical) {
+      this.drawVerticalTextLayer(ctx, layer);
+      return;
+    }
     const font = layer.font || {};
     let size = font.size || 30;
     const family = font.family || 'sans-serif';
     const weight = font.weight || 700;
+    const italic = font.italic ? 'italic ' : '';
     const lineHFactor = font.lineHeight || 1.25;
     const ls = font.letterSpacing || 0;
+    const mSx = font.scaleX !== undefined ? font.scaleX : 1;
+    const mSy = font.scaleY !== undefined ? font.scaleY : 1;
+    const skewTan = font.skewX ? Math.tan((font.skewX * Math.PI) / 180) : 0;
     const value = layer.binding ? (layer.sample || '') : (layer.text || layer.sample || '');
     if (!value) return;
-    const lines = String(value).split('\n');
+    const tokenLines = String(value).split('\n').map((l) => this.parseRubyTokens(l));
+    const lines = tokenLines.map((ts) => ts.map((t) => t.text).join(''));
+    const align = layer.align || 'left';
+    const justify = align === 'justify';
 
     const setFont = (s) => {
-      ctx.font = `${weight} ${s}px ${family}`;
+      ctx.font = `${italic}${weight} ${s}px ${family}`;
       ctx.letterSpacing = `${ls * s}px`;
     };
     setFont(size);
@@ -553,12 +599,12 @@ const DesignEditor = {
     let lineH = size * lineHFactor;
     let blockH = lines.length * lineH;
 
-    // 自動調整 (DOM版fitTextと同等: condense=長体 / shrink=縮小)
+    // 自動調整 (DOM版fitTextと同等: condense=長体 / shrink=縮小。変体率込みで判定)
     let sxScale = 1;
-    if (layer.autoFit === 'condense' && blockW > layer.w) {
-      sxScale = layer.w / blockW;
-    } else if (layer.autoFit === 'shrink') {
-      const ratio = Math.min(1, layer.w / blockW, layer.h / blockH);
+    if (!justify && layer.autoFit === 'condense' && blockW * mSx > layer.w) {
+      sxScale = layer.w / (blockW * mSx);
+    } else if (!justify && layer.autoFit === 'shrink') {
+      const ratio = Math.min(1, layer.w / (blockW * mSx), layer.h / (blockH * mSy));
       if (ratio < 1) {
         size = Math.max(8, Math.floor(size * ratio));
         setFont(size);
@@ -572,9 +618,10 @@ const DesignEditor = {
     const b = layer.board && layer.board.enabled ? layer.board : null;
     const padX = b && b.mode !== 'fixed' ? (b.padX !== undefined ? b.padX : 18) : 0;
     const padY = b && b.mode !== 'fixed' ? (b.padY !== undefined ? b.padY : 6) : 0;
-    const boxW = blockW * sxScale + padX * 2;
+    const totalSx = mSx * sxScale;
+    if (justify) blockW = Math.max(1, (layer.w - padX * 2) / totalSx);
+    const boxW = justify ? layer.w : blockW * totalSx + padX * 2;
     const boxH = blockH + padY * 2;
-    const align = layer.align || 'left';
     const vAlign = layer.vAlign || 'middle';
     const boxX = align === 'center' ? layer.x + (layer.w - boxW) / 2
       : align === 'right' ? layer.x + layer.w - boxW : layer.x;
@@ -599,14 +646,36 @@ const DesignEditor = {
 
     ctx.save();
     ctx.translate(boxX + padX, boxY + padY);
-    if (sxScale !== 1) ctx.scale(sxScale, 1);
+    // 変体率・長体・歪みをDOMのtransform-origin (揃え基準×垂直中央) と同様に適用
+    if (totalSx !== 1 || mSy !== 1 || skewTan) {
+      const originX = align === 'center' ? blockW / 2 : align === 'right' ? blockW : 0;
+      ctx.translate(originX, blockH / 2);
+      ctx.transform(1, 0, -skewTan, 1, 0, 0);
+      ctx.scale(totalSx, mSy);
+      ctx.translate(-originX, -blockH / 2);
+    }
     ctx.textBaseline = 'middle';
 
     const lineX = (i) => (align === 'center' ? (blockW - widths[i]) / 2
       : align === 'right' ? blockW - widths[i] : 0);
+    const drawLine = (line, i, dx, dy) => {
+      const y = lineH * (i + 0.5) + dy;
+      if (justify) {
+        const chars = [...line];
+        if (chars.length <= 1) { ctx.fillText(line, dx, y); return; }
+        const extra = (blockW - widths[i]) / (chars.length - 1);
+        let x = dx;
+        chars.forEach((ch) => {
+          ctx.fillText(ch, x, y);
+          x += ctx.measureText(ch).width + extra;
+        });
+      } else {
+        ctx.fillText(line, lineX(i) + dx, y);
+      }
+    };
     const drawLines = (fillStyle, dx = 0, dy = 0) => {
       ctx.fillStyle = fillStyle;
-      lines.forEach((line, i) => ctx.fillText(line, lineX(i) + dx, lineH * (i + 0.5) + dy));
+      lines.forEach((line, i) => drawLine(line, i, dx, dy));
     };
 
     // 1) ドロップシャドウ (最背面)
@@ -638,7 +707,166 @@ const DesignEditor = {
 
     // 3) 本体 (単色 / グラデーション)
     const grad = layer.fill && layer.fill.type === 'gradient' ? layer.fill : null;
-    drawLines(grad ? this.canvasGradient(ctx, grad, 0, 0, blockW, blockH) : (font.color || '#ffffff'));
+    const bodyFill = grad ? this.canvasGradient(ctx, grad, 0, 0, blockW, blockH) : (font.color || '#ffffff');
+    drawLines(bodyFill);
+
+    // 4) ルビ (本体の上に小さく描画。均等割付時は省略)
+    if (!justify && tokenLines.some((ts) => ts.some((t) => t.ruby))) {
+      ctx.save();
+      ctx.textAlign = 'center';
+      tokenLines.forEach((tokens, i) => {
+        let x = lineX(i);
+        const y = lineH * (i + 0.5);
+        tokens.forEach((t) => {
+          setFont(size);
+          const w = ctx.measureText(t.text).width;
+          if (t.ruby) {
+            setFont(size * 0.4);
+            ctx.fillStyle = typeof bodyFill === 'string' ? bodyFill : ((grad && grad.from) || '#ffffff');
+            ctx.fillText(t.ruby, x + w / 2, y - size * 0.72);
+          }
+          x += w;
+        });
+      });
+      setFont(size);
+      ctx.restore();
+    }
+    ctx.restore();
+  },
+
+  /** 縦書きテキストのCanvas描画 (PNG/サムネイル用の近似描画) */
+  drawVerticalTextLayer(ctx, layer) {
+    const font = layer.font || {};
+    let size = font.size || 30;
+    const family = font.family || 'sans-serif';
+    const weight = font.weight || 700;
+    const italic = font.italic ? 'italic ' : '';
+    const lineHFactor = font.lineHeight || 1.25;
+    const ls = font.letterSpacing || 0;
+    const mSx = font.scaleX !== undefined ? font.scaleX : 1;
+    const mSy = font.scaleY !== undefined ? font.scaleY : 1;
+    const value = layer.binding ? (layer.sample || '') : (layer.text || layer.sample || '');
+    if (!value) return;
+    const tcyOn = layer.tcy !== false;
+
+    // 列 (改行区切り) → ユニット列 (1文字 or 縦中横の数字グループ)
+    const unitsOf = (line) => {
+      const stripped = line.replace(/【([^【】|]+)\|([^【】]+)】/g, '$1'); // ルビはbaseのみ
+      const units = [];
+      stripped.split(/(\d+)/).forEach((seg) => {
+        if (!seg) return;
+        if (tcyOn && /^\d{1,3}$/.test(seg)) units.push({ text: seg, tcy: true });
+        else [...seg].forEach((ch) => units.push({ text: ch }));
+      });
+      return units;
+    };
+    const cols = String(value).split('\n').map(unitsOf);
+    const setFont = (s) => { ctx.font = `${italic}${weight} ${s}px ${family}`; ctx.letterSpacing = '0px'; };
+    setFont(size);
+
+    let advance = size * (1 + ls);
+    let colW = size * lineHFactor;
+    let blockH = Math.max(1, ...cols.map((c) => c.length)) * advance;
+    let blockW = cols.length * colW;
+
+    // 自動調整 (縦書きは縦方向が進行方向)
+    let syScale = 1;
+    if (layer.autoFit === 'condense' && blockH * mSy > layer.h) {
+      syScale = layer.h / (blockH * mSy);
+    } else if (layer.autoFit === 'shrink') {
+      const ratio = Math.min(1, layer.h / (blockH * mSy), layer.w / (blockW * mSx));
+      if (ratio < 1) {
+        size = Math.max(8, Math.floor(size * ratio));
+        setFont(size);
+        advance = size * (1 + ls);
+        colW = size * lineHFactor;
+        blockH = Math.max(1, ...cols.map((c) => c.length)) * advance;
+        blockW = cols.length * colW;
+      }
+    }
+
+    const b = layer.board && layer.board.enabled ? layer.board : null;
+    const padX = b && b.mode !== 'fixed' ? (b.padX !== undefined ? b.padX : 18) : 0;
+    const padY = b && b.mode !== 'fixed' ? (b.padY !== undefined ? b.padY : 6) : 0;
+    const totalSy = mSy * syScale;
+    const boxW = blockW * mSx + padX * 2;
+    const boxH = blockH * totalSy + padY * 2;
+    // 縦書きのflex論理方向: align=縦位置 / vAlign=横位置 (start=右)
+    const align = layer.align || 'left';
+    const vAlign = layer.vAlign || 'middle';
+    const boxY = align === 'center' ? layer.y + (layer.h - boxH) / 2
+      : align === 'right' ? layer.y + layer.h - boxH : layer.y;
+    const boxX = vAlign === 'middle' ? layer.x + (layer.w - boxW) / 2
+      : vAlign === 'bottom' ? layer.x : layer.x + layer.w - boxW;
+
+    if (b) {
+      const bx = b.mode === 'fixed' ? layer.x : boxX;
+      const by = b.mode === 'fixed' ? layer.y : boxY;
+      const bw = b.mode === 'fixed' ? layer.w : boxW;
+      const bh = b.mode === 'fixed' ? layer.h : boxH;
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, bh, b.radius || 0);
+      ctx.fillStyle = b.fill && b.fill.type === 'gradient'
+        ? this.canvasGradient(ctx, b.fill, bx, by, bw, bh)
+        : ((b.fill && b.fill.color) || b.color || '#0d6ab7');
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.translate(boxX + padX, boxY + padY);
+    ctx.scale(mSx, totalSy);
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+
+    const drawUnits = (fillStyle, dx = 0, dy = 0) => {
+      ctx.fillStyle = fillStyle;
+      cols.forEach((units, ci) => {
+        const cx = blockW - colW * (ci + 0.5); // 右の列から
+        units.forEach((u, ui) => {
+          const y = advance * (ui + 0.5);
+          if (u.tcy && u.text.length > 1) {
+            // 縦中横: 列幅に収まるよう横に圧縮して描く
+            const w = ctx.measureText(u.text).width;
+            const fit = Math.min(1, (colW * 0.95) / w);
+            ctx.save();
+            ctx.translate(cx + dx, y + dy);
+            ctx.scale(fit, 1);
+            ctx.fillText(u.text, 0, 0);
+            ctx.restore();
+          } else {
+            ctx.fillText(u.text, cx + dx, y + dy);
+          }
+        });
+      });
+    };
+
+    if (layer.shadow) {
+      const s = layer.shadow;
+      let dx = s.x || 0;
+      let dy = s.y || 0;
+      if (s.distance !== undefined) {
+        const rad = ((s.angle !== undefined ? s.angle : 45) * Math.PI) / 180;
+        dx = Math.cos(rad) * s.distance;
+        dy = Math.sin(rad) * s.distance;
+      }
+      ctx.save();
+      ctx.shadowColor = s.color || 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = s.blur || 0;
+      ctx.shadowOffsetX = dx;
+      ctx.shadowOffsetY = dy;
+      drawUnits(font.color || '#ffffff');
+      ctx.restore();
+    }
+    const strokes = Array.isArray(layer.strokes)
+      ? layer.strokes.filter((s) => s && s.width > 0)
+      : (layer.stroke && layer.stroke.width > 0 ? [layer.stroke] : []);
+    TelopRenderer.edgeOffsets(strokes).reverse().forEach((o) => {
+      drawUnits(o.color, o.x, o.y);
+    });
+    const grad = layer.fill && layer.fill.type === 'gradient' ? layer.fill : null;
+    drawUnits(grad ? this.canvasGradient(ctx, grad, 0, 0, blockW, blockH) : (font.color || '#ffffff'));
     ctx.restore();
   },
 
@@ -939,6 +1167,21 @@ const DesignEditor = {
     wrap.style.width = `${this.CANVAS_W * this.zoom}px`;
     wrap.style.height = `${this.CANVAS_H * this.zoom}px`;
     document.getElementById('de-canvas').style.transform = `scale(${this.zoom})`;
+    this.updateOverlayAids();
+  },
+
+  /** グリッド/セーフティエリアのオーバーレイ表示を更新 */
+  updateOverlayAids() {
+    const grid = document.getElementById('de-grid-layer');
+    if (grid) {
+      grid.classList.toggle('hidden', !(this.gridSize > 0));
+      if (this.gridSize > 0) {
+        const cell = this.gridSize * this.zoom;
+        grid.style.backgroundSize = `${cell}px ${cell}px`;
+      }
+    }
+    const safety = document.getElementById('de-safety-box');
+    if (safety) safety.classList.toggle('hidden', !this.safety);
   },
 
   renderAll() {
@@ -1113,6 +1356,19 @@ const DesignEditor = {
     this.renderAll();
   },
 
+  /** 最前面/最背面へ移動 */
+  moveLayerEnd(front) {
+    const layer = this.selected();
+    if (!layer) return;
+    const layers = this.layers();
+    const idx = layers.indexOf(layer);
+    if (idx < 0 || (front && idx === layers.length - 1) || (!front && idx === 0)) return;
+    this.beginChange();
+    layers.splice(idx, 1);
+    if (front) layers.push(layer); else layers.unshift(layer);
+    this.renderAll();
+  },
+
   // ===== アートボード操作 =====
 
   canvasPoint(e) {
@@ -1183,6 +1439,10 @@ const DesignEditor = {
       const snapped = this.applySnap(layer, nx, ny);
       layer.x = snapped.x;
       layer.y = snapped.y;
+      if (this.gridSize > 0 && !snapped.guided) {
+        layer.x = Math.round(layer.x / this.gridSize) * this.gridSize;
+        layer.y = Math.round(layer.y / this.gridSize) * this.gridSize;
+      }
       this.drag.moved = true;
       this.updateLayerElement(layer);
       this.renderSelection();
@@ -1248,7 +1508,7 @@ const DesignEditor = {
     if (snapV !== null) guideV.style.left = `${snapV * this.zoom}px`;
     if (snapH !== null) guideH.style.top = `${snapH * this.zoom}px`;
 
-    return { x: nx, y: ny };
+    return { x: nx, y: ny, guided: snapV !== null || snapH !== null };
   },
 
   hideGuides() {
@@ -1484,6 +1744,21 @@ const DesignEditor = {
       row('バインド', select(bindOptions, () => layer.binding || '', (v) => { layer.binding = v; }));
       row('固定テキスト', text(() => layer.text, (v) => { layer.text = v; }));
       row('サンプル', text(() => layer.sample, (v) => { layer.sample = v; }));
+      row('縦書き', select([['off', '横書き'], ['on', '縦書き']],
+        () => (layer.vertical ? 'on' : 'off'),
+        (v) => { layer.vertical = v === 'on'; this.renderProps(); }));
+      if (layer.vertical) {
+        row('縦中横', select([['on', '数字を横組み (1〜3桁)'], ['off', 'なし']],
+          () => (layer.tcy === false ? 'off' : 'on'), (v) => { layer.tcy = v !== 'off'; }));
+        const vHint = document.createElement('div');
+        vHint.className = 'de-props-hint';
+        vHint.textContent = '※縦書きは縦書き対応フォント (メイリオ / 游ゴシック / Noto Sans JP 等) を使用してください。非対応フォントでは文字が重なることがあります';
+        panel.appendChild(vHint);
+      }
+      const rubyHint = document.createElement('div');
+      rubyHint.className = 'de-props-hint';
+      rubyHint.textContent = 'ルビ: 【文字|よみ】 と入力すると振り仮名が付きます';
+      panel.appendChild(rubyHint);
 
       layer.font = layer.font || {};
       section('フォント');
@@ -1495,8 +1770,17 @@ const DesignEditor = {
       row('字間 / 行間',
         num(() => layer.font.letterSpacing || 0, (v) => { layer.font.letterSpacing = v; }, { step: '0.01' }),
         num(() => layer.font.lineHeight || 1.25, (v) => { layer.font.lineHeight = Math.max(0.5, v); }, { step: '0.05' }));
+      row('斜体 / 歪み(°)',
+        select([['off', 'なし'], ['on', '斜体']],
+          () => (layer.font.italic ? 'on' : 'off'), (v) => { layer.font.italic = v === 'on'; }),
+        num(() => layer.font.skewX || 0, (v) => { layer.font.skewX = Math.max(-45, Math.min(45, v)); }));
+      row('横幅率/縦幅率(%)',
+        num(() => Math.round((layer.font.scaleX !== undefined ? layer.font.scaleX : 1) * 100),
+          (v) => { layer.font.scaleX = Math.max(10, Math.min(400, v || 100)) / 100; }, { step: '5' }),
+        num(() => Math.round((layer.font.scaleY !== undefined ? layer.font.scaleY : 1) * 100),
+          (v) => { layer.font.scaleY = Math.max(10, Math.min(400, v || 100)) / 100; }, { step: '5' }));
       row('揃え',
-        select([['left', '左'], ['center', '中央'], ['right', '右']], () => layer.align || 'left', (v) => { layer.align = v; }),
+        select([['left', '左'], ['center', '中央'], ['right', '右'], ['justify', '均等割付']], () => layer.align || 'left', (v) => { layer.align = v; }),
         select([['top', '上'], ['middle', '中央'], ['bottom', '下']], () => layer.vAlign || 'middle', (v) => { layer.vAlign = v; }));
       row('自動調整', select(
         [['none', 'なし'], ['condense', '長体 (横に圧縮して収める)'], ['shrink', '縮小 (フォントを小さくして収める)']],
@@ -1711,6 +1995,17 @@ const DesignEditor = {
       } else {
         row('色', color(() => layer.fill.color || '#0d6ab7', (v) => { layer.fill.color = v; }));
       }
+      section('形状');
+      row('種類', select([['rect', '四角形'], ['ellipse', '円 / 楕円'], ['polygon', '正多角形'], ['star', '星形']],
+        () => layer.shape || 'rect',
+        (v) => { if (v === 'rect') delete layer.shape; else layer.shape = v; this.renderProps(); }));
+      if (layer.shape === 'polygon' || layer.shape === 'star') {
+        row('頂点数', num(() => layer.sides || 5, (v) => { layer.sides = Math.max(3, Math.min(24, Math.round(v) || 5)); }, { min: 3, max: 24 }));
+      }
+      if (layer.shape === 'star') {
+        row('谷の深さ(%)', num(() => Math.round((layer.starInset !== undefined ? layer.starInset : 0.5) * 100),
+          (v) => { layer.starInset = Math.max(10, Math.min(90, v || 50)) / 100; }, { step: '5' }));
+      }
       section('枠線 / 角丸');
       row('枠線 太さ/色',
         num(() => layer.border.width || 0, (v) => { layer.border.width = Math.max(0, v); }),
@@ -1841,21 +2136,23 @@ const DesignEditor = {
       row('時間 (ms)', num(() => anim.duration !== undefined ? anim.duration : 350, (v) => { anim.duration = Math.max(0, v); }, { step: '50' }));
       row('イージング', select(this.ANIM_EASINGS, () => anim.easing || opts.defaultEasing || 'ease-out', (v) => { anim.easing = v; }));
 
-      if (anim.preset === 'slide') {
+      if (anim.preset === 'slide' || anim.preset === 'push') {
         row('方向', select(this.ANIM_DIRECTIONS, () => anim.direction || 'up', (v) => { anim.direction = v; }));
-        row('距離 (px)', num(() => anim.distance !== undefined ? anim.distance : 60, (v) => { anim.distance = v; }, { step: '10' }));
+        row('距離 (px)', num(() => anim.distance !== undefined ? anim.distance : (anim.preset === 'push' ? 80 : 60), (v) => { anim.distance = v; }, { step: '10' }));
       }
       if (anim.preset === 'wipe') {
         row('拭き出し方向', select(this.ANIM_DIRECTIONS, () => anim.direction || 'right', (v) => { anim.direction = v; }));
       }
-      if (anim.preset === 'pop') {
-        row('開始スケール', num(() => anim.scaleFrom !== undefined ? anim.scaleFrom : 0.6, (v) => { anim.scaleFrom = v; }, { step: '0.1' }));
+      if (anim.preset === 'pop' || anim.preset === 'zoom') {
+        row('開始スケール', num(() => anim.scaleFrom !== undefined ? anim.scaleFrom : (anim.preset === 'zoom' ? 1.25 : 0.6), (v) => { anim.scaleFrom = v; }, { step: '0.05' }));
       }
       if (anim.preset === 'blur') {
         row('ぼかし量 (px)', num(() => anim.blurFrom !== undefined ? anim.blurFrom : 14, (v) => { anim.blurFrom = Math.max(0, v); }));
       }
       if (anim.preset === 'chars') {
         row('文字間隔 (ms)', num(() => anim.charDelay !== undefined ? anim.charDelay : 40, (v) => { anim.charDelay = Math.max(0, v); }, { step: '10' }));
+        row('表示順', select([['forward', '先頭から順に'], ['random', 'ランダム']],
+          () => anim.charOrder || 'forward', (v) => { anim.charOrder = v; }));
       }
     }
 

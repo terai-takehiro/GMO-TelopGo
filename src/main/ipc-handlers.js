@@ -9,6 +9,7 @@ const gpioDio = require('./gpio-dio');
 const remoteLink = require('./remote-link');
 const graphicsStore = require('./graphics-store');
 const graphicsServer = require('./graphics-server');
+const liveData = require('./live-data');
 const googleFonts = require('./google-fonts');
 const { getSettings, saveSettings, getGpioConfig, getGraphicsConfig } = require('./settings-store');
 
@@ -584,6 +585,44 @@ function registerIpcHandlers() {
       if (!win.isDestroyed()) win.webContents.send(channel, payload);
     });
   };
+
+  // --- ライブデータ連携 (CSV/Excel監視 → 送出中テロップへ自動反映) ---
+  ipcMain.handle('live-data-choose-file', async () => {
+    const result = await dialog.showOpenDialog({
+      title: '監視するCSV/Excelファイルを選択',
+      filters: [{ name: 'CSV / Excel', extensions: ['csv', 'xlsx', 'xlsm', 'xls'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return { ok: true, file: result.filePaths[0] };
+  });
+
+  ipcMain.handle('live-data-start', async (_event, cfg) => {
+    try {
+      const st = liveData.start(cfg, (values) => {
+        // 対象リージョンが送出中なら即CHANGEで差し替える (アニメなし)
+        const state = graphicsServer.getStatus().state[cfg.region];
+        if (state && state.onAir && (!cfg.templateKey || state.templateKey === cfg.templateKey)) {
+          graphicsServer.change(cfg.region, state.templateKey, Object.assign({}, state.values, values));
+        }
+        broadcastToWindows('live-data-update', liveData.getStatus());
+      });
+      broadcastToWindows('live-data-update', st);
+      return { ok: true, ...st };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('live-data-stop', async () => {
+    const st = liveData.stop();
+    broadcastToWindows('live-data-update', st);
+    return { ok: true, ...st };
+  });
+
+  ipcMain.handle('live-data-status', async () => {
+    return liveData.getStatus();
+  });
   gpioDio.events.on('button', (bit) => broadcastToWindows('gpio-button', bit));
   gpioDio.events.on('state', (state) => broadcastToWindows('gpio-state', state));
   gpioDio.events.on('error', (message) => broadcastToWindows('gpio-error', message));

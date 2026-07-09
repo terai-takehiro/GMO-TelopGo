@@ -246,6 +246,17 @@
             <option value="1">100%</option>
           </select>
         </label>
+        <label class="de-tool-label">グリッド
+          <select id="de-grid" class="input input--small" title="グリッドを表示し、ドラッグ時に吸着します">
+            <option value="0">なし</option>
+            <option value="10">10px</option>
+            <option value="20">20px</option>
+            <option value="50">50px</option>
+          </select>
+        </label>
+        <label class="de-tool-label" title="セーフティエリア (90%) を表示">
+          <input type="checkbox" id="de-safety"> セーフティ
+        </label>
         <button class="btn btn--small" id="de-anim-settings" title="レイヤーの選択を解除してテンプレートのアニメーション設定を表示">アニメ設定</button>
         <button class="btn btn--small" id="de-play-in">&#9654; IN</button>
         <button class="btn btn--small" id="de-play-out">&#9654; OUT</button>
@@ -267,8 +278,10 @@
           <div class="de-layers-header">
             <span>レイヤー</span>
             <span>
+              <button class="btn btn--small" id="de-layer-top" title="最前面へ">&#8686;</button>
               <button class="btn btn--small" id="de-layer-up" title="前面へ">&#9650;</button>
               <button class="btn btn--small" id="de-layer-down" title="背面へ">&#9660;</button>
+              <button class="btn btn--small" id="de-layer-bottom" title="最背面へ">&#8687;</button>
             </span>
           </div>
           <ul class="de-layer-list" id="de-layer-list"></ul>
@@ -285,6 +298,8 @@
           <div class="de-canvas-wrap" id="de-canvas-wrap">
             <div class="de-canvas" id="de-canvas"></div>
             <div class="de-overlay" id="de-overlay">
+              <div class="de-grid-layer hidden" id="de-grid-layer"></div>
+              <div class="de-safety-box hidden" id="de-safety-box"></div>
               <div class="de-guide de-guide-v hidden" id="de-guide-v"></div>
               <div class="de-guide de-guide-h hidden" id="de-guide-h"></div>
               <div class="de-selection hidden" id="de-selection"></div>
@@ -406,6 +421,35 @@
       </fieldset>
 
       <fieldset class="settings-group">
+        <legend>ライブデータ連携 (CSV/Excel)</legend>
+        <div class="settings-row">
+          <label>監視ファイル</label>
+          <input type="text" id="ld-file" class="input" readonly placeholder="未選択 (CSV / Excel)">
+          <button class="btn btn--small" id="ld-choose">選択...</button>
+        </div>
+        <div class="settings-row">
+          <label for="ld-region">反映先</label>
+          <select id="ld-region" class="input input--small">
+            <option value="name">名前テロップ</option>
+            <option value="side">サイドテロップ</option>
+          </select>
+          <span class="settings-inline-hint">送出中のテロップの文字を自動で差し替えます</span>
+        </div>
+        <div class="settings-row">
+          <label>セル割当</label>
+          <div class="ld-mappings" id="ld-mappings"></div>
+        </div>
+        <div class="settings-row">
+          <label>監視</label>
+          <button class="btn btn--small btn--primary" id="ld-start">開始</button>
+          <button class="btn btn--small" id="ld-stop">停止</button>
+          <span class="gpio-conn-status" id="ld-status">停止中</span>
+          <span class="settings-inline-hint" id="ld-last"></span>
+        </div>
+        <p class="gpio-hint">先頭シートの指定セル (例: B2) を1秒間隔で監視し、値が変わると送出中のテロップへ即時反映します (CHANGE相当・アニメなし)。Excelを上書き保存するだけでスコアや順位表が更新される運用ができます。2台運用時は出力担当PC側で設定してください。</p>
+      </fieldset>
+
+      <fieldset class="settings-group">
         <legend>リモート連携 (2台運用)</legend>
         <div class="settings-row">
           <label>動作モード</label>
@@ -520,6 +564,7 @@
   <script src="../output/telop-renderer.js"></script>
   <script src="../output/telop-animator.js"></script>
   <script src="js/design-editor.js"></script>
+  <script src="js/live-data-ui.js"></script>
   <script src="js/settings-ui.js"></script>
   <script src="js/status-bar.js"></script>
 </body>
