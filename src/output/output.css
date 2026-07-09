@@ -44,4 +44,16 @@ html, body {
 
 .tl-text-inner {
   display: inline-block;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* グラデーション文字 × 縁取り併用時の二層構造
+   下層(.tl-txt-under)が縁取り/影を担当し、上層(.tl-txt-fill)が
+   グラデーション文字を重ねる (透明文字にシャドウが透けるのを防ぐ) */
+.tl-txt-fill {
+  position: absolute;
+  inset: 0;
+  padding: inherit;
+  box-sizing: border-box;
 }

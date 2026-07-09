@@ -1131,7 +1131,6 @@ const DesignEditor = {
         num(() => layer.font.size || 30, (v) => { layer.font.size = Math.max(4, v); }),
         select([['400', '標準'], ['500', '中'], ['700', '太字'], ['800', '極太'], ['900', '最太']],
           () => String(layer.font.weight || 700), (v) => { layer.font.weight = parseInt(v, 10); }));
-      row('色', color(() => layer.font.color, (v) => { layer.font.color = v; }));
       row('字間 / 行間',
         num(() => layer.font.letterSpacing || 0, (v) => { layer.font.letterSpacing = v; }, { step: '0.01' }),
         num(() => layer.font.lineHeight || 1.25, (v) => { layer.font.lineHeight = Math.max(0.5, v); }, { step: '0.05' }));
@@ -1142,23 +1141,153 @@ const DesignEditor = {
         [['none', 'なし'], ['condense', '長体 (横に圧縮して収める)'], ['shrink', '縮小 (フォントを小さくして収める)']],
         () => layer.autoFit || 'none', (v) => { layer.autoFit = v; }));
 
-      section('縁取り / 影');
-      layer.stroke = layer.stroke || { width: 0, color: '#000000' };
-      row('縁取り 太さ/色',
-        num(() => layer.stroke.width || 0, (v) => { layer.stroke.width = Math.max(0, v); }, { step: '0.5' }),
-        color(() => layer.stroke.color, (v) => { layer.stroke.color = v; }));
-      const hasShadow = !!layer.shadow;
-      row('影', select([['off', 'なし'], ['on', 'あり']], () => (hasShadow ? 'on' : 'off'), (v) => {
-        layer.shadow = v === 'on' ? (layer.shadow || { x: 2, y: 2, blur: 6, color: 'rgba(0,0,0,0.6)' }) : null;
+      // --- 塗り (単色 / グラデーション) ---
+      section('塗り');
+      row('種類', select([['solid', '単色'], ['gradient', 'グラデーション']],
+        () => (layer.fill && layer.fill.type === 'gradient' ? 'gradient' : 'solid'),
+        (v) => {
+          layer.fill = v === 'gradient'
+            ? { type: 'gradient', from: layer.font.color || '#ffffff', to: '#ffd54a', angle: 180 }
+            : null;
+          this.renderProps();
+        }));
+      if (layer.fill && layer.fill.type === 'gradient') {
+        row('開始色 / 終了色',
+          color(() => layer.fill.from || '#ffffff', (v) => { layer.fill.from = v; }),
+          color(() => layer.fill.to || '#ffd54a', (v) => { layer.fill.to = v; }));
+        row('角度', num(() => (layer.fill.angle !== undefined ? layer.fill.angle : 180), (v) => { layer.fill.angle = v; }));
+      } else {
+        row('色', color(() => layer.font.color, (v) => { layer.font.color = v; }));
+      }
+
+      // --- 縁取り (多重エッジ・外側) ---
+      section('縁取り (外側・内→外の順)');
+      if (!Array.isArray(layer.strokes)) {
+        layer.strokes = (layer.stroke && layer.stroke.width > 0)
+          ? [{ width: layer.stroke.width, color: layer.stroke.color || '#000000' }]
+          : [];
+        delete layer.stroke;
+      }
+      layer.strokes.forEach((st, si) => {
+        const del = document.createElement('button');
+        del.className = 'btn btn--small';
+        del.textContent = '✕';
+        del.title = 'このエッジを削除';
+        del.addEventListener('click', () => {
+          this.beginChange();
+          layer.strokes.splice(si, 1);
+          this.renderArtboard();
+          this.renderProps();
+        });
+        row(`エッジ${si + 1} 太さ/色`,
+          num(() => st.width, (v) => { st.width = Math.max(0, v); }, { step: '0.5' }),
+          color(() => st.color, (v) => { st.color = v; }),
+          del);
+      });
+      if (layer.strokes.length < 4) {
+        const addEdge = document.createElement('button');
+        addEdge.className = 'btn btn--small';
+        addEdge.textContent = '＋エッジ追加';
+        addEdge.title = '縁取りを1層追加 (最大4層。内側から順に重なります)';
+        addEdge.addEventListener('click', () => {
+          this.beginChange();
+          layer.strokes.push({ width: 3, color: layer.strokes.length % 2 === 0 ? '#000000' : '#ffffff' });
+          this.renderArtboard();
+          this.renderProps();
+        });
+        row('', addEdge);
+      }
+
+      // --- 影 (ドロップシャドウ: 角度+距離+ぼかし) ---
+      section('影 (ドロップシャドウ)');
+      // 旧形式 (x/y指定) は角度/距離へ変換
+      if (layer.shadow && layer.shadow.distance === undefined) {
+        const dx = layer.shadow.x || 0;
+        const dy = layer.shadow.y || 0;
+        layer.shadow.distance = Math.round(Math.hypot(dx, dy) * 10) / 10;
+        layer.shadow.angle = (Math.round((Math.atan2(dy, dx) * 180) / Math.PI) + 360) % 360;
+        delete layer.shadow.x;
+        delete layer.shadow.y;
+      }
+      row('影', select([['off', 'なし'], ['on', 'あり']], () => (layer.shadow ? 'on' : 'off'), (v) => {
+        layer.shadow = v === 'on'
+          ? (layer.shadow || { angle: 45, distance: 4, blur: 6, color: 'rgba(0,0,0,0.6)' })
+          : null;
         this.renderProps();
       }));
       if (layer.shadow) {
-        row('影 X/Y/ぼかし',
-          num(() => layer.shadow.x, (v) => { layer.shadow.x = v; }),
-          num(() => layer.shadow.y, (v) => { layer.shadow.y = v; }),
-          num(() => layer.shadow.blur, (v) => { layer.shadow.blur = Math.max(0, v); }));
+        const angleInput = num(() => (layer.shadow.angle !== undefined ? layer.shadow.angle : 45),
+          (v) => { layer.shadow.angle = ((v % 360) + 360) % 360; }, { min: 0, max: 360 });
+        angleInput.title = '0°=右 / 90°=下 / 180°=左 / 270°=上';
+        row('角度 / 距離',
+          angleInput,
+          num(() => (layer.shadow.distance !== undefined ? layer.shadow.distance : 4), (v) => { layer.shadow.distance = Math.max(0, v); }, { step: '0.5' }));
+        row('ぼかし', num(() => layer.shadow.blur || 0, (v) => { layer.shadow.blur = Math.max(0, v); }));
         row('影 色', text(() => layer.shadow.color, (v) => { layer.shadow.color = v; }));
       }
+
+      // --- 座布団 (文字にフィットする背景) ---
+      section('座布団 (文字の背景)');
+      row('モード', select(
+        [['off', 'なし'], ['fit', '文字にフィット'], ['fixed', 'レイヤー枠全体']],
+        () => (layer.board && layer.board.enabled ? (layer.board.mode || 'fit') : 'off'),
+        (v) => {
+          if (v === 'off') {
+            layer.board = null;
+          } else {
+            layer.board = layer.board || { color: '#0d6ab7', radius: 6, padX: 18, padY: 6 };
+            layer.board.enabled = true;
+            layer.board.mode = v;
+          }
+          this.renderProps();
+        }));
+      if (layer.board && layer.board.enabled) {
+        row('色 / 角丸',
+          color(() => layer.board.color || '#0d6ab7', (v) => { layer.board.color = v; }),
+          num(() => layer.board.radius || 0, (v) => { layer.board.radius = Math.max(0, v); }));
+        if (layer.board.mode !== 'fixed') {
+          row('余白 横/縦',
+            num(() => (layer.board.padX !== undefined ? layer.board.padX : 18), (v) => { layer.board.padX = Math.max(0, v); }),
+            num(() => (layer.board.padY !== undefined ? layer.board.padY : 6), (v) => { layer.board.padY = Math.max(0, v); }));
+        }
+      }
+
+      // --- 装飾スタイルのコピー/貼り付け ---
+      section('装飾スタイル');
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'btn btn--small';
+      copyBtn.textContent = '装飾コピー';
+      copyBtn.title = 'フォント・塗り・縁取り・影・座布団の設定をコピー (テキスト内容や位置はコピーしません)';
+      copyBtn.addEventListener('click', () => {
+        this._styleClipboard = JSON.parse(JSON.stringify({
+          font: layer.font || {},
+          fill: layer.fill || null,
+          strokes: layer.strokes || [],
+          shadow: layer.shadow || null,
+          board: layer.board || null,
+        }));
+        App.setStatus('装飾スタイルをコピーしました。他のテキストレイヤーを選んで「貼り付け」してください', 'success');
+        this.renderProps();
+      });
+      const pasteBtn = document.createElement('button');
+      pasteBtn.className = 'btn btn--small';
+      pasteBtn.textContent = '貼り付け';
+      pasteBtn.disabled = !this._styleClipboard;
+      pasteBtn.title = this._styleClipboard ? 'コピーした装飾スタイルをこのレイヤーへ適用' : '先に「装飾コピー」を実行してください';
+      pasteBtn.addEventListener('click', () => {
+        if (!this._styleClipboard) return;
+        this.beginChange();
+        const clip = JSON.parse(JSON.stringify(this._styleClipboard));
+        layer.font = Object.assign({}, layer.font, clip.font);
+        layer.fill = clip.fill;
+        layer.strokes = clip.strokes;
+        layer.shadow = clip.shadow;
+        layer.board = clip.board;
+        this.renderArtboard();
+        this.renderProps();
+        App.setStatus('装飾スタイルを貼り付けました', 'success');
+      });
+      row('', copyBtn, pasteBtn);
     }
 
     // --- 矩形 ---

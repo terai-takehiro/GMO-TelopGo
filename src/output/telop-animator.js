@@ -84,20 +84,23 @@
     return frame;
   }
 
-  /** テキストレイヤーを1文字ずつspanに分割する (chars用) */
+  /** テキストレイヤーを1文字ずつspanに分割する (chars用)
+   *  .tl-text-inner がある場合はその内側で分割し、座布団や長体の
+   *  スタイルを保持する */
   function splitChars(el) {
-    if (el.dataset.charsSplit === '1') return Array.from(el.querySelectorAll('.tl-char'));
-    const text = el.textContent;
-    el.textContent = '';
+    const target = el.querySelector('.tl-text-inner') || el;
+    if (target.dataset.charsSplit === '1') return Array.from(target.querySelectorAll('.tl-char'));
+    const text = target.textContent;
+    target.textContent = '';
     const spans = [];
     for (const ch of text) {
       const span = document.createElement('span');
       span.className = 'tl-char';
       span.textContent = ch;
-      el.appendChild(span);
+      target.appendChild(span);
       spans.push(span);
     }
-    el.dataset.charsSplit = '1';
+    target.dataset.charsSplit = '1';
     return spans;
   }
 
@@ -133,7 +136,10 @@
       const easing = anim.easing || (direction === 'in' ? 'ease-out' : 'ease-in');
       const baseTransform = el.style.transform;
 
-      if (anim.preset === 'chars' && el.classList.contains('tl-text')) {
+      // グラデーション文字は分割するとbackground-clipが壊れるため全体フェードへ
+      const innerEl = el.querySelector('.tl-text-inner');
+      const splittable = !innerEl || innerEl.dataset.noSplit !== '1';
+      if (anim.preset === 'chars' && el.classList.contains('tl-text') && splittable) {
         // 文字送り: 1文字ずつ順に表示 (OUTは全体フェード)
         if (direction === 'in') {
           const spans = splitChars(el);

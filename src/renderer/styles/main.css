@@ -1230,6 +1230,14 @@ body {
 }
 .de-canvas .tl-text-inner {
   display: inline-block;
+  position: relative;
+  box-sizing: border-box;
+}
+.de-canvas .tl-txt-fill {
+  position: absolute;
+  inset: 0;
+  padding: inherit;
+  box-sizing: border-box;
 }
 
 .de-overlay {

@@ -119,33 +119,95 @@
 
     // 縁取り(外側)と影は text-shadow を重ねて表現する
     // (-webkit-text-stroke は中央基準で文字の内側に食い込むため使用しない)
-    const shadows = [];
-    if (layer.stroke && layer.stroke.width > 0) {
-      shadows.push(...outlineShadows(layer.stroke.width, layer.stroke.color || '#000000'));
-    }
+    const strokes = Array.isArray(layer.strokes)
+      ? layer.strokes.filter((s) => s && s.width > 0)
+      : (layer.stroke && layer.stroke.width > 0 ? [layer.stroke] : []);
+    const shadows = edgeShadows(strokes);
     if (layer.shadow) {
       const s = layer.shadow;
-      shadows.push(`${s.x || 0}px ${s.y || 0}px ${s.blur || 0}px ${s.color || 'rgba(0,0,0,0.6)'}`);
+      let dx = s.x || 0;
+      let dy = s.y || 0;
+      if (s.distance !== undefined) {
+        const rad = ((s.angle !== undefined ? s.angle : 45) * Math.PI) / 180;
+        dx = Math.cos(rad) * s.distance;
+        dy = Math.sin(rad) * s.distance;
+      }
+      shadows.push(`${(+dx).toFixed(1)}px ${(+dy).toFixed(1)}px ${s.blur || 0}px ${s.color || 'rgba(0,0,0,0.6)'}`);
     }
-    if (shadows.length) el.style.textShadow = shadows.join(', ');
+
+    // 座布団 (文字にフィットする背景) — fitは文字サイズ追従、fixedはレイヤー枠全体
+    if (layer.board && layer.board.enabled) {
+      const b = layer.board;
+      const bg = b.fill && b.fill.type === 'gradient'
+        ? `linear-gradient(${b.fill.angle !== undefined ? b.fill.angle : 180}deg, ${b.fill.from}, ${b.fill.to})`
+        : ((b.fill && b.fill.color) || b.color || '#0d6ab7');
+      const target = b.mode === 'fixed' ? el : inner;
+      target.style.background = bg;
+      if (b.radius) target.style.borderRadius = `${b.radius}px`;
+      if (b.mode !== 'fixed') {
+        inner.style.padding = `${b.padY !== undefined ? b.padY : 6}px ${b.padX !== undefined ? b.padX : 18}px`;
+      }
+    }
+
+    // 文字のグラデーション塗り (background-clip: text)
+    // 縁取り/影と併用する場合、透明文字にはシャドウが透けるため
+    // 下層(縁取り担当)+上層(グラデーション担当)の二層構造にする
+    const gradCss = layer.fill && layer.fill.type === 'gradient'
+      ? `linear-gradient(${layer.fill.angle !== undefined ? layer.fill.angle : 180}deg, ${layer.fill.from}, ${layer.fill.to})`
+      : null;
+    if (gradCss) {
+      // 常に二層構造にする: inner直体にclipを掛けると座布団背景まで
+      // 文字型に切り抜かれ、透明文字にはシャドウが透けるため
+      inner.dataset.noSplit = '1'; // charsアニメの文字分割はグラデーションを壊すため不可
+      inner.textContent = '';
+      const under = document.createElement('span');
+      under.className = 'tl-txt-under';
+      under.textContent = value || '';
+      if (shadows.length) under.style.textShadow = shadows.join(', ');
+      const fillSpan = document.createElement('span');
+      fillSpan.className = 'tl-txt-fill';
+      fillSpan.textContent = value || '';
+      applyTextGradient(fillSpan, gradCss);
+      inner.appendChild(under);
+      inner.appendChild(fillSpan);
+    } else if (shadows.length) {
+      el.style.textShadow = shadows.join(', ');
+    }
+  }
+
+  function applyTextGradient(node, gradCss) {
+    node.style.backgroundImage = gradCss;
+    node.style.webkitBackgroundClip = 'text';
+    node.style.backgroundClip = 'text';
+    node.style.webkitTextFillColor = 'transparent';
   }
 
   /**
-   * 外側縁取り用のtext-shadow群を生成する。
+   * 外側縁取り用のtext-shadow群を生成する (多重エッジ対応)。
    * 文字の周囲に多方向のシャドウ(ぼかしなし)を並べてアウトラインを作る。
    * 文字本体はシャドウの手前に描画されるため、線は外側にのみ付く。
+   * 複数エッジは内側から順に指定し、先に並べたシャドウが手前に描画される
+   * 性質を使って「内側エッジが外側エッジの上に重なる」層構造を作る。
+   * @param {Array<{width: number, color: string}>} strokes 内側→外側の順
    */
-  function outlineShadows(width, color) {
+  function edgeShadows(strokes) {
     const shadows = [];
-    const radii = width > 3 ? [width, width * 0.6] : [width];
-    radii.forEach((r) => {
-      const steps = Math.min(48, Math.max(16, Math.round(r * 10)));
-      for (let i = 0; i < steps; i++) {
-        const angle = (Math.PI * 2 * i) / steps;
-        const x = (Math.cos(angle) * r).toFixed(2);
-        const y = (Math.sin(angle) * r).toFixed(2);
-        shadows.push(`${x}px ${y}px 0 ${color}`);
-      }
+    let cum = 0;
+    (strokes || []).forEach((s) => {
+      const prev = cum;
+      cum += s.width;
+      const color = s.color || '#000000';
+      const band = cum - prev;
+      const radii = band > 3 ? [cum, prev + band * 0.6] : [cum];
+      radii.forEach((r) => {
+        const steps = Math.min(48, Math.max(16, Math.round(r * 10)));
+        for (let i = 0; i < steps; i++) {
+          const angle = (Math.PI * 2 * i) / steps;
+          const x = (Math.cos(angle) * r).toFixed(2);
+          const y = (Math.sin(angle) * r).toFixed(2);
+          shadows.push(`${x}px ${y}px 0 ${color}`);
+        }
+      });
     });
     return shadows;
   }
