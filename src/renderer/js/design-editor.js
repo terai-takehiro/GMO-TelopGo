@@ -75,6 +75,14 @@ const DesignEditor = {
   loaded: false,
 
   init() {
+    // デザインセット
+    document.getElementById('de-set-select').addEventListener('change', (e) => this.switchSet(e.target.value));
+    document.getElementById('de-set-new').addEventListener('click', () => this.openSetDialog('new'));
+    document.getElementById('de-set-rename').addEventListener('click', () => this.openSetDialog('rename'));
+    document.getElementById('de-set-delete').addEventListener('click', () => this.deleteSet());
+    document.getElementById('de-set-cancel').addEventListener('click', () => document.getElementById('de-set-dialog').close());
+    document.getElementById('de-set-ok').addEventListener('click', () => this.submitSetDialog());
+
     // ツールバー
     document.getElementById('de-template').addEventListener('change', (e) => {
       this.templateKey = e.target.value;
@@ -132,6 +140,7 @@ const DesignEditor = {
   /** デザインタブ表示時 (初回にプロジェクトを読み込む) */
   async onShow() {
     if (!this.loaded) {
+      await this.refreshSets();
       await this.loadProject();
     }
     this.applyZoom();
@@ -143,6 +152,125 @@ const DesignEditor = {
       this.systemFonts = await window.api.getSystemFonts();
       this.renderProps(); // フォントプルダウンに反映
     }
+  },
+
+  // ===== デザインセット管理 =====
+
+  sets: { activeId: null, sets: [] },
+  _setDialogMode: 'new',
+
+  async refreshSets() {
+    this.sets = await window.api.graphicsListSets();
+    const select = document.getElementById('de-set-select');
+    select.innerHTML = '';
+    this.sets.sets.forEach((s) => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name;
+      if (s.id === this.sets.activeId) opt.selected = true;
+      select.appendChild(opt);
+    });
+  },
+
+  async switchSet(id) {
+    if (id === this.sets.activeId) return;
+    if (this.dirty) {
+      if (!confirm('デザインに未保存の変更があります。保存してから切り替えます。よろしいですか?')) {
+        document.getElementById('de-set-select').value = this.sets.activeId; // 元に戻す
+        return;
+      }
+      await this.save();
+    }
+    const result = await window.api.graphicsSwitchSet(id);
+    if (!result.ok) {
+      App.setStatus(`セット切替エラー: ${result.error}`, 'error');
+      document.getElementById('de-set-select').value = this.sets.activeId;
+      return;
+    }
+    this.sets = result;
+    this.selectedId = null;
+    await this.loadProject();
+    const name = result.sets.find((s) => s.id === id);
+    App.setStatus(`デザインセット「${name ? name.name : id}」に切り替えました (出力にも反映されます)`, 'success');
+  },
+
+  openSetDialog(mode) {
+    this._setDialogMode = mode;
+    document.getElementById('de-set-dialog-title').textContent = mode === 'new' ? '新しいデザインセット' : 'セット名の変更';
+    document.getElementById('de-set-base-row').classList.toggle('hidden', mode !== 'new');
+    const nameInput = document.getElementById('de-set-name');
+    if (mode === 'rename') {
+      const current = this.sets.sets.find((s) => s.id === this.sets.activeId);
+      nameInput.value = current ? current.name : '';
+    } else {
+      nameInput.value = '';
+    }
+    document.getElementById('de-set-dialog').showModal();
+    nameInput.focus();
+  },
+
+  async submitSetDialog() {
+    const name = document.getElementById('de-set-name').value.trim();
+    if (!name) {
+      App.setStatus('セット名を入力してください', 'error');
+      return;
+    }
+    document.getElementById('de-set-dialog').close();
+
+    if (this._setDialogMode === 'new') {
+      // 未保存の変更は複製元に含めるため先に保存
+      if (this.dirty) await this.save();
+      const fromCurrent = document.getElementById('de-set-base').value === 'copy';
+      const result = await window.api.graphicsCreateSet(name, fromCurrent);
+      if (!result.ok) {
+        App.setStatus(`セット作成エラー: ${result.error}`, 'error');
+        return;
+      }
+      this.sets = result;
+      this.selectedId = null;
+      await this.refreshSets();
+      await this.loadProject();
+      App.setStatus(`デザインセット「${name}」を作成しました`, 'success');
+    } else {
+      const result = await window.api.graphicsRenameSet(this.sets.activeId, name);
+      if (!result.ok) {
+        App.setStatus(`名前変更エラー: ${result.error}`, 'error');
+        return;
+      }
+      this.sets = result;
+      await this.refreshSets();
+      App.setStatus(`セット名を「${name}」に変更しました`, 'success');
+    }
+  },
+
+  /** 現在のセットを削除し、別のセットへ自動で切り替える */
+  async deleteSet() {
+    const id = this.sets.activeId;
+    const entry = this.sets.sets.find((s) => s.id === id);
+    if (!entry) return;
+    const others = this.sets.sets.filter((s) => s.id !== id);
+    if (others.length === 0) {
+      App.setStatus('最後のデザインセットは削除できません。', 'error');
+      return;
+    }
+    const warn = this.dirty ? '\n※未保存の変更も一緒に破棄されます' : '';
+    if (!confirm(`デザインセット「${entry.name}」を削除し、「${others[0].name}」に切り替えます。よろしいですか?\n(この操作は元に戻せません)${warn}`)) return;
+
+    const sw = await window.api.graphicsSwitchSet(others[0].id);
+    if (!sw.ok) {
+      App.setStatus(`切替エラー: ${sw.error}`, 'error');
+      return;
+    }
+    const result = await window.api.graphicsDeleteSet(id);
+    if (!result.ok) {
+      App.setStatus(`削除エラー: ${result.error}`, 'error');
+      return;
+    }
+    this.sets = result;
+    this.selectedId = null;
+    await this.refreshSets();
+    await this.loadProject();
+    App.setStatus(`デザインセット「${entry.name}」を削除し、「${others[0].name}」に切り替えました`, 'success');
   },
 
   async loadProject() {

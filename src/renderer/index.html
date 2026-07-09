@@ -222,6 +222,13 @@
   <div class="tab-content" id="tab-design">
     <div class="de-layout">
       <div class="de-toolbar">
+        <label class="de-tool-label">デザインセット
+          <select id="de-set-select" class="input input--small"></select>
+        </label>
+        <button class="btn btn--small" id="de-set-new" title="新しいデザインセットを作成">＋</button>
+        <button class="btn btn--small" id="de-set-rename" title="セット名を変更">✎</button>
+        <button class="btn btn--small" id="de-set-delete" title="セットを削除 (使用中のセットは削除不可)">🗑</button>
+        <span class="de-toolbar-sep"></span>
         <label class="de-tool-label">テンプレート
           <select id="de-template" class="input input--small"></select>
         </label>
@@ -287,6 +294,26 @@
       </div>
     </div>
   </div>
+
+  <!-- デザインセット 作成/名前変更ダイアログ -->
+  <dialog id="de-set-dialog" class="de-dialog">
+    <h3 id="de-set-dialog-title">新しいデザインセット</h3>
+    <div class="settings-row">
+      <label for="de-set-name">名前</label>
+      <input type="text" id="de-set-name" class="input" maxlength="40" placeholder="例: 表彰式用">
+    </div>
+    <div class="settings-row" id="de-set-base-row">
+      <label for="de-set-base">作成元</label>
+      <select id="de-set-base" class="input input--small">
+        <option value="copy">現在のデザインをコピー</option>
+        <option value="default">初期テンプレートから</option>
+      </select>
+    </div>
+    <div class="de-dialog-actions">
+      <button class="btn btn--small" id="de-set-cancel">キャンセル</button>
+      <button class="btn btn--small btn--primary" id="de-set-ok">OK</button>
+    </div>
+  </dialog>
 
   <!-- Webフォント取得ダイアログ -->
   <dialog id="de-gfont-dialog" class="de-dialog">

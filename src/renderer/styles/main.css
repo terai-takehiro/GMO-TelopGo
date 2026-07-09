@@ -1378,3 +1378,12 @@ body {
   cursor: pointer;
 }
 .de-tl-badge--custom:hover { opacity: 0.8; }
+
+/* デザインセット管理 */
+.de-toolbar-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+}
+#de-set-select { max-width: 160px; }

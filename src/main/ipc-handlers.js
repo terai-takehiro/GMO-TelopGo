@@ -246,6 +246,49 @@ function registerIpcHandlers() {
     return listSystemFonts();
   });
 
+  // --- デザインセット管理 ---
+  ipcMain.handle('graphics-list-sets', async () => {
+    return graphicsStore.listSets();
+  });
+
+  ipcMain.handle('graphics-create-set', async (_event, name, fromCurrent) => {
+    try {
+      const id = graphicsStore.createSet(String(name || '').trim() || '新しいデザイン', !!fromCurrent);
+      graphicsServer.refreshProject();
+      return { ok: true, id, ...graphicsStore.listSets() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-switch-set', async (_event, id) => {
+    try {
+      graphicsStore.switchSet(id);
+      graphicsServer.refreshProject();
+      return { ok: true, ...graphicsStore.listSets() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-rename-set', async (_event, id, name) => {
+    try {
+      graphicsStore.renameSet(id, String(name || '').trim() || '新しいデザイン');
+      return { ok: true, ...graphicsStore.listSets() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-delete-set', async (_event, id) => {
+    try {
+      graphicsStore.deleteSet(id);
+      return { ok: true, ...graphicsStore.listSets() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('graphics-fetch-gfont', async (_event, family, weights) => {
     try {
       const result = await googleFonts.fetchFamily(family, weights, graphicsStore.getAssetsDir());

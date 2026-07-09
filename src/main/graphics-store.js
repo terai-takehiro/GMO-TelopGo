@@ -12,14 +12,21 @@ const path = require('path');
 let graphicsDir = '';
 let assetsDirPath = '';
 let projectPath = '';
+let setsDirPath = '';
+let registryPath = '';
 let project = null;
+/** デザインセットの一覧と現在のセット { activeId, sets: [{id, name}] } */
+let registry = null;
 
 /** @param {string} baseDir Electronの userData ディレクトリ */
 function init(baseDir) {
   graphicsDir = path.join(baseDir, 'graphics');
   assetsDirPath = path.join(graphicsDir, 'assets');
   projectPath = path.join(graphicsDir, 'project.json');
+  setsDirPath = path.join(graphicsDir, 'sets');
+  registryPath = path.join(graphicsDir, 'sets.json');
   fs.mkdirSync(assetsDirPath, { recursive: true });
+  fs.mkdirSync(setsDirPath, { recursive: true });
 
   if (!fs.existsSync(projectPath)) {
     project = buildDefaultProject();
@@ -27,6 +34,29 @@ function init(baseDir) {
   } else {
     reload();
   }
+
+  // セット管理への移行: 既存環境は現在のデザインを「既定デザイン」として登録
+  if (!fs.existsSync(registryPath)) {
+    registry = { activeId: 'default', sets: [{ id: 'default', name: '既定デザイン' }] };
+    fs.writeFileSync(setFilePath('default'), JSON.stringify(project), 'utf-8');
+    saveRegistry();
+  } else {
+    try {
+      registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+    } catch (_) {
+      registry = { activeId: 'default', sets: [{ id: 'default', name: '既定デザイン' }] };
+      fs.writeFileSync(setFilePath('default'), JSON.stringify(project), 'utf-8');
+      saveRegistry();
+    }
+  }
+}
+
+function setFilePath(id) {
+  return path.join(setsDirPath, `${String(id).replace(/[^\w-]/g, '_')}.json`);
+}
+
+function saveRegistry() {
+  fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2), 'utf-8');
 }
 
 function reload() {
@@ -73,6 +103,72 @@ function sanitizeSamples(proj) {
 
 function saveProject() {
   fs.writeFileSync(projectPath, JSON.stringify(project, null, 2), 'utf-8');
+  // 現在のセットファイルにも同期 (セット切替で編集内容が失われないように)
+  if (registry && registry.activeId) {
+    fs.writeFileSync(setFilePath(registry.activeId), JSON.stringify(project), 'utf-8');
+  }
+}
+
+// ===== デザインセット管理 =====
+
+function listSets() {
+  return {
+    activeId: registry.activeId,
+    sets: registry.sets.map((s) => ({ id: s.id, name: s.name, active: s.id === registry.activeId })),
+  };
+}
+
+/**
+ * 新しいデザインセットを作成してアクティブにする
+ * @param {string} name セット名
+ * @param {boolean} fromCurrent true=現在のデザインを複製 / false=初期テンプレートから
+ */
+function createSet(name, fromCurrent) {
+  const id = `set_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
+  let content;
+  if (fromCurrent) {
+    content = JSON.parse(JSON.stringify(project));
+  } else {
+    content = buildDefaultProject();
+    // フォント登録 (LINE Seed JP・持ち込みフォント) は素材共有のため引き継ぐ
+    if (project && project.assets && project.assets.fonts) {
+      content.assets.fonts = JSON.parse(JSON.stringify(project.assets.fonts));
+    }
+  }
+  registry.sets.push({ id, name: name || '新しいデザイン' });
+  registry.activeId = id;
+  project = content;
+  saveRegistry();
+  saveProject();
+  return id;
+}
+
+/** 指定セットへ切り替える (現在の編集は保存済み前提。project.jsonにも反映) */
+function switchSet(id) {
+  const entry = registry.sets.find((s) => s.id === id);
+  if (!entry) throw new Error('デザインセットが見つかりません。');
+  const file = setFilePath(id);
+  if (!fs.existsSync(file)) throw new Error('デザインセットのファイルが見つかりません。');
+  project = JSON.parse(fs.readFileSync(file, 'utf-8'));
+  sanitizeSamples(project);
+  registry.activeId = id;
+  saveRegistry();
+  saveProject();
+}
+
+function renameSet(id, name) {
+  const entry = registry.sets.find((s) => s.id === id);
+  if (!entry) throw new Error('デザインセットが見つかりません。');
+  entry.name = name;
+  saveRegistry();
+}
+
+function deleteSet(id) {
+  if (id === registry.activeId) throw new Error('使用中のデザインセットは削除できません。先に別のセットへ切り替えてください。');
+  if (registry.sets.length <= 1) throw new Error('最後のデザインセットは削除できません。');
+  registry.sets = registry.sets.filter((s) => s.id !== id);
+  try { fs.unlinkSync(setFilePath(id)); } catch (_) { /* ignore */ }
+  saveRegistry();
 }
 
 function getProject() {
@@ -275,4 +371,8 @@ function referencedAssetFiles(proj) {
   return [...files];
 }
 
-module.exports = { init, reload, getProject, setProject, getProjectPath, getAssetsDir, buildDefaultProject, referencedAssetFiles };
+module.exports = {
+  init, reload, getProject, setProject, getProjectPath, getAssetsDir,
+  buildDefaultProject, referencedAssetFiles,
+  listSets, createSet, switchSet, renameSet, deleteSet,
+};
