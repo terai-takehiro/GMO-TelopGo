@@ -1216,8 +1216,25 @@ const DesignEditor = {
       bar.textContent = `${(it.delay / 1000).toFixed(2)}s`;
       track.appendChild(bar);
 
+      // バー本体ドラッグ = 開始タイミング変更
+      const index = layers.indexOf(it.layer);
+      bar.addEventListener('mousedown', (e) => {
+        this.startTimelineDrag(e, { dir, layer: it.layer, index, bar, track, total, mode: 'move' });
+      });
+
+      // 右端グリップ = 長さ(時間)変更 (カット=出現のみは長さなし)
+      if (it.duration > 0) {
+        const grip = document.createElement('div');
+        grip.className = 'de-tl-grip';
+        grip.addEventListener('mousedown', (e) => {
+          this.startTimelineDrag(e, { dir, layer: it.layer, index, bar, track, total, mode: 'resize' });
+        });
+        bar.appendChild(grip);
+      }
+
       rowEl.append(name, track);
       rowEl.addEventListener('click', () => {
+        if (this._tlDragged) return; // ドラッグ直後のクリックは選択しない
         this.selectedId = it.layer.id;
         this.renderLayerList();
         this.renderProps();
@@ -1229,6 +1246,76 @@ const DesignEditor = {
     panel.appendChild(wrap);
   },
 
+  /**
+   * タイムラインバーのドラッグ (move=開始タイミング / resize=長さ)。
+   * 既定設定のレイヤーをドラッグした場合は、実効値をコピーして個別設定へ自動変換する。
+   */
+  startTimelineDrag(e, ctx) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startX = e.clientX;
+    const pxPerMs = ctx.track.getBoundingClientRect().width / ctx.total;
+    let started = false;
+    let anim = null;
+    let origDelay = 0;
+    let origDuration = 0;
+    let converted = false;
+
+    const onMove = (ev) => {
+      const dms = (ev.clientX - startX) / pxPerMs;
+      if (!started) {
+        if (Math.abs(ev.clientX - startX) < 3) return; // クリックと区別
+        started = true;
+        this._tlDragged = true;
+        this.beginChange();
+
+        // 既定レイヤーは実効値をコピーして個別設定に変換
+        if (!ctx.layer.anim || !ctx.layer.anim[ctx.dir]) {
+          const r = TelopAnimator.resolve(this.variant(), null, ctx.index, ctx.dir);
+          const copied = Object.assign({}, r.anim, { delay: r.delay });
+          delete copied.stagger;
+          ctx.layer.anim = ctx.layer.anim || {};
+          ctx.layer.anim[ctx.dir] = copied;
+          converted = true;
+        }
+        anim = ctx.layer.anim[ctx.dir];
+        origDelay = anim.delay || 0;
+        origDuration = anim.duration !== undefined ? anim.duration : 350;
+        ctx.bar.classList.add('de-tl-bar--custom');
+      }
+
+      // 10ms単位に丸める
+      if (ctx.mode === 'move') {
+        anim.delay = Math.max(0, Math.round((origDelay + dms) / 10) * 10);
+      } else {
+        anim.duration = Math.max(50, Math.round((origDuration + dms) / 10) * 10);
+      }
+
+      const dur = anim.preset === 'cut' ? 0 : (anim.duration || 0);
+      ctx.bar.style.left = `${((anim.delay || 0) / ctx.total) * 100}%`;
+      ctx.bar.style.width = dur ? `${Math.max(2, (dur / ctx.total) * 100)}%` : '6px';
+      ctx.bar.firstChild.textContent = `${((anim.delay || 0) / 1000).toFixed(2)}s`;
+    };
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      if (started) {
+        // 直後に発火するclickイベントの選択を抑止してからフラグを戻す
+        setTimeout(() => { this._tlDragged = false; }, 0);
+        this.renderProps(); // スケールを再計算してタイムラインを引き直す
+        const label = ctx.layer.name || ctx.layer.id;
+        App.setStatus(
+          `${label}: ${ctx.mode === 'move' ? `開始 ${((anim.delay || 0) / 1000).toFixed(2)}秒` : `時間 ${anim.duration}ms`}`
+          + (converted ? ' (個別設定に切り替えました)' : ''), 'success');
+      }
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp, { once: true });
+  },
+
   /** アニメーション設定パネル (レイヤー未選択時) */
   renderAnimationProps(panel) {
     const variant = this.variant();
@@ -1236,7 +1323,7 @@ const DesignEditor = {
 
     const intro = document.createElement('div');
     intro.className = 'de-props-hint';
-    intro.textContent = 'テンプレート全体のIN/OUTアニメーション設定です。タイムラインの行をクリックすると、そのレイヤーだけ動きを個別設定できます (PowerPointのアニメーション個別指定に相当)。';
+    intro.textContent = 'テンプレート全体のIN/OUTアニメーション設定です。タイムラインはバーをドラッグして開始タイミング、右端をドラッグして長さを調整できます (自動で個別設定に切り替わります)。行クリックでそのレイヤーの詳細設定へ。';
     panel.appendChild(intro);
 
     ['in', 'out'].forEach((dir) => {

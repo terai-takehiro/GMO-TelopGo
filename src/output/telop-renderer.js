@@ -117,13 +117,37 @@
     el.style.alignItems = vAlignMap[layer.vAlign] || 'center';
     el.style.textAlign = layer.align || 'left';
 
+    // 縁取り(外側)と影は text-shadow を重ねて表現する
+    // (-webkit-text-stroke は中央基準で文字の内側に食い込むため使用しない)
+    const shadows = [];
+    if (layer.stroke && layer.stroke.width > 0) {
+      shadows.push(...outlineShadows(layer.stroke.width, layer.stroke.color || '#000000'));
+    }
     if (layer.shadow) {
       const s = layer.shadow;
-      el.style.textShadow = `${s.x || 0}px ${s.y || 0}px ${s.blur || 0}px ${s.color || 'rgba(0,0,0,0.6)'}`;
+      shadows.push(`${s.x || 0}px ${s.y || 0}px ${s.blur || 0}px ${s.color || 'rgba(0,0,0,0.6)'}`);
     }
-    if (layer.stroke && layer.stroke.width) {
-      el.style.webkitTextStroke = `${layer.stroke.width}px ${layer.stroke.color || '#000000'}`;
-    }
+    if (shadows.length) el.style.textShadow = shadows.join(', ');
+  }
+
+  /**
+   * 外側縁取り用のtext-shadow群を生成する。
+   * 文字の周囲に多方向のシャドウ(ぼかしなし)を並べてアウトラインを作る。
+   * 文字本体はシャドウの手前に描画されるため、線は外側にのみ付く。
+   */
+  function outlineShadows(width, color) {
+    const shadows = [];
+    const radii = width > 3 ? [width, width * 0.6] : [width];
+    radii.forEach((r) => {
+      const steps = Math.min(48, Math.max(16, Math.round(r * 10)));
+      for (let i = 0; i < steps; i++) {
+        const angle = (Math.PI * 2 * i) / steps;
+        const x = (Math.cos(angle) * r).toFixed(2);
+        const y = (Math.sin(angle) * r).toFixed(2);
+        shadows.push(`${x}px ${y}px 0 ${color}`);
+      }
+    });
+    return shadows;
   }
 
   /**
