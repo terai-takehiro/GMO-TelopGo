@@ -1504,3 +1504,52 @@ body {
   margin: 0 4px;
 }
 #de-set-select { max-width: 160px; }
+
+/* デザインセット サムネイル一覧 (v1.17.0) */
+.de-dialog--wide { width: 720px; max-width: 90vw; }
+.de-set-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+.de-set-card {
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--bg-secondary);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.de-set-card:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
+.de-set-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.de-set-thumb {
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px;
+  /* 透過PNGを市松模様の上に表示 */
+  background-image:
+    linear-gradient(45deg, #d8dee6 25%, transparent 25%, transparent 75%, #d8dee6 75%),
+    linear-gradient(45deg, #d8dee6 25%, transparent 25%, transparent 75%, #d8dee6 75%);
+  background-color: #eef1f5;
+  background-size: 14px 14px;
+  background-position: 0 0, 7px 7px;
+}
+.de-set-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.de-set-card-name {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-top: 1px solid var(--border-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.de-set-card.active .de-set-card-name { color: var(--accent); }

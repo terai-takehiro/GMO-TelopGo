@@ -19,6 +19,9 @@ const GraphicsUI = {
         App.setStatus(`テンプレート再読込エラー: ${result.error}`, 'error');
       }
     });
+    document.getElementById('graphics-open-backups').addEventListener('click', async () => {
+      if (window.api.graphicsOpenBackups) await window.api.graphicsOpenBackups();
+    });
 
     window.api.onGraphicsStatus((status) => this.applyStatus(status));
     this.refreshStatus();

@@ -289,6 +289,66 @@ function registerIpcHandlers() {
     }
   });
 
+  ipcMain.handle('graphics-save-set-thumb', async (_event, dataUrl) => {
+    try {
+      return { ok: graphicsStore.saveSetThumb(dataUrl) };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-set-thumbs', async () => {
+    try {
+      return graphicsStore.getSetThumbs();
+    } catch (_) {
+      return {};
+    }
+  });
+
+  // --- スタイルパレット (全セット共通) ---
+  ipcMain.handle('graphics-style-presets', async () => {
+    return graphicsStore.listStylePresets();
+  });
+
+  ipcMain.handle('graphics-style-preset-add', async (_event, name, style) => {
+    try {
+      return { ok: true, preset: graphicsStore.addStylePreset(name, style) };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-style-preset-delete', async (_event, id) => {
+    try {
+      return { ok: true, presets: graphicsStore.deleteStylePreset(id) };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // --- バックアップ / PNG書き出し ---
+  ipcMain.handle('graphics-open-backups', async () => {
+    await shell.openPath(graphicsStore.getBackupsDir());
+    return { ok: true };
+  });
+
+  ipcMain.handle('graphics-export-png', async (_event, dataUrl, suggestedName) => {
+    const m = /^data:image\/png;base64,(.+)$/.exec(dataUrl || '');
+    if (!m) return { ok: false, error: '画像データが不正です。' };
+    const result = await dialog.showSaveDialog({
+      title: 'PNGとして保存',
+      defaultPath: String(suggestedName || 'telop.png').replace(/[\\/:*?"<>|]/g, '_'),
+      filters: [{ name: 'PNG画像', extensions: ['png'] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    try {
+      fs.writeFileSync(result.filePath, Buffer.from(m[1], 'base64'));
+      return { ok: true, filePath: result.filePath };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('graphics-fetch-gfont', async (_event, family, weights) => {
     try {
       const result = await googleFonts.fetchFamily(family, weights, graphicsStore.getAssetsDir());

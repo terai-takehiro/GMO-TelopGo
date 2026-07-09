@@ -190,8 +190,8 @@
    * 性質を使って「内側エッジが外側エッジの上に重なる」層構造を作る。
    * @param {Array<{width: number, color: string}>} strokes 内側→外側の順
    */
-  function edgeShadows(strokes) {
-    const shadows = [];
+  function edgeOffsets(strokes) {
+    const offsets = [];
     let cum = 0;
     (strokes || []).forEach((s) => {
       const prev = cum;
@@ -203,13 +203,19 @@
         const steps = Math.min(48, Math.max(16, Math.round(r * 10)));
         for (let i = 0; i < steps; i++) {
           const angle = (Math.PI * 2 * i) / steps;
-          const x = (Math.cos(angle) * r).toFixed(2);
-          const y = (Math.sin(angle) * r).toFixed(2);
-          shadows.push(`${x}px ${y}px 0 ${color}`);
+          offsets.push({
+            x: +(Math.cos(angle) * r).toFixed(2),
+            y: +(Math.sin(angle) * r).toFixed(2),
+            color,
+          });
         }
       });
     });
-    return shadows;
+    return offsets;
+  }
+
+  function edgeShadows(strokes) {
+    return edgeOffsets(strokes).map((o) => `${o.x}px ${o.y}px 0 ${o.color}`);
   }
 
   /**
@@ -277,5 +283,5 @@
     });
   }
 
-  global.TelopRenderer = { renderVariant, applyFonts };
+  global.TelopRenderer = { renderVariant, applyFonts, edgeOffsets };
 })(typeof window !== 'undefined' ? window : globalThis);

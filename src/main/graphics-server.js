@@ -60,17 +60,17 @@ function configure(options) {
 
 // ===== HTTP =====
 
-function sendFile(res, filePath) {
+function sendFile(res, filePath, extraHeaders) {
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(404);
       res.end('Not Found');
       return;
     }
-    res.writeHead(200, {
+    res.writeHead(200, Object.assign({
       'Content-Type': MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
       'Cache-Control': 'no-cache',
-    });
+    }, extraHeaders || {}));
     res.end(data);
   });
 }
@@ -92,9 +92,10 @@ function handleRequest(req, res) {
   if (p === '/static/output.css') { sendFile(res, path.join(staticDir, 'output.css')); return; }
 
   // 素材 (画像/フォント) — パストラバーサル対策にbasenameのみ許可
+  // CORSを許可し、エディタのPNG書き出し(Canvas)で画像を扱えるようにする
   if (p.startsWith('/assets/')) {
     const file = path.basename(decodeURIComponent(p.slice('/assets/'.length)));
-    sendFile(res, path.join(assetsDir, file));
+    sendFile(res, path.join(assetsDir, file), { 'Access-Control-Allow-Origin': '*' });
     return;
   }
 

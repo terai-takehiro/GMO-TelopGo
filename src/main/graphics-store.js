@@ -14,9 +14,14 @@ let assetsDirPath = '';
 let projectPath = '';
 let setsDirPath = '';
 let registryPath = '';
+let backupsDirPath = '';
+let presetsPath = '';
 let project = null;
 /** デザインセットの一覧と現在のセット { activeId, sets: [{id, name}] } */
 let registry = null;
+
+/** 保存時に自動生成する世代バックアップの保持数 */
+const BACKUP_KEEP = 30;
 
 /** @param {string} baseDir Electronの userData ディレクトリ */
 function init(baseDir) {
@@ -25,8 +30,11 @@ function init(baseDir) {
   projectPath = path.join(graphicsDir, 'project.json');
   setsDirPath = path.join(graphicsDir, 'sets');
   registryPath = path.join(graphicsDir, 'sets.json');
+  backupsDirPath = path.join(graphicsDir, 'backups');
+  presetsPath = path.join(graphicsDir, 'style-presets.json');
   fs.mkdirSync(assetsDirPath, { recursive: true });
   fs.mkdirSync(setsDirPath, { recursive: true });
+  fs.mkdirSync(backupsDirPath, { recursive: true });
 
   if (!fs.existsSync(projectPath)) {
     project = buildDefaultProject();
@@ -107,6 +115,87 @@ function saveProject() {
   if (registry && registry.activeId) {
     fs.writeFileSync(setFilePath(registry.activeId), JSON.stringify(project), 'utf-8');
   }
+  writeBackup();
+}
+
+/** 保存のたびに世代バックアップを残す (最新BACKUP_KEEP件を保持) */
+let backupSeq = 0;
+function writeBackup() {
+  if (!backupsDirPath) return;
+  try {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    backupSeq = (backupSeq + 1) % 1000;
+    const name = `project-${stamp}-${String(backupSeq).padStart(3, '0')}.json`;
+    fs.writeFileSync(path.join(backupsDirPath, name), JSON.stringify(project), 'utf-8');
+    const files = fs.readdirSync(backupsDirPath).filter((f) => f.endsWith('.json')).sort();
+    while (files.length > BACKUP_KEEP) {
+      fs.unlinkSync(path.join(backupsDirPath, files.shift()));
+    }
+  } catch (_) { /* バックアップ失敗は本体保存を妨げない */ }
+}
+
+function getBackupsDir() {
+  return backupsDirPath;
+}
+
+// ===== スタイルパレット (全デザインセット共通) =====
+
+function readPresets() {
+  try {
+    const list = JSON.parse(fs.readFileSync(presetsPath, 'utf-8'));
+    return Array.isArray(list) ? list : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function listStylePresets() {
+  return readPresets();
+}
+
+function addStylePreset(name, style) {
+  const list = readPresets();
+  const preset = {
+    id: `sp_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`,
+    name: String(name || '').slice(0, 40) || '無題スタイル',
+    style,
+  };
+  list.push(preset);
+  fs.writeFileSync(presetsPath, JSON.stringify(list, null, 2), 'utf-8');
+  return preset;
+}
+
+function deleteStylePreset(id) {
+  const list = readPresets().filter((p) => p.id !== id);
+  fs.writeFileSync(presetsPath, JSON.stringify(list, null, 2), 'utf-8');
+  return list;
+}
+
+// ===== デザインセットのサムネイル =====
+
+function thumbPath(id) {
+  return path.join(setsDirPath, `${String(id).replace(/[^\w-]/g, '_')}.png`);
+}
+
+/** アクティブセットのサムネイルを保存する (エディタ保存時に生成されるPNG dataURL) */
+function saveSetThumb(dataUrl) {
+  const m = /^data:image\/png;base64,(.+)$/.exec(dataUrl || '');
+  if (!m || !registry || !registry.activeId) return false;
+  fs.writeFileSync(thumbPath(registry.activeId), Buffer.from(m[1], 'base64'));
+  return true;
+}
+
+/** セットID→サムネイルdataURL のマップを返す (存在するもののみ) */
+function getSetThumbs() {
+  const thumbs = {};
+  if (!registry) return thumbs;
+  registry.sets.forEach((s) => {
+    const p = thumbPath(s.id);
+    if (fs.existsSync(p)) {
+      thumbs[s.id] = `data:image/png;base64,${fs.readFileSync(p).toString('base64')}`;
+    }
+  });
+  return thumbs;
 }
 
 // ===== デザインセット管理 =====
@@ -168,6 +257,7 @@ function deleteSet(id) {
   if (registry.sets.length <= 1) throw new Error('最後のデザインセットは削除できません。');
   registry.sets = registry.sets.filter((s) => s.id !== id);
   try { fs.unlinkSync(setFilePath(id)); } catch (_) { /* ignore */ }
+  try { fs.unlinkSync(thumbPath(id)); } catch (_) { /* ignore */ }
   saveRegistry();
 }
 
@@ -375,4 +465,6 @@ module.exports = {
   init, reload, getProject, setProject, getProjectPath, getAssetsDir,
   buildDefaultProject, referencedAssetFiles,
   listSets, createSet, switchSet, renameSet, deleteSet,
+  getBackupsDir, listStylePresets, addStylePreset, deleteStylePreset,
+  saveSetThumb, getSetThumbs,
 };

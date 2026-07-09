@@ -228,6 +228,7 @@
         <button class="btn btn--small" id="de-set-new" title="新しいデザインセットを作成">＋</button>
         <button class="btn btn--small" id="de-set-rename" title="セット名を変更">✎</button>
         <button class="btn btn--small" id="de-set-delete" title="セットを削除 (使用中のセットは削除不可)">🗑</button>
+        <button class="btn btn--small" id="de-set-gallery-btn" title="デザインセットをサムネイルで一覧表示 (クリックで切替)">一覧</button>
         <span class="de-toolbar-sep"></span>
         <label class="de-tool-label">テンプレート
           <select id="de-template" class="input input--small"></select>
@@ -251,8 +252,10 @@
         <button class="btn btn--small" id="de-copy-lang">JP&#8594;ENコピー</button>
         <button class="btn btn--small" id="de-add-font">フォント追加</button>
         <button class="btn btn--small" id="de-add-gfont">Webフォント</button>
+        <button class="btn btn--small" id="de-font-replace" title="プロジェクト内の全レイヤーのフォントを一括で置き換え">フォント置換</button>
         <button class="btn btn--small" id="de-export">書き出し</button>
         <button class="btn btn--small" id="de-import">読み込み</button>
+        <button class="btn btn--small" id="de-export-png" title="表示中のテンプレートを1920x1080の透過PNGとして保存">PNG保存</button>
         <span class="de-spacer"></span>
         <button class="btn btn--small" id="de-undo" title="Ctrl+Z">元に戻す</button>
         <button class="btn btn--small" id="de-redo" title="Ctrl+Y">やり直す</button>
@@ -315,6 +318,36 @@
     </div>
   </dialog>
 
+  <!-- デザインセット サムネイル一覧ダイアログ -->
+  <dialog id="de-set-gallery" class="de-dialog de-dialog--wide">
+    <h3>デザインセット一覧</h3>
+    <p class="de-props-hint">クリックで切り替えます。サムネイルは各セットを保存したときに更新されます。</p>
+    <div class="de-set-grid" id="de-set-grid"></div>
+    <div class="de-dialog-actions">
+      <button class="btn btn--small" id="de-set-gallery-close">閉じる</button>
+    </div>
+  </dialog>
+
+  <!-- フォント一括置換ダイアログ -->
+  <dialog id="de-font-replace-dialog" class="de-dialog">
+    <h3>フォント一括置換</h3>
+    <p class="de-props-hint">
+      現在のデザインセット内の全テンプレート・全レイヤーが対象です。
+    </p>
+    <div class="settings-row">
+      <label for="de-fr-from">置換元</label>
+      <select id="de-fr-from" class="input"></select>
+    </div>
+    <div class="settings-row">
+      <label for="de-fr-to">置換先</label>
+      <select id="de-fr-to" class="input"></select>
+    </div>
+    <div class="de-dialog-actions">
+      <button class="btn btn--small" id="de-fr-cancel">キャンセル</button>
+      <button class="btn btn--small btn--primary" id="de-fr-ok">置換する</button>
+    </div>
+  </dialog>
+
   <!-- Webフォント取得ダイアログ -->
   <dialog id="de-gfont-dialog" class="de-dialog">
     <h3>Webフォントを取得 (Google Fonts)</h3>
@@ -363,6 +396,11 @@
           <button class="btn btn--small" id="graphics-open-template">JSONを開く</button>
           <button class="btn btn--small" id="graphics-reload-template">再読込して反映</button>
           <span class="settings-inline-hint">通常は「デザイン」タブで編集します (JSON直接編集は上級者向け)</span>
+        </div>
+        <div class="settings-row">
+          <label>バックアップ</label>
+          <button class="btn btn--small" id="graphics-open-backups">フォルダを開く</button>
+          <span class="settings-inline-hint">デザイン保存のたびに世代バックアップを自動作成 (最新30件)。復元はJSONを「JSONを開く」の場所へコピーして再読込</span>
         </div>
         <p class="gpio-hint">vMixのブラウザ入力に上記URLを追加してください (1920x1080・透過)。日本語/英語で別URL、名前・サイドを個別に取り込む場合は /name /side 付きのURLを使用します。他のPCから取り込む場合はWindowsファイアウォールで指定ポートの受信許可が必要です。</p>
       </fieldset>

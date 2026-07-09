@@ -109,6 +109,12 @@ const DesignEditor = {
     document.getElementById('de-gfont-fetch').addEventListener('click', () => this.fetchGoogleFont());
     document.getElementById('de-export').addEventListener('click', () => this.exportDesign());
     document.getElementById('de-import').addEventListener('click', () => this.importDesign());
+    document.getElementById('de-export-png').addEventListener('click', () => this.exportPng());
+    document.getElementById('de-set-gallery-btn').addEventListener('click', () => this.openSetGallery());
+    document.getElementById('de-set-gallery-close').addEventListener('click', () => document.getElementById('de-set-gallery').close());
+    document.getElementById('de-font-replace').addEventListener('click', () => this.openFontReplaceDialog());
+    document.getElementById('de-fr-cancel').addEventListener('click', () => document.getElementById('de-font-replace-dialog').close());
+    document.getElementById('de-fr-ok').addEventListener('click', () => this.submitFontReplace());
     document.getElementById('de-undo').addEventListener('click', () => this.undo());
     document.getElementById('de-redo').addEventListener('click', () => this.redo());
     document.getElementById('de-reload').addEventListener('click', () => this.reload());
@@ -142,6 +148,7 @@ const DesignEditor = {
     if (!this.loaded) {
       await this.refreshSets();
       await this.loadProject();
+      await this.refreshStylePresets();
     }
     this.applyZoom();
     this.renderSelection();
@@ -442,6 +449,359 @@ const DesignEditor = {
     }
   },
 
+  // ===== Canvas描画 (PNG書き出し / セットサムネイル) =====
+
+  /** 現在のテンプレート(サンプル値)をCanvasに描画する。scale=1で1920x1080 */
+  async renderToCanvas(scale) {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(this.CANVAS_W * scale));
+    canvas.height = Math.max(1, Math.round(this.CANVAS_H * scale));
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    for (const layer of this.variant().layers) {
+      if (layer.visible === false) continue;
+      ctx.save();
+      ctx.globalAlpha = layer.opacity !== undefined ? layer.opacity : 1;
+      if (layer.rotation) {
+        const cx = layer.x + layer.w / 2;
+        const cy = layer.y + layer.h / 2;
+        ctx.translate(cx, cy);
+        ctx.rotate((layer.rotation * Math.PI) / 180);
+        ctx.translate(-cx, -cy);
+      }
+      if (layer.type === 'rect') this.drawRectLayer(ctx, layer);
+      else if (layer.type === 'image') await this.drawImageLayer(ctx, layer);
+      else if (layer.type === 'text') this.drawTextLayer(ctx, layer);
+      ctx.restore();
+    }
+    return canvas;
+  },
+
+  canvasGradient(ctx, fill, x, y, w, h) {
+    // CSS linear-gradientの角度 (0deg=上向き, 180deg=下向き) をCanvasの線分へ変換
+    const ang = ((fill.angle !== undefined ? fill.angle : 180) * Math.PI) / 180;
+    const dx = Math.sin(ang);
+    const dy = -Math.cos(ang);
+    const L = (Math.abs(w * dx) + Math.abs(h * dy)) / 2 || 1;
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    const g = ctx.createLinearGradient(cx - dx * L, cy - dy * L, cx + dx * L, cy + dy * L);
+    g.addColorStop(0, fill.from || '#ffffff');
+    g.addColorStop(1, fill.to || '#000000');
+    return g;
+  },
+
+  drawRectLayer(ctx, layer) {
+    const fill = layer.fill || {};
+    ctx.beginPath();
+    ctx.roundRect(layer.x, layer.y, layer.w, layer.h, layer.radius || 0);
+    ctx.fillStyle = fill.type === 'gradient'
+      ? this.canvasGradient(ctx, fill, layer.x, layer.y, layer.w, layer.h)
+      : (fill.color || '#000000');
+    ctx.fill();
+    if (layer.border && layer.border.width) {
+      ctx.lineWidth = layer.border.width;
+      ctx.strokeStyle = layer.border.color || '#ffffff';
+      ctx.stroke();
+    }
+  },
+
+  drawImageLayer(ctx, layer) {
+    return new Promise((resolve) => {
+      if (!layer.file) { resolve(); return; }
+      const img = new Image();
+      img.crossOrigin = 'anonymous'; // サーバがCORS許可を返すのでCanvasを汚染しない
+      img.onload = () => {
+        const fit = layer.objectFit || 'fill';
+        let sx = 0; let sy = 0; let sw = img.width; let sh = img.height;
+        let dx = layer.x; let dy = layer.y; let dw = layer.w; let dh = layer.h;
+        if (fit === 'contain') {
+          const scale = Math.min(layer.w / img.width, layer.h / img.height);
+          dw = img.width * scale; dh = img.height * scale;
+          dx = layer.x + (layer.w - dw) / 2; dy = layer.y + (layer.h - dh) / 2;
+        } else if (fit === 'cover') {
+          const scale = Math.max(layer.w / img.width, layer.h / img.height);
+          sw = layer.w / scale; sh = layer.h / scale;
+          sx = (img.width - sw) / 2; sy = (img.height - sh) / 2;
+        }
+        try { ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh); } catch (_) { /* ignore */ }
+        resolve();
+      };
+      img.onerror = () => resolve();
+      img.src = this.assetBase() + encodeURIComponent(layer.file);
+    });
+  },
+
+  drawTextLayer(ctx, layer) {
+    const font = layer.font || {};
+    let size = font.size || 30;
+    const family = font.family || 'sans-serif';
+    const weight = font.weight || 700;
+    const lineHFactor = font.lineHeight || 1.25;
+    const ls = font.letterSpacing || 0;
+    const value = layer.binding ? (layer.sample || '') : (layer.text || layer.sample || '');
+    if (!value) return;
+    const lines = String(value).split('\n');
+
+    const setFont = (s) => {
+      ctx.font = `${weight} ${s}px ${family}`;
+      ctx.letterSpacing = `${ls * s}px`;
+    };
+    setFont(size);
+    let widths = lines.map((l) => ctx.measureText(l).width);
+    let blockW = Math.max(1, ...widths);
+    let lineH = size * lineHFactor;
+    let blockH = lines.length * lineH;
+
+    // 自動調整 (DOM版fitTextと同等: condense=長体 / shrink=縮小)
+    let sxScale = 1;
+    if (layer.autoFit === 'condense' && blockW > layer.w) {
+      sxScale = layer.w / blockW;
+    } else if (layer.autoFit === 'shrink') {
+      const ratio = Math.min(1, layer.w / blockW, layer.h / blockH);
+      if (ratio < 1) {
+        size = Math.max(8, Math.floor(size * ratio));
+        setFont(size);
+        widths = lines.map((l) => ctx.measureText(l).width);
+        blockW = Math.max(1, ...widths);
+        lineH = size * lineHFactor;
+        blockH = lines.length * lineH;
+      }
+    }
+
+    const b = layer.board && layer.board.enabled ? layer.board : null;
+    const padX = b && b.mode !== 'fixed' ? (b.padX !== undefined ? b.padX : 18) : 0;
+    const padY = b && b.mode !== 'fixed' ? (b.padY !== undefined ? b.padY : 6) : 0;
+    const boxW = blockW * sxScale + padX * 2;
+    const boxH = blockH + padY * 2;
+    const align = layer.align || 'left';
+    const vAlign = layer.vAlign || 'middle';
+    const boxX = align === 'center' ? layer.x + (layer.w - boxW) / 2
+      : align === 'right' ? layer.x + layer.w - boxW : layer.x;
+    const boxY = vAlign === 'middle' ? layer.y + (layer.h - boxH) / 2
+      : vAlign === 'bottom' ? layer.y + layer.h - boxH : layer.y;
+
+    // 座布団
+    if (b) {
+      const bx = b.mode === 'fixed' ? layer.x : boxX;
+      const by = b.mode === 'fixed' ? layer.y : boxY;
+      const bw = b.mode === 'fixed' ? layer.w : boxW;
+      const bh = b.mode === 'fixed' ? layer.h : boxH;
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, bh, b.radius || 0);
+      ctx.fillStyle = b.fill && b.fill.type === 'gradient'
+        ? this.canvasGradient(ctx, b.fill, bx, by, bw, bh)
+        : ((b.fill && b.fill.color) || b.color || '#0d6ab7');
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.translate(boxX + padX, boxY + padY);
+    if (sxScale !== 1) ctx.scale(sxScale, 1);
+    ctx.textBaseline = 'middle';
+
+    const lineX = (i) => (align === 'center' ? (blockW - widths[i]) / 2
+      : align === 'right' ? blockW - widths[i] : 0);
+    const drawLines = (fillStyle, dx = 0, dy = 0) => {
+      ctx.fillStyle = fillStyle;
+      lines.forEach((line, i) => ctx.fillText(line, lineX(i) + dx, lineH * (i + 0.5) + dy));
+    };
+
+    // 1) ドロップシャドウ (最背面)
+    if (layer.shadow) {
+      const s = layer.shadow;
+      let dx = s.x || 0;
+      let dy = s.y || 0;
+      if (s.distance !== undefined) {
+        const rad = ((s.angle !== undefined ? s.angle : 45) * Math.PI) / 180;
+        dx = Math.cos(rad) * s.distance;
+        dy = Math.sin(rad) * s.distance;
+      }
+      ctx.save();
+      ctx.shadowColor = s.color || 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = s.blur || 0;
+      ctx.shadowOffsetX = dx;
+      ctx.shadowOffsetY = dy;
+      drawLines(font.color || '#ffffff');
+      ctx.restore();
+    }
+
+    // 2) 縁取り (外側の層から塗り重ねる → 内側の層が上に乗る)
+    const strokes = Array.isArray(layer.strokes)
+      ? layer.strokes.filter((s) => s && s.width > 0)
+      : (layer.stroke && layer.stroke.width > 0 ? [layer.stroke] : []);
+    TelopRenderer.edgeOffsets(strokes).reverse().forEach((o) => {
+      drawLines(o.color, o.x, o.y);
+    });
+
+    // 3) 本体 (単色 / グラデーション)
+    const grad = layer.fill && layer.fill.type === 'gradient' ? layer.fill : null;
+    drawLines(grad ? this.canvasGradient(ctx, grad, 0, 0, blockW, blockH) : (font.color || '#ffffff'));
+    ctx.restore();
+  },
+
+  async exportPng() {
+    try {
+      const canvas = await this.renderToCanvas(1);
+      const dataUrl = canvas.toDataURL('image/png');
+      const result = await window.api.graphicsExportPng(dataUrl, `${this.templateKey}-${this.lang}.png`);
+      if (!result) return;
+      if (result.ok) {
+        App.setStatus(`PNGを書き出しました: ${result.filePath}`, 'success');
+      } else {
+        App.setStatus(`PNG書き出しエラー: ${result.error}`, 'error');
+      }
+    } catch (err) {
+      App.setStatus(`PNG書き出しエラー: ${err.message}`, 'error');
+    }
+  },
+
+  /** アクティブセットのサムネイルを更新する (保存成功時) */
+  async updateSetThumb() {
+    if (!window.api.graphicsSaveSetThumb) return;
+    try {
+      const canvas = await this.renderToCanvas(320 / this.CANVAS_W);
+      await window.api.graphicsSaveSetThumb(canvas.toDataURL('image/png'));
+    } catch (_) { /* サムネイル生成失敗は保存を妨げない */ }
+  },
+
+  // ===== デザインセットのサムネイル一覧 =====
+
+  async openSetGallery() {
+    await this.refreshSets();
+    const thumbs = window.api.graphicsGetSetThumbs ? await window.api.graphicsGetSetThumbs() : {};
+    const grid = document.getElementById('de-set-grid');
+    grid.innerHTML = '';
+    this.sets.sets.forEach((s) => {
+      const card = document.createElement('div');
+      card.className = `de-set-card${s.active ? ' active' : ''}`;
+      const thumbWrap = document.createElement('div');
+      thumbWrap.className = 'de-set-thumb';
+      if (thumbs[s.id]) {
+        const img = document.createElement('img');
+        img.src = thumbs[s.id];
+        thumbWrap.appendChild(img);
+      } else {
+        thumbWrap.textContent = 'サムネイル未生成 (保存すると作成されます)';
+      }
+      const nameEl = document.createElement('div');
+      nameEl.className = 'de-set-card-name';
+      nameEl.textContent = s.name + (s.active ? ' — 使用中' : '');
+      card.appendChild(thumbWrap);
+      card.appendChild(nameEl);
+      card.addEventListener('click', async () => {
+        document.getElementById('de-set-gallery').close();
+        if (!s.active) await this.switchSet(s.id);
+      });
+      grid.appendChild(card);
+    });
+    document.getElementById('de-set-gallery').showModal();
+  },
+
+  // ===== フォント一括置換 =====
+
+  usedFontFamilies() {
+    const used = new Set();
+    Object.values(this.project.templates).forEach((t) => {
+      Object.values(t.variants).forEach((v) => {
+        (v.layers || []).forEach((l) => {
+          if (l.type === 'text' && l.font && l.font.family) used.add(l.font.family);
+        });
+      });
+    });
+    return [...used];
+  },
+
+  openFontReplaceDialog() {
+    const from = document.getElementById('de-fr-from');
+    from.innerHTML = '';
+    this.usedFontFamilies().forEach((f) => {
+      const opt = document.createElement('option');
+      opt.value = f;
+      opt.textContent = f.replace(/"/g, '');
+      opt.style.fontFamily = f;
+      from.appendChild(opt);
+    });
+
+    const to = document.getElementById('de-fr-to');
+    to.innerHTML = '';
+    const addOption = (parent, value, label, previewFamily) => {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = label;
+      if (previewFamily) opt.style.fontFamily = `"${previewFamily}"`;
+      parent.appendChild(opt);
+    };
+    const imported = (this.project.assets && this.project.assets.fonts) || [];
+    if (imported.length > 0) {
+      const group = document.createElement('optgroup');
+      group.label = '持ち込み / Webフォント';
+      imported.forEach((f) => addOption(group, `"${f.family}"`, f.family, f.family));
+      to.appendChild(group);
+    }
+    if (this.systemFonts.length > 0) {
+      const group = document.createElement('optgroup');
+      group.label = 'システムフォント';
+      this.systemFonts.forEach((name) => addOption(group, `"${name}"`, name, name));
+      to.appendChild(group);
+    }
+    document.getElementById('de-font-replace-dialog').showModal();
+  },
+
+  submitFontReplace() {
+    const from = document.getElementById('de-fr-from').value;
+    const to = document.getElementById('de-fr-to').value;
+    document.getElementById('de-font-replace-dialog').close();
+    if (!from || !to || from === to) return;
+    this.beginChange();
+    let count = 0;
+    Object.values(this.project.templates).forEach((t) => {
+      Object.values(t.variants).forEach((v) => {
+        (v.layers || []).forEach((l) => {
+          if (l.type === 'text' && l.font && l.font.family === from) {
+            l.font.family = to;
+            count += 1;
+          }
+        });
+      });
+    });
+    this.renderAll();
+    App.setStatus(`フォントを一括置換しました (${count}レイヤー)。保存で出力にも反映されます`, 'success');
+  },
+
+  // ===== スタイルパレット (装飾プリセット・全セット共通) =====
+
+  stylePresets: [],
+
+  async refreshStylePresets() {
+    if (!window.api.graphicsStylePresets) return;
+    try {
+      this.stylePresets = await window.api.graphicsStylePresets();
+    } catch (_) { this.stylePresets = []; }
+  },
+
+  /** レイヤーの装飾関連プロパティを抜き出す (コピー/プリセット共用) */
+  captureStyle(layer) {
+    return JSON.parse(JSON.stringify({
+      font: layer.font || {},
+      fill: layer.fill || null,
+      strokes: layer.strokes || [],
+      shadow: layer.shadow || null,
+      board: layer.board || null,
+    }));
+  },
+
+  applyStyle(layer, style) {
+    const clip = JSON.parse(JSON.stringify(style));
+    layer.font = Object.assign({}, layer.font, clip.font);
+    layer.fill = clip.fill;
+    layer.strokes = clip.strokes;
+    layer.shadow = clip.shadow;
+    layer.board = clip.board;
+  },
+
   // ===== モデルアクセス =====
 
   variant() {
@@ -520,6 +880,7 @@ const DesignEditor = {
       this.dirty = false;
       this.updateStatus();
       App.setStatus('デザインを保存し、出力へ反映しました', 'success');
+      this.updateSetThumb(); // セット一覧用サムネイルを更新 (非同期・失敗は無視)
     } else {
       App.setStatus(`デザイン保存エラー: ${result.error}`, 'error');
     }
@@ -1252,20 +1613,14 @@ const DesignEditor = {
         }
       }
 
-      // --- 装飾スタイルのコピー/貼り付け ---
+      // --- 装飾スタイルのコピー/貼り付け・スタイルパレット ---
       section('装飾スタイル');
       const copyBtn = document.createElement('button');
       copyBtn.className = 'btn btn--small';
       copyBtn.textContent = '装飾コピー';
       copyBtn.title = 'フォント・塗り・縁取り・影・座布団の設定をコピー (テキスト内容や位置はコピーしません)';
       copyBtn.addEventListener('click', () => {
-        this._styleClipboard = JSON.parse(JSON.stringify({
-          font: layer.font || {},
-          fill: layer.fill || null,
-          strokes: layer.strokes || [],
-          shadow: layer.shadow || null,
-          board: layer.board || null,
-        }));
+        this._styleClipboard = this.captureStyle(layer);
         App.setStatus('装飾スタイルをコピーしました。他のテキストレイヤーを選んで「貼り付け」してください', 'success');
         this.renderProps();
       });
@@ -1277,17 +1632,67 @@ const DesignEditor = {
       pasteBtn.addEventListener('click', () => {
         if (!this._styleClipboard) return;
         this.beginChange();
-        const clip = JSON.parse(JSON.stringify(this._styleClipboard));
-        layer.font = Object.assign({}, layer.font, clip.font);
-        layer.fill = clip.fill;
-        layer.strokes = clip.strokes;
-        layer.shadow = clip.shadow;
-        layer.board = clip.board;
+        this.applyStyle(layer, this._styleClipboard);
         this.renderArtboard();
         this.renderProps();
         App.setStatus('装飾スタイルを貼り付けました', 'success');
       });
       row('', copyBtn, pasteBtn);
+
+      // スタイルパレット: 名前を付けて保存し、どのデザインセットでも使い回せる
+      const presetSel = document.createElement('select');
+      presetSel.className = 'input input--small de-style-preset-select';
+      const noneOpt = document.createElement('option');
+      noneOpt.value = '';
+      noneOpt.textContent = this.stylePresets.length ? '(スタイルを選択)' : '(登録なし)';
+      presetSel.appendChild(noneOpt);
+      this.stylePresets.forEach((p) => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        presetSel.appendChild(opt);
+      });
+      const applyPresetBtn = document.createElement('button');
+      applyPresetBtn.className = 'btn btn--small';
+      applyPresetBtn.textContent = '適用';
+      applyPresetBtn.title = '選択したスタイルをこのレイヤーへ適用';
+      applyPresetBtn.addEventListener('click', () => {
+        const preset = this.stylePresets.find((p) => p.id === presetSel.value);
+        if (!preset) return;
+        this.beginChange();
+        this.applyStyle(layer, preset.style);
+        this.renderArtboard();
+        this.renderProps();
+        App.setStatus(`スタイル「${preset.name}」を適用しました`, 'success');
+      });
+      row('スタイル集', presetSel, applyPresetBtn);
+
+      const regBtn = document.createElement('button');
+      regBtn.className = 'btn btn--small';
+      regBtn.textContent = 'このレイヤーの装飾を登録...';
+      regBtn.title = '現在の装飾をスタイル集に登録 (全デザインセット共通で使えます)';
+      regBtn.addEventListener('click', async () => {
+        if (!window.api.graphicsStylePresetAdd) return;
+        const name = prompt('スタイル名を入力してください (例: 金グラデ二重縁)');
+        if (!name) return;
+        await window.api.graphicsStylePresetAdd(name, this.captureStyle(layer));
+        await this.refreshStylePresets();
+        this.renderProps();
+        App.setStatus(`スタイル「${name}」を登録しました`, 'success');
+      });
+      const delPresetBtn = document.createElement('button');
+      delPresetBtn.className = 'btn btn--small';
+      delPresetBtn.textContent = '削除';
+      delPresetBtn.title = '選択中のスタイルをスタイル集から削除';
+      delPresetBtn.addEventListener('click', async () => {
+        const preset = this.stylePresets.find((p) => p.id === presetSel.value);
+        if (!preset || !window.api.graphicsStylePresetDelete) return;
+        if (!confirm(`スタイル「${preset.name}」を削除しますか?`)) return;
+        await window.api.graphicsStylePresetDelete(preset.id);
+        await this.refreshStylePresets();
+        this.renderProps();
+      });
+      row('', regBtn, delPresetBtn);
     }
 
     // --- 矩形 ---
