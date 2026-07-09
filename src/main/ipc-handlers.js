@@ -1,4 +1,5 @@
 const { ipcMain, dialog, BrowserWindow, app, shell } = require('electron');
+const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -39,6 +40,43 @@ function resolveGraphics(telopType, rowData) {
     templateKey: 'side',
     values: { textJp: (rowData && rowData.textJp) || '', textEn: (rowData && rowData.textEn) || '' },
   };
+}
+
+/** インストール済みフォントのファミリー名一覧 (初回のみ取得しキャッシュ) */
+let systemFontsCache = null;
+
+function listSystemFonts() {
+  if (systemFontsCache) return Promise.resolve(systemFontsCache);
+
+  return new Promise((resolve) => {
+    const finish = (names) => {
+      const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'ja'));
+      systemFontsCache = unique;
+      resolve(unique);
+    };
+
+    if (process.platform === 'win32') {
+      // System.Drawing でインストール済みフォントファミリーを列挙 (追加依存なし)
+      const script = '[void][Reflection.Assembly]::LoadWithPartialName("System.Drawing");'
+        + '(New-Object System.Drawing.Text.InstalledFontCollection).Families | ForEach-Object { $_.Name }';
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script],
+        { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+          finish(err ? [] : stdout.split(/\r?\n/));
+        });
+      return;
+    }
+
+    // Linux/macOS (開発環境用): fontconfig があれば使用
+    execFile('fc-list', [':', 'family'], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      if (err) {
+        finish([]);
+        return;
+      }
+      // "FamilyA,FamilyB" 形式は先頭を採用、エスケープ文字を除去
+      finish(stdout.split(/\r?\n/).map((line) => line.split(',')[0].replace(/\\/g, '')));
+    });
+  });
 }
 
 /** LAN内のIPv4アドレス一覧 */
@@ -174,6 +212,10 @@ function registerIpcHandlers() {
     } catch (err) {
       return { ok: false, error: err.message };
     }
+  });
+
+  ipcMain.handle('system-fonts', async () => {
+    return listSystemFonts();
   });
 
   ipcMain.handle('graphics-import-font', async () => {

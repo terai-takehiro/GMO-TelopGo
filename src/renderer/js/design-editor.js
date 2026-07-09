@@ -81,6 +81,9 @@ const DesignEditor = {
     document.addEventListener('keydown', (e) => this.onKeyDown(e));
   },
 
+  systemFonts: [],
+  systemFontsLoaded: false,
+
   /** デザインタブ表示時 (初回にプロジェクトを読み込む) */
   async onShow() {
     if (!this.loaded) {
@@ -88,6 +91,13 @@ const DesignEditor = {
     }
     this.applyZoom();
     this.renderSelection();
+
+    // インストール済みフォント一覧を取得 (初回のみ、Windowsでは1秒程度)
+    if (!this.systemFontsLoaded) {
+      this.systemFontsLoaded = true;
+      this.systemFonts = await window.api.getSystemFonts();
+      this.renderProps(); // フォントプルダウンに反映
+    }
   },
 
   async loadProject() {
@@ -115,18 +125,62 @@ const DesignEditor = {
     this.renderAll();
   },
 
-  /** 持ち込みフォントを@font-face適用し、フォント候補リストへ追加 */
+  /** 持ち込みフォントを@font-face適用する (プルダウンには renderProps で反映) */
   applyImportedFonts() {
     const fonts = (this.project.assets && this.project.assets.fonts) || [];
     TelopRenderer.applyFonts(fonts, this.assetBase());
-    const datalist = document.getElementById('de-fonts');
-    datalist.querySelectorAll('option[data-imported]').forEach((o) => o.remove());
-    fonts.forEach((f) => {
+  },
+
+  /** フォントファミリー選択プルダウン (持ち込み/システムフォントをグループ表示、各項目は実フォントでプレビュー) */
+  fontFamilySelect(layer) {
+    const sel = document.createElement('select');
+    sel.className = 'input input--small de-font-select';
+
+    const addOption = (parent, value, label, family) => {
       const opt = document.createElement('option');
-      opt.value = `"${f.family}"`;
-      opt.dataset.imported = '1';
-      datalist.appendChild(opt);
+      opt.value = value;
+      opt.textContent = label;
+      if (family) opt.style.fontFamily = `"${family}"`;
+      parent.appendChild(opt);
+      return opt;
+    };
+
+    const imported = (this.project.assets && this.project.assets.fonts) || [];
+    if (imported.length > 0) {
+      const group = document.createElement('optgroup');
+      group.label = '持ち込みフォント';
+      imported.forEach((f) => addOption(group, `"${f.family}"`, f.family, f.family));
+      sel.appendChild(group);
+    }
+
+    if (this.systemFonts.length > 0) {
+      const group = document.createElement('optgroup');
+      group.label = 'システムフォント';
+      this.systemFonts.forEach((name) => addOption(group, `"${name}"`, name, name));
+      sel.appendChild(group);
+    } else {
+      addOption(sel, '"Yu Gothic UI", sans-serif', 'Yu Gothic UI (読込中...)');
+    }
+
+    // 現在値が一覧にない場合は先頭に「(現在)」として残す (既存テンプレートを壊さない)
+    const current = (layer.font && layer.font.family) || '';
+    const values = [...sel.querySelectorAll('option')].map((o) => o.value);
+    if (current && !values.includes(current)) {
+      const opt = document.createElement('option');
+      opt.value = current;
+      opt.textContent = `(現在) ${current.replace(/"/g, '')}`;
+      opt.style.fontFamily = current;
+      sel.insertBefore(opt, sel.firstChild);
+    }
+    sel.value = current || values[0] || '';
+
+    sel.addEventListener('change', () => {
+      this.beginChange();
+      layer.font.family = sel.value;
+      this.renderArtboard();
+      this.renderSelection();
     });
+    return sel;
   },
 
   async addFont() {
@@ -831,7 +885,7 @@ const DesignEditor = {
 
       layer.font = layer.font || {};
       section('フォント');
-      row('ファミリー', text(() => layer.font.family, (v) => { layer.font.family = v; }, { list: 'de-fonts' }));
+      row('ファミリー', this.fontFamilySelect(layer));
       row('サイズ / 太さ',
         num(() => layer.font.size || 30, (v) => { layer.font.size = Math.max(4, v); }),
         select([['400', '標準'], ['500', '中'], ['700', '太字'], ['800', '極太'], ['900', '最太']],
