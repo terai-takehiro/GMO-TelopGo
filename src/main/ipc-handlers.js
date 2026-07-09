@@ -11,7 +11,7 @@ const graphicsStore = require('./graphics-store');
 const graphicsServer = require('./graphics-server');
 const liveData = require('./live-data');
 const googleFonts = require('./google-fonts');
-const { getSettings, saveSettings, getGpioConfig, getGraphicsConfig, getChannels } = require('./settings-store');
+const { getSettings, saveSettings, getGpioConfig, getGraphicsConfig, getChannels, getOutputGroups } = require('./settings-store');
 const rundownStore = require('./rundown-store');
 
 /** テンプレートのbindingフィールド一覧 (レイヤー順・重複なし) */
@@ -140,6 +140,7 @@ function registerIpcHandlers() {
     assetsDir: graphicsStore.getAssetsDir(),
     getProject: graphicsStore.getProject,
     getChannels,
+    getGroups: getOutputGroups,
   });
   const graphicsConfig = getGraphicsConfig();
   if (graphicsConfig.autoStart) {
@@ -520,6 +521,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle('save-settings', async (_event, settings) => {
     saveSettings(settings);
+    // チャンネル/出力グループの変更を出力ページへ即時反映
+    if (graphicsServer.isRunning() && (settings.channels || settings.outputGroups)) {
+      graphicsServer.refreshProject();
+    }
     return { success: true };
   });
 

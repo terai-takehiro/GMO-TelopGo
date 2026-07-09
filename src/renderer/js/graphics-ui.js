@@ -104,6 +104,12 @@ const GraphicsUI = {
       urls.push({ label: `日本語 ${ch.label}のみ`, path: `/output/jp/${ch.region}` });
       urls.push({ label: `英語 ${ch.label}のみ`, path: `/output/en/${ch.region}` });
     });
+    (App.outputGroups || []).forEach((g) => {
+      const members = (g.channels || [])
+        .map((cid) => (App.channels.find((c) => c.region === cid) || {}).label || cid).join('+');
+      urls.push({ label: `日本語 [G] ${g.label} (${members})`, path: `/output/jp/g/${g.id}` });
+      urls.push({ label: `英語 [G] ${g.label} (${members})`, path: `/output/en/g/${g.id}` });
+    });
     urls.forEach(({ label, path }) => {
       const url = `http://${host}:${status.port}${path}`;
       const row = document.createElement('div');

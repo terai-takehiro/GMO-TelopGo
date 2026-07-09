@@ -49,11 +49,11 @@ const RundownUI = {
 
     document.getElementById('od-view-mode').addEventListener('change', (e) => {
       this.viewMode = e.target.value;
-      this.renderPages();
+      this.renderColumns();
     });
     document.getElementById('od-thumb-size').addEventListener('change', (e) => {
       this.thumbSize = e.target.value;
-      this.renderPages();
+      this.renderColumns();
     });
     document.getElementById('od-rehearsal').addEventListener('change', (e) => {
       App.rehearsal = e.target.checked;
@@ -165,9 +165,9 @@ const RundownUI = {
     this.ensureSelections();
     this.renderTopBar();
     this.renderCornerRail();
-    this.renderPages();
+    this.renderColumns();
     this.renderStandby();
-    this.renderChannelTabs();
+    this.renderFocusLabel();
     this.renderEditor();
     this.renderNextPreview();
     Broadcast.updateGlobalOnAir();
@@ -176,7 +176,7 @@ const RundownUI = {
   /** 送出状態のみが変わったときの軽量再描画 */
   renderBroadcastState() {
     this.applyRowStates();
-    this.renderChannelTabs();
+    this.renderFocusLabel();
     this.renderNextPreview();
     this.renderEditor();
   },
@@ -232,7 +232,7 @@ const RundownUI = {
       li.addEventListener('click', () => {
         this.currentCornerId = corner.id;
         this.renderCornerRail();
-        this.renderPages();
+        this.renderColumns();
         this.renderStandby();
       });
       li.addEventListener('contextmenu', (e) => {
@@ -334,12 +334,15 @@ const RundownUI = {
     countdown.className = 'od-page-countdown hidden';
     el.appendChild(countdown);
 
-    // クリック=NEXT+選択 / ダブルクリック=即TAKE (かるた後継)
+    // クリック=NEXT+選択+その系統をフォーカス / ダブルクリック=即TAKE (かるた後継)
     el.addEventListener('click', () => {
       this.selectedPageId = page.id;
       if (listName === 'pages') Broadcast.setNext(page.id);
       if (channelId) this.activeChannelId = channelId;
-      this.renderBroadcastState();
+      this.renderColumns();
+      this.renderFocusLabel();
+      this.renderNextPreview();
+      this.renderEditor();
     });
     el.addEventListener('dblclick', () => {
       if (listName !== 'pages' || !channelId) return;
@@ -377,36 +380,113 @@ const RundownUI = {
     return el;
   },
 
-  renderPages() {
-    const wrap = document.getElementById('od-pages');
+  /** 系統(チャンネル)ごとの列でページ一覧を描画 (最大4系統横並び) */
+  renderColumns() {
+    const wrap = document.getElementById('od-columns');
     wrap.innerHTML = '';
     const corner = this.currentCorner();
     if (!corner) return;
-    wrap.className = `od-pages od-pages--${this.viewMode}`;
 
-    corner.pages.forEach((page) => {
-      wrap.appendChild(this.buildPageEl(page, corner, 'pages'));
-    });
-    if (corner.pages.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'od-empty';
-      empty.textContent = 'ページがありません。「＋ページ」または「Excel取込」で追加してください';
-      wrap.appendChild(empty);
-    }
+    App.channels.forEach((ch) => {
+      const col = document.createElement('div');
+      col.className = `od-col${ch.id === this.activeChannelId ? ' active' : ''}`;
+      col.dataset.channelId = ch.id;
 
-    // 末尾へのドロップ受け
-    wrap.addEventListener('dragover', (e) => {
-      if (e.target === wrap && e.dataTransfer.types.includes('text/page')) e.preventDefault();
-    });
-    wrap.addEventListener('drop', (e) => {
-      if (e.target !== wrap) return;
-      e.preventDefault();
-      let payload;
-      try { payload = JSON.parse(e.dataTransfer.getData('text/page')); } catch (_) { return; }
-      if (payload) this.movePageBefore(payload.pageId, null, corner, 'pages');
+      // ヘッダ (色ドット+ラベル+件数+その系統へページ追加)
+      const header = document.createElement('div');
+      header.className = 'od-col-header';
+      header.style.borderTopColor = ch.color;
+      const dot = document.createElement('span');
+      dot.className = 'od-col-dot';
+      dot.style.background = ch.color;
+      const name = document.createElement('span');
+      name.className = 'od-col-name';
+      const pages = Broadcast.channelPagesInCorner(corner, ch.id);
+      name.textContent = `${ch.label} (${pages.length})`;
+      const addBtn = document.createElement('button');
+      addBtn.className = 'od-col-add';
+      addBtn.textContent = '＋';
+      addBtn.title = `${ch.label} にページを追加`;
+      addBtn.addEventListener('click', (e) => { e.stopPropagation(); this.openPageDialog('add', ch.id); });
+      header.appendChild(dot);
+      header.appendChild(name);
+      header.appendChild(addBtn);
+      header.addEventListener('click', () => this.focusChannel(ch.id));
+      col.appendChild(header);
+
+      // ボディ (その系統のページ)
+      const body = document.createElement('div');
+      body.className = `od-col-body od-pages--${this.viewMode}`;
+      pages.forEach((page) => body.appendChild(this.buildPageEl(page, corner, 'pages')));
+      if (pages.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'od-empty';
+        empty.textContent = '(ページなし)';
+        body.appendChild(empty);
+      }
+      // 末尾ドロップで並べ替え/系統への移動 (この系統のテンプレは変わらないので同系統内のみ意味を持つ)
+      body.addEventListener('dragover', (e) => {
+        if (e.dataTransfer.types.includes('text/page')) e.preventDefault();
+      });
+      body.addEventListener('drop', (e) => {
+        e.preventDefault();
+        let payload;
+        try { payload = JSON.parse(e.dataTransfer.getData('text/page')); } catch (_) { return; }
+        if (payload) this.movePageBefore(payload.pageId, null, corner, 'pages');
+      });
+      col.appendChild(body);
+
+      // フッタ (NEXT/ON AIRバッジ + TAKE + CLEAR)
+      const footer = document.createElement('div');
+      footer.className = 'od-col-footer';
+      const st = App.chState(ch.id);
+      const nextFound = st.nextPageId ? App.findPage(st.nextPageId) : null;
+      const onAirFound = st.onAirPageId ? App.findPage(st.onAirPageId) : null;
+      const badges = document.createElement('div');
+      badges.className = 'od-col-badges';
+      badges.innerHTML = `<span class="od-col-badge next">NEXT ${nextFound ? 'P' + nextFound.page.pageNo : '—'}</span>`
+        + `<span class="od-col-badge onair">ON AIR ${onAirFound ? 'P' + onAirFound.page.pageNo : '—'}</span>`;
+      footer.appendChild(badges);
+      const btns = document.createElement('div');
+      btns.className = 'od-col-btns';
+      const take = document.createElement('button');
+      take.className = 'od-col-take';
+      take.textContent = 'TAKE';
+      take.title = `${ch.label} を送出 (NEXT→ON AIR)`;
+      take.addEventListener('click', (e) => { e.stopPropagation(); this.focusChannel(ch.id); Broadcast.doTake(ch.id); });
+      const clr = document.createElement('button');
+      clr.className = 'od-col-clear';
+      clr.textContent = 'CLEAR';
+      clr.title = `${ch.label} を消去`;
+      clr.addEventListener('click', (e) => { e.stopPropagation(); this.focusChannel(ch.id); Broadcast.doClear(ch.id); });
+      btns.appendChild(take);
+      btns.appendChild(clr);
+      footer.appendChild(btns);
+      col.appendChild(footer);
+
+      wrap.appendChild(col);
     });
 
     this.applyRowStates();
+  },
+
+  /** 操作対象の系統をフォーカス (右ペインのフルボタン/プレビュー/ホットキーの対象) */
+  focusChannel(channelId) {
+    if (this.activeChannelId === channelId) return;
+    this.activeChannelId = channelId;
+    document.querySelectorAll('#od-columns .od-col').forEach((el) => {
+      el.classList.toggle('active', el.dataset.channelId === channelId);
+    });
+    this.renderFocusLabel();
+    this.renderNextPreview();
+  },
+
+  renderFocusLabel() {
+    const el = document.getElementById('od-focus-label');
+    if (!el) return;
+    const ch = App.channelById(this.activeChannelId);
+    el.textContent = `操作中: ${ch ? ch.label : '-'}`;
+    el.style.color = ch ? ch.color : '';
   },
 
   renderStandby() {
@@ -434,40 +514,28 @@ const RundownUI = {
       if (st.onAirPageId) onAirIds.add(st.onAirPageId);
       if (st.nextPageId) nextIds.add(st.nextPageId);
     });
-    document.querySelectorAll('#od-pages .od-page, #od-standby-list .od-page').forEach((el) => {
+    document.querySelectorAll('#od-columns .od-page, #od-standby-list .od-page').forEach((el) => {
       const id = el.dataset.pageId;
       el.classList.toggle('on-air', onAirIds.has(id));
       el.classList.toggle('next', nextIds.has(id) && !onAirIds.has(id));
       el.classList.toggle('played', this._playedPages.has(id) && !onAirIds.has(id) && !nextIds.has(id));
       el.classList.toggle('editing', id === this.selectedPageId);
     });
-  },
-
-  renderChannelTabs() {
-    const wrap = document.getElementById('od-channel-tabs');
-    wrap.innerHTML = '';
-    App.channels.forEach((ch) => {
+    // 列フッタのNEXT/ON AIRバッジと強調を更新
+    document.querySelectorAll('#od-columns .od-col').forEach((col) => {
+      const ch = App.channelById(col.dataset.channelId);
+      if (!ch) return;
+      col.classList.toggle('active', ch.id === this.activeChannelId);
       const st = App.chState(ch.id);
-      const btn = document.createElement('button');
-      btn.className = `od-channel-tab${ch.id === this.activeChannelId ? ' active' : ''}${st.onAirPageId ? ' on-air' : ''}`;
-      const dot = document.createElement('span');
-      dot.className = 'od-channel-dot';
-      dot.style.background = ch.color;
-      btn.appendChild(dot);
-      btn.appendChild(document.createTextNode(ch.label));
-      if (st.onAirPageId) {
-        const found = App.findPage(st.onAirPageId);
-        const tag = document.createElement('span');
-        tag.className = 'od-channel-onair';
-        tag.textContent = found ? `P${found.page.pageNo}` : 'ON';
-        btn.appendChild(tag);
+      const nextFound = st.nextPageId ? App.findPage(st.nextPageId) : null;
+      const onAirFound = st.onAirPageId ? App.findPage(st.onAirPageId) : null;
+      const nextBadge = col.querySelector('.od-col-badge.next');
+      const onairBadge = col.querySelector('.od-col-badge.onair');
+      if (nextBadge) nextBadge.textContent = `NEXT ${nextFound ? 'P' + nextFound.page.pageNo : '—'}`;
+      if (onairBadge) {
+        onairBadge.textContent = `ON AIR ${onAirFound ? 'P' + onAirFound.page.pageNo : '—'}`;
+        onairBadge.classList.toggle('lit', !!onAirFound);
       }
-      btn.addEventListener('click', () => {
-        this.activeChannelId = ch.id;
-        this.renderChannelTabs();
-        this.renderNextPreview();
-      });
-      wrap.appendChild(btn);
     });
   },
 
@@ -571,7 +639,7 @@ const RundownUI = {
         page.values[binding] = input.value;
         this._thumbCache.delete(this.thumbKey(page));
         App.saveRundown();
-        this.renderPages();
+        this.renderColumns();
         this.renderNextPreview();
       });
       row(binding, input);
@@ -671,7 +739,7 @@ const RundownUI = {
     return `${prefix}_${Date.now().toString(36)}_${Math.floor(Math.random() * 46656).toString(36)}`;
   },
 
-  openPageDialog(mode) {
+  openPageDialog(mode, preferChannelId) {
     this._pageDialogMode = mode;
     const sel = document.getElementById('od-page-template');
     sel.innerHTML = '';
@@ -682,6 +750,11 @@ const RundownUI = {
       opt.textContent = `${this.templateLabel(key)}${ch ? ` [${ch.label}]` : ''}`;
       sel.appendChild(opt);
     });
+    // 系統の＋から開いた場合はその系統のテンプレートを既定選択
+    if (preferChannelId) {
+      const firstForCh = Object.keys(App.templates).find((k) => App.templates[k].region === preferChannelId);
+      if (firstForCh) sel.value = firstForCh;
+    }
     document.getElementById('od-page-dialog-title').textContent =
       mode === 'excel' ? 'Excel取込 — テンプレートを選択' : 'ページ追加 — テンプレートを選択';
     document.getElementById('od-page-dialog-hint').textContent =
@@ -942,7 +1015,7 @@ const RundownUI = {
     this.mutate(() => broadcast.corners.push(corner));
     this.currentCornerId = corner.id;
     this.renderCornerRail();
-    this.renderPages();
+    this.renderColumns();
   },
 
   // ===== ダイレクト送出 =====
@@ -969,7 +1042,7 @@ const RundownUI = {
     if (channelId) this.activeChannelId = channelId;
     Broadcast.setNext(found.page.id);
     this.renderAll();
-    const el = document.querySelector(`#od-pages .od-page[data-page-id="${found.page.id}"]`);
+    const el = document.querySelector(`#od-columns .od-page[data-page-id="${found.page.id}"]`);
     if (el) el.scrollIntoView({ block: 'nearest' });
     this._directArmedNo = value;
     App.setStatus(`P${found.page.pageNo} をNEXTにセットしました (もう一度EnterでTAKE)`);
@@ -1001,7 +1074,7 @@ const RundownUI = {
       if (corners[to]) {
         this.currentCornerId = corners[to].id;
         this.renderCornerRail();
-        this.renderPages();
+        this.renderColumns();
         this.renderStandby();
       }
     } else if (e.key === 'Backspace' && e.ctrlKey) {
@@ -1029,7 +1102,7 @@ const RundownUI = {
       if (!found) return;
       this._playedPages.add(st.onAirPageId);
       const { page, corner } = found;
-      const rowCd = document.querySelector(`#od-pages .od-page[data-page-id="${page.id}"] .od-page-countdown`);
+      const rowCd = document.querySelector(`#od-columns .od-page[data-page-id="${page.id}"] .od-page-countdown`);
       if (!page.duration || page.duration <= 0) {
         if (rowCd) rowCd.classList.add('hidden');
         return;

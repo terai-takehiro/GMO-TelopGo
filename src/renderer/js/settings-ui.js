@@ -86,6 +86,132 @@ const ChannelsUI = {
   },
 };
 
+/** 出力グループ (複数チャンネルを1URLへレイヤー合成) の設定UI */
+const OutputGroupsUI = {
+  rows: [],
+
+  populate(groups) {
+    this.rows = JSON.parse(JSON.stringify(Array.isArray(groups) ? groups : []));
+    this.render();
+  },
+
+  render() {
+    const wrap = document.getElementById('og-list');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    const channels = App.channels || [];
+    this.rows.forEach((g, i) => {
+      const card = document.createElement('div');
+      card.className = 'og-card';
+
+      const head = document.createElement('div');
+      head.className = 'og-head';
+      const label = document.createElement('input');
+      label.type = 'text';
+      label.className = 'input input--small';
+      label.value = g.label || '';
+      label.placeholder = 'グループ名 (例: メイン)';
+      label.maxLength = 20;
+      label.addEventListener('change', () => { g.label = label.value.trim() || g.id; });
+      const idInput = document.createElement('input');
+      idInput.type = 'text';
+      idInput.className = 'input input--small ch-region';
+      idInput.value = g.id || '';
+      idInput.placeholder = 'URL名';
+      idInput.title = '出力URL: /output/jp/g/<この名前>。半角英数のみ';
+      idInput.addEventListener('change', () => {
+        g.id = idInput.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') || g.id;
+        idInput.value = g.id;
+      });
+      const del = document.createElement('button');
+      del.className = 'btn btn--small';
+      del.textContent = '✕';
+      del.title = 'グループを削除';
+      del.addEventListener('click', () => { this.rows.splice(i, 1); this.render(); });
+      head.appendChild(label);
+      head.appendChild(idInput);
+      head.appendChild(del);
+      card.appendChild(head);
+
+      // チャンネル選択 (チェック=含める / 上下で重なり順=レイヤー順)
+      g.channels = (g.channels || []).filter((cid) => channels.some((c) => c.region === cid));
+      const selected = g.channels;
+      const unselected = channels.filter((c) => !selected.includes(c.region)).map((c) => c.region);
+
+      const list = document.createElement('div');
+      list.className = 'og-channels';
+      const hint = document.createElement('div');
+      hint.className = 'settings-inline-hint';
+      hint.textContent = '含めるチャンネル (上=背面 / 下=前面):';
+      list.appendChild(hint);
+
+      const renderChip = (region, isSel) => {
+        const ch = channels.find((c) => c.region === region);
+        const chip = document.createElement('div');
+        chip.className = `og-chip${isSel ? ' sel' : ''}`;
+        const dot = document.createElement('span');
+        dot.className = 'og-chip-dot';
+        dot.style.background = ch ? ch.color : '#888';
+        chip.appendChild(dot);
+        chip.appendChild(document.createTextNode(ch ? ch.label : region));
+        if (isSel) {
+          const up = document.createElement('button');
+          up.className = 'og-chip-btn';
+          up.textContent = '↑';
+          up.title = '背面へ';
+          up.addEventListener('click', () => {
+            const idx = selected.indexOf(region);
+            if (idx > 0) { [selected[idx - 1], selected[idx]] = [selected[idx], selected[idx - 1]]; this.render(); }
+          });
+          const down = document.createElement('button');
+          down.className = 'og-chip-btn';
+          down.textContent = '↓';
+          down.title = '前面へ';
+          down.addEventListener('click', () => {
+            const idx = selected.indexOf(region);
+            if (idx < selected.length - 1) { [selected[idx + 1], selected[idx]] = [selected[idx], selected[idx + 1]]; this.render(); }
+          });
+          const rm = document.createElement('button');
+          rm.className = 'og-chip-btn';
+          rm.textContent = '×';
+          rm.title = '外す';
+          rm.addEventListener('click', () => { g.channels = selected.filter((r) => r !== region); this.render(); });
+          chip.appendChild(up);
+          chip.appendChild(down);
+          chip.appendChild(rm);
+        } else {
+          const add = document.createElement('button');
+          add.className = 'og-chip-btn';
+          add.textContent = '＋';
+          add.title = '含める';
+          add.addEventListener('click', () => { selected.push(region); this.render(); });
+          chip.appendChild(add);
+        }
+        return chip;
+      };
+
+      selected.forEach((region) => list.appendChild(renderChip(region, true)));
+      unselected.forEach((region) => list.appendChild(renderChip(region, false)));
+      card.appendChild(list);
+      wrap.appendChild(card);
+    });
+
+    const add = document.createElement('button');
+    add.className = 'btn btn--small';
+    add.textContent = '＋グループ追加';
+    add.addEventListener('click', () => {
+      const id = `g${this.rows.length + 1}`;
+      this.rows.push({ id, label: `グループ${this.rows.length + 1}`, channels: [] });
+      this.render();
+    });
+    wrap.appendChild(add);
+  },
+
+  collect() {
+    return JSON.parse(JSON.stringify(this.rows));
+  },
+};
+
 const SettingsUI = {
   async init() {
     // 保存済み設定を読み込み
@@ -114,6 +240,10 @@ const SettingsUI = {
     ];
     ChannelsUI.populate(App.channels);
 
+    // 出力グループ (チャンネル確定後)
+    App.outputGroups = Array.isArray(settings.outputGroups) ? settings.outputGroups : [];
+    OutputGroupsUI.populate(App.outputGroups);
+
     // 出力サーバ
     GraphicsUI.populateConfig(settings.graphics);
 
@@ -134,6 +264,9 @@ const SettingsUI = {
     if (result.success) {
       // チャンネル変更を即時反映できる範囲で反映
       App.channels = settings.channels;
+      App.outputGroups = settings.outputGroups || [];
+      ChannelsUI.populate(App.channels);
+      OutputGroupsUI.populate(App.outputGroups);
       if (typeof GpioRemote !== 'undefined') GpioRemote.populateConfig(GpioRemote.collectConfig());
       if (typeof LiveDataUI !== 'undefined') LiveDataUI.renderRegionOptions();
       if (typeof RundownUI !== 'undefined' && RundownUI.loaded) RundownUI.renderAll();
@@ -152,6 +285,7 @@ const SettingsUI = {
     return {
       graphics: GraphicsUI.collectConfig(),
       channels: ChannelsUI.collect(),
+      outputGroups: OutputGroupsUI.collect(),
       gpio: GpioRemote.collectConfig(),
       remote: RemoteSync.collectConfig(),
       liveData: typeof LiveDataUI !== 'undefined' ? LiveDataUI.collectConfig() : undefined,

@@ -58,12 +58,14 @@ let getChannels = () => [
   { id: 'name', label: '名前', region: 'name' },
   { id: 'side', label: 'サイド', region: 'side' },
 ];
+let getGroups = () => [];
 
 function configure(options) {
   staticDir = options.staticDir;
   assetsDir = options.assetsDir;
   getProject = options.getProject;
   if (options.getChannels) getChannels = options.getChannels;
+  if (options.getGroups) getGroups = options.getGroups;
   // 既知チャンネルの状態スロットを用意 (出力ページのinit復元用)
   getChannels().forEach((ch) => regionState(ch.region));
 }
@@ -89,8 +91,11 @@ function handleRequest(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const p = url.pathname;
 
-  // 出力ページ: /output/:lang(/:region)? — regionは任意のチャンネルスラッグ
-  if (/^\/output\/(jp|en)(\/[a-z0-9_-]+)?\/?$/.test(p)) {
+  // 出力ページ: /output/:lang(/:region)? または /output/:lang/g/:groupId
+  //   /output/jp            全チャンネル重畳
+  //   /output/jp/<region>   単一チャンネル
+  //   /output/jp/g/<group>  出力グループ (複数チャンネルをレイヤー合成)
+  if (/^\/output\/(jp|en)(?:\/g\/[a-z0-9_-]+|\/[a-z0-9_-]+)?\/?$/.test(p)) {
     sendFile(res, path.join(staticDir, 'output.html'));
     return;
   }
@@ -114,6 +119,9 @@ function handleRequest(req, res) {
     getChannels().forEach((ch) => {
       links.push(`/output/jp/${ch.region}`, `/output/en/${ch.region}`);
     });
+    getGroups().forEach((g) => {
+      links.push(`/output/jp/g/${g.id}`, `/output/en/g/${g.id}`);
+    });
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end('<meta charset="utf-8"><title>GMO TelopGo Output</title>'
       + '<h3>GMO TelopGo 出力サーバ</h3><ul>'
@@ -136,7 +144,7 @@ function broadcast(msg) {
 }
 
 function initMessage() {
-  return { type: 'init', payload: { project: getProject(), state, channels: getChannels() } };
+  return { type: 'init', payload: { project: getProject(), state, channels: getChannels(), groups: getGroups() } };
 }
 
 // ===== 制御API =====
@@ -234,7 +242,7 @@ function stopAnim(region) {
 
 /** テンプレート再読込を全出力ページへ配信 (エディタ保存時など) */
 function refreshProject() {
-  broadcast({ type: 'refresh', payload: { project: getProject(), state, channels: getChannels() } });
+  broadcast({ type: 'refresh', payload: { project: getProject(), state, channels: getChannels(), groups: getGroups() } });
 }
 
 module.exports = {

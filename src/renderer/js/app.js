@@ -9,6 +9,9 @@ const App = {
   /** 出力チャンネル [{id, label, region, color}] (settingsから) */
   channels: [],
 
+  /** 出力グループ [{id, label, channels: [region...]}] (複数系統を1URLへ合成) */
+  outputGroups: [],
+
   /** ランダウン全体 { programs, activeProgramId, activeBroadcastId, namePool } */
   rundown: null,
 

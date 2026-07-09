@@ -85,7 +85,7 @@
             <span class="od-spacer"></span>
             <button class="btn btn--small od-btn" id="od-standby-toggle">素材集 (<span id="od-standby-count">0</span>)</button>
           </div>
-          <div class="od-pages" id="od-pages"></div>
+          <div class="od-columns" id="od-columns"></div>
           <div class="od-standby hidden" id="od-standby">
             <div class="od-standby-title">素材集 — 放送しない予備ページの待機エリア</div>
             <div class="od-standby-list" id="od-standby-list"></div>
@@ -101,7 +101,7 @@
             <div class="od-preview-frame od-preview-frame--next"><div id="od-next-preview"></div></div>
           </div>
           <div class="od-editor" id="od-editor"></div>
-          <div class="od-channel-tabs" id="od-channel-tabs"></div>
+          <div class="od-focus-label" id="od-focus-label">操作中: -</div>
           <div class="od-buttons-grid">
             <button class="od-obtn" id="od-top-btn" title="表示中コーナーの先頭ページをNEXTに">TOP</button>
             <button class="od-obtn" id="od-back" title="NEXTを1つ戻す">BACK</button>
@@ -373,6 +373,15 @@
           <div class="ch-list" id="ch-list"></div>
         </div>
         <p class="gpio-hint">チャンネル=出力の系統です (例: 名前 / サイド / スコア)。チャンネルごとに /output/jp/(URL名) の出力URLが作られ、vMixで個別に取り込めます。テロップのテンプレート (デザインタブ) をチャンネルに割り当てて使います。変更は「設定を保存」後、出力サーバ再起動とアプリ再読込で完全に反映されます。</p>
+      </fieldset>
+
+      <fieldset class="settings-group">
+        <legend>出力グループ (URLレイヤー合成)</legend>
+        <div class="settings-row">
+          <label>グループ一覧</label>
+          <div class="og-list" id="og-list"></div>
+        </div>
+        <p class="gpio-hint">複数の系統(チャンネル)を1本の出力URLに重ねて出す設定です。例: 「メイン=名前+サイド」「スコア用=スコアのみ」のように分けると、それぞれ /output/jp/g/(URL名) で配信されます。重なり順は上が背面・下が前面。日本語/英語は自動で両方のURLが作られます (日英の出し分けとは独立)。</p>
       </fieldset>
 
       <fieldset class="settings-group">

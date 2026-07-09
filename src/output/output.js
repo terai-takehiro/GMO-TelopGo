@@ -12,17 +12,39 @@
  * OUT再生中に次のTAKEが来た場合は世代カウンタで古い完了処理を無効化する。
  */
 (function () {
-  const m = location.pathname.match(/^\/output\/(jp|en)(?:\/([a-z0-9_-]+))?\/?$/);
-  const lang = m ? m[1] : 'jp';
-  const onlyRegion = m && m[2] ? m[2] : null;
+  // /output/jp | /output/jp/<region> | /output/jp/g/<groupId>
+  const mGroup = location.pathname.match(/^\/output\/(jp|en)\/g\/([a-z0-9_-]+)\/?$/);
+  const mSingle = location.pathname.match(/^\/output\/(jp|en)\/([a-z0-9_-]+)\/?$/);
+  const mAll = location.pathname.match(/^\/output\/(jp|en)\/?$/);
+  const lang = (mGroup || mSingle || mAll) ? (mGroup || mSingle || mAll)[1] : 'jp';
+  const target = mGroup ? { type: 'group', groupId: mGroup[2] }
+    : mSingle ? { type: 'channel', region: mSingle[2] }
+      : { type: 'all' };
 
   let project = null;
   const generation = {};
   const containers = {};
+  // 描画対象リージョンをレイヤー順 (背面→前面) で保持
+  let orderedRegions = [];
   const canvas = document.getElementById('canvas');
 
   function handlesRegion(region) {
-    return !onlyRegion || onlyRegion === region;
+    return orderedRegions.includes(region);
+  }
+
+  /** URLの対象種別とpayloadのチャンネル/グループから描画対象リージョンを順序付きで解決 */
+  function resolveRegions(channels, groups) {
+    const all = (channels || []).map((c) => c.region);
+    if (target.type === 'channel') {
+      return all.includes(target.region) ? [target.region] : [];
+    }
+    if (target.type === 'group') {
+      const g = (groups || []).find((x) => x.id === target.groupId);
+      if (!g) return [];
+      // グループ定義のchannels順 = レイヤー順。存在するチャンネルのみ
+      return g.channels.filter((cid) => all.includes(cid));
+    }
+    return all; // 全チャンネル重畳 (channels配列順)
   }
 
   /** チャンネルのコンテナを取得 (無ければ動的生成) */
@@ -37,10 +59,19 @@
     return el;
   }
 
-  /** チャンネル一覧に応じてコンテナを準備 (担当外は作らない) */
-  function ensureContainers(channels) {
-    (channels || []).forEach((ch) => {
-      if (handlesRegion(ch.region)) containerFor(ch.region);
+  /** 描画対象リージョンを解決し、コンテナをレイヤー順(=DOM順=z-order)に整える */
+  function ensureContainers(channels, groups) {
+    orderedRegions = resolveRegions(channels, groups);
+    // 対象外になったコンテナを撤去
+    Object.keys(containers).forEach((region) => {
+      if (!orderedRegions.includes(region)) {
+        containers[region].remove();
+        delete containers[region];
+      }
+    });
+    // 対象を順に (再)appendして重なり順を確定 (後の要素ほど前面)
+    orderedRegions.forEach((region) => {
+      canvas.appendChild(containerFor(region));
     });
   }
 
@@ -132,7 +163,7 @@
         case 'refresh':
           project = msg.payload.project;
           TelopRenderer.applyFonts((project.assets && project.assets.fonts) || [], '/assets/');
-          ensureContainers(msg.payload.channels);
+          ensureContainers(msg.payload.channels, msg.payload.groups);
           applyState(msg.payload.state);
           break;
         case 'take':
