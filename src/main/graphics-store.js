@@ -76,7 +76,8 @@ function textLayer(opts) {
     align: opts.align || 'left',
     vAlign: opts.vAlign || 'middle',
     font: {
-      family: opts.family || '"Yu Gothic UI", "Noto Sans JP", sans-serif',
+      // 既定はLINE Seed JP (起動時に自動取得。取得前は游ゴシックにフォールバック)
+      family: opts.family || '"LINE Seed JP", "Yu Gothic UI", "Noto Sans JP", sans-serif',
       size: opts.size,
       weight: opts.weight || 700,
       color: opts.color || '#ffffff',

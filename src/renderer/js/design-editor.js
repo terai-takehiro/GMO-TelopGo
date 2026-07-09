@@ -27,6 +27,7 @@ const DesignEditor = {
 
   /** Webフォント取得の候補 (Google Fontsの日本語対応+定番、[ファミリー, 取得ウェイト]) */
   GOOGLE_FONTS: [
+    ['LINE Seed JP', [400, 700, 800]],
     ['Noto Sans JP', [400, 700, 900]],
     ['Noto Serif JP', [400, 700, 900]],
     ['M PLUS 1p', [400, 700, 900]],

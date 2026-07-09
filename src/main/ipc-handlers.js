@@ -80,6 +80,32 @@ function listSystemFonts() {
   });
 }
 
+/** 既定フォント (LINE Seed JP) が未取得なら起動時にバックグラウンドで自動取得する */
+const DEFAULT_WEB_FONT = { family: 'LINE Seed JP', weights: [400, 700, 800] };
+
+async function ensureDefaultWebFont() {
+  try {
+    const project = graphicsStore.getProject();
+    const fonts = (project.assets && project.assets.fonts) || [];
+    if (fonts.some((f) => f.family === DEFAULT_WEB_FONT.family)) return;
+
+    const result = await require('./google-fonts').fetchFamily(
+      DEFAULT_WEB_FONT.family, DEFAULT_WEB_FONT.weights, graphicsStore.getAssetsDir());
+
+    // 取得中にプロジェクトが更新されている可能性があるため取り直す
+    const latest = graphicsStore.getProject();
+    latest.assets = latest.assets || { images: [], fonts: [] };
+    latest.assets.fonts = latest.assets.fonts || [];
+    if (!latest.assets.fonts.some((f) => f.family === result.family)) {
+      latest.assets.fonts.push({ family: result.family, cssFile: result.cssFile, files: result.files });
+      graphicsStore.setProject(latest);
+      graphicsServer.refreshProject();
+    }
+  } catch (_) {
+    // オフライン等で取得できない場合は次回起動時に再試行 (既定テンプレートは游ゴシックへフォールバック)
+  }
+}
+
 /** LAN内のIPv4アドレス一覧 */
 function lanAddresses() {
   const addrs = [];
@@ -103,6 +129,7 @@ function registerIpcHandlers() {
   if (graphicsConfig.autoStart) {
     graphicsServer.start(graphicsConfig.port).catch(() => { /* 状態はgetStatusで通知 */ });
   }
+  ensureDefaultWebFont();
 
   // --- Excel ---
   ipcMain.handle('open-excel-file', async (_event, telopType) => {
