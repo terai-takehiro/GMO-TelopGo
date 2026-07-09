@@ -1326,3 +1326,55 @@ body {
   border-right: 2px solid rgba(255,255,255,0.85);
   border-radius: 0 2px 2px 0;
 }
+
+/* === UX改善 (v1.13.0) === */
+/* 送出ボタンの説明 */
+.broadcast-legend {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 6px;
+}
+
+/* データ行はクリック可能であることを示す */
+.data-table tbody tr { cursor: pointer; }
+
+/* デザイン未保存の強調 */
+.de-save--dirty {
+  background: #e8630a !important;
+  border-color: #e8630a !important;
+  color: #ffffff !important;
+}
+
+/* 出力サーバ停止中の警告バナー */
+.de-server-warning {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: #b23c17;
+  color: #ffffff;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  white-space: nowrap;
+}
+.de-viewport { position: relative; }
+
+/* タイムラインの既定/個別バッジ */
+.de-tl-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--bg-panel);
+  color: var(--text-muted);
+}
+.de-tl-badge--custom {
+  background: var(--accent);
+  color: #ffffff;
+  cursor: pointer;
+}
+.de-tl-badge--custom:hover { opacity: 0.8; }

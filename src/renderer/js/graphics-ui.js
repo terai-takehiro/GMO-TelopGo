@@ -75,6 +75,11 @@ const GraphicsUI = {
 
     this.renderUrls(status);
     this.applyPreview(status);
+
+    // デザインタブのサーバ停止警告バナーを更新
+    if (typeof DesignEditor !== 'undefined' && DesignEditor.loaded) {
+      DesignEditor.updateServerBanner(status);
+    }
   },
 
   renderUrls(status) {

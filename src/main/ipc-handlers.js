@@ -413,7 +413,7 @@ function registerIpcHandlers() {
     if (telopType === 'name') {
       wsData = [
         ['肩書(JP)', '名前(JP)', '肩書(EN)', '名前(EN)'],
-        ['代表取締役', '山田太郎', 'CEO', 'Taro Yamada'],
+        ['代表取締役', '見本 太郎', 'CEO', 'Taro Mihon'],
       ];
       defaultFilename = 'name-telop-template.xlsx';
     } else {

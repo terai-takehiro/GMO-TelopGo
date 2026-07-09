@@ -88,6 +88,10 @@ const DesignEditor = {
       this.applyZoom();
       this.renderSelection();
     });
+    document.getElementById('de-anim-settings').addEventListener('click', () => {
+      this.selectedId = null;
+      this.renderAll();
+    });
     document.getElementById('de-play-in').addEventListener('click', () => this.playAnimation('in'));
     document.getElementById('de-play-out').addEventListener('click', () => this.playAnimation('out'));
     document.getElementById('de-copy-lang').addEventListener('click', () => this.copyJpToEn());
@@ -401,7 +405,15 @@ const DesignEditor = {
   },
 
   updateStatus() {
-    document.getElementById('de-save').textContent = this.dirty ? '保存して反映 *' : '保存して反映';
+    const btn = document.getElementById('de-save');
+    btn.textContent = this.dirty ? '● 未保存 — 保存して反映' : '保存して反映';
+    btn.classList.toggle('de-save--dirty', this.dirty);
+  },
+
+  /** 出力サーバ停止中の警告バナー (画像・持ち込みフォントが表示されないため) */
+  updateServerBanner(status) {
+    const banner = document.getElementById('de-server-warning');
+    if (banner) banner.classList.toggle('hidden', !!(status && status.running));
   },
 
   // ===== 表示 =====
@@ -412,6 +424,12 @@ const DesignEditor = {
     document.getElementById('de-lang-en').classList.toggle('active', lang === 'en');
     this.selectedId = null;
     this.renderAll();
+
+    // EN初回切替時: JPとは独立したレイアウトであることを案内
+    if (lang === 'en' && !this._enHintShown) {
+      this._enHintShown = true;
+      App.setStatus('ENレイアウトはJPと独立しています。JPのデザインを流用する場合は「JP→ENコピー」を使ってください');
+    }
   },
 
   assetBase() {
@@ -442,6 +460,7 @@ const DesignEditor = {
     this.renderProps();
     this.renderSelection();
     this.updateStatus();
+    this.updateServerBanner(typeof GraphicsUI !== 'undefined' ? GraphicsUI.status : null);
   },
 
   renderArtboard() {
@@ -790,6 +809,14 @@ const DesignEditor = {
 
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); this.undo(); return; }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); this.redo(); return; }
+
+    // Escで選択解除 (アニメーション設定パネルに戻る)
+    if (e.key === 'Escape' && this.selectedId) {
+      e.preventDefault();
+      this.selectedId = null;
+      this.renderAll();
+      return;
+    }
 
     const layer = this.selected();
     if (!layer) return;
@@ -1207,6 +1234,24 @@ const DesignEditor = {
       name.className = 'de-tl-name';
       name.textContent = it.layer.name || it.layer.id;
 
+      // 既定/個別バッジ (個別はクリックで既定に戻せる)
+      const badge = document.createElement('span');
+      badge.className = 'de-tl-badge' + (it.custom ? ' de-tl-badge--custom' : '');
+      badge.textContent = it.custom ? '個別' : '既定';
+      badge.title = it.custom
+        ? 'このレイヤーは個別設定です。クリックでテンプレートの既定に戻します'
+        : 'テンプレートの既定設定で動きます (バーをドラッグすると個別設定になります)';
+      if (it.custom) {
+        badge.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.beginChange();
+          delete it.layer.anim[dir];
+          if (!it.layer.anim.in && !it.layer.anim.out) delete it.layer.anim;
+          this.renderProps();
+          App.setStatus(`${it.layer.name || it.layer.id} の${dir.toUpperCase()}を既定に戻しました`, 'success');
+        });
+      }
+
       const track = document.createElement('div');
       track.className = 'de-tl-track';
       const bar = document.createElement('div');
@@ -1232,7 +1277,7 @@ const DesignEditor = {
         bar.appendChild(grip);
       }
 
-      rowEl.append(name, track);
+      rowEl.append(name, badge, track);
       rowEl.addEventListener('click', () => {
         if (this._tlDragged) return; // ドラッグ直後のクリックは選択しない
         this.selectedId = it.layer.id;

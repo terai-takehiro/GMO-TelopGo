@@ -214,6 +214,11 @@ const GpioRemote = {
     const deviceName = document.getElementById('gpio-device-name').value.trim() || 'DIO000';
     const pressLevel = document.getElementById('gpio-press-level').value;
 
+    // 接続時に現在の設定を自動保存 (保存し忘れると再起動で設定が消えるため)
+    if (!silent) {
+      await window.api.saveSettings(SettingsUI.collectSettings());
+    }
+
     if (!silent) App.setStatus('GPIOデバイスに接続中...');
     const result = await window.api.gpioConnect({ deviceName, pressLevel });
     if (result.ok) {
@@ -277,11 +282,12 @@ const GpioRemote = {
       App.setStatus('先にGPIOデバイスへ接続してください。', 'error');
       return;
     }
+    const hadPrevious = !!this.learnTarget;
     this.cancelLearn();
     this.learnTarget = { type, key };
     tr.classList.add('gpio-learning');
     const label = this.BUTTON_DEFS.find((d) => d.key === key).label;
-    App.setStatus(`[${this.TELOP_LABELS[type]} ${label}] リモートのボタンを押してください... (10秒でキャンセル)`);
+    App.setStatus(`${hadPrevious ? '(前の検出をキャンセルしました) ' : ''}[${this.TELOP_LABELS[type]} ${label}] リモートのボタンを押してください... (10秒でキャンセル)`);
     this.learnTimer = setTimeout(() => {
       this.cancelLearn();
       App.setStatus('ボタン検出がタイムアウトしました。');
@@ -317,8 +323,11 @@ const GpioRemote = {
     const tr = document.querySelector(`#gpio-map-${type} tr[data-key="${key}"]`);
     if (tr) tr.querySelector('.gpio-bit-select').value = String(bit);
 
+    // 割当は即座に自動保存する (保存し忘れ防止)
+    window.api.saveSettings(SettingsUI.collectSettings());
+
     const label = this.BUTTON_DEFS.find((d) => d.key === key).label;
-    App.setStatus(`[${this.TELOP_LABELS[type]} ${label}] に IN ${bit} を割り当てました。「設定を保存」で確定します。`, 'success');
+    App.setStatus(`[${this.TELOP_LABELS[type]} ${label}] に IN ${bit} を割り当てて保存しました。`, 'success');
   },
 
   // ===== ボタン押下 → アクション実行 =====

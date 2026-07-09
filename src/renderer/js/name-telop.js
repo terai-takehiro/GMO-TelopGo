@@ -36,6 +36,7 @@ const NameTelop = {
 
   clearPool() {
     if (App.namePool.length === 0) return;
+    if (!confirm(`名前プールの ${App.namePool.length} 名をすべて削除します。よろしいですか?`)) return;
     App.namePool = [];
     this.renderPool();
     this.updateDatalist();
@@ -101,6 +102,7 @@ const NameTelop = {
 
   clearAll() {
     if (App.nameData.length === 0) return;
+    if (!confirm(`名前テロップの全 ${App.nameData.length} 件を削除します。よろしいですか?\n(この操作は元に戻せません)`)) return;
     App.nameData = [];
     this.renderAll();
     Broadcast.reset('name');
@@ -123,6 +125,7 @@ const NameTelop = {
     const tr = document.createElement('tr');
     tr.draggable = true;
     tr.dataset.index = index;
+    tr.title = 'クリックでNEXTに設定 (入力欄以外)';
 
     const shotDef = SHOT_TYPES[item.shotType] || SHOT_TYPES['1S'];
 

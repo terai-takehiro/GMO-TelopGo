@@ -38,6 +38,7 @@ const SideTelop = {
 
   clearAll() {
     if (App.sideData.length === 0) return;
+    if (!confirm(`サイドテロップの全 ${App.sideData.length} 件を削除します。よろしいですか?\n(この操作は元に戻せません)`)) return;
     App.sideData = [];
     this.renderAll();
     Broadcast.reset('side');
@@ -60,6 +61,7 @@ const SideTelop = {
     const tr = document.createElement('tr');
     tr.draggable = true;
     tr.dataset.index = index;
+    tr.title = 'クリックでNEXTに設定 (入力欄以外)';
 
     tr.innerHTML = `
       <td class="col-drag"><span class="drag-handle">&#9776;</span></td>

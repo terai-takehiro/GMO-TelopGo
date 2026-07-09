@@ -32,6 +32,8 @@ function init(baseDir) {
 function reload() {
   try {
     project = JSON.parse(fs.readFileSync(projectPath, 'utf-8'));
+    // 旧バージョンのサンプルに含まれていた実在の人名・社名を架空のものへ置換
+    if (sanitizeSamples(project)) saveProject();
   } catch (err) {
     // 壊れたJSONは既定テンプレートで復旧 (元ファイルは退避)
     try { fs.renameSync(projectPath, `${projectPath}.broken`); } catch (_) { /* ignore */ }
@@ -39,6 +41,34 @@ function reload() {
     saveProject();
   }
   return project;
+}
+
+/** 旧既定テンプレートのサンプル文字列 → 架空の名前・社名への置換表 */
+const SAMPLE_REPLACEMENTS = [
+  ['森山 真吾', '見本 太郎'],
+  ['Shingo Moriyama', 'Taro Mihon'],
+  ['GMOペイメントゲートウェイ', '株式会社サンプルネット'],
+  ['GMO Payment Gateway', 'Sample Net Inc.'],
+  ['GMOイズム　唱和', 'サンプルイベント　開催中'],
+  ['GMO ISM Chorus', 'Sample Event Now'],
+];
+
+function sanitizeSamples(proj) {
+  let changed = false;
+  Object.values(proj.templates || {}).forEach((template) => {
+    Object.values(template.variants || {}).forEach((variant) => {
+      (variant.layers || []).forEach((layer) => {
+        if (layer.type !== 'text' || !layer.sample) return;
+        SAMPLE_REPLACEMENTS.forEach(([from, to]) => {
+          if (layer.sample.includes(from)) {
+            layer.sample = layer.sample.split(from).join(to);
+            changed = true;
+          }
+        });
+      });
+    });
+  });
+  return changed;
 }
 
 function saveProject() {
@@ -125,7 +155,7 @@ function namePersonLayers(pi, lang, box, opts) {
     const title = textLayer({
       id: `title${pi + 1}`, name: `肩書${pi + 1}`,
       binding: bindTitle,
-      sample: lang === 'Jp' ? '最優秀新人賞\nGMOペイメントゲートウェイ' : 'Rookie of the Year\nGMO Payment Gateway',
+      sample: lang === 'Jp' ? '最優秀新人賞\n株式会社サンプルネット' : 'Rookie of the Year\nSample Net Inc.',
       x: box.x + pad, y: box.y + 10, w: box.w - nameW - pad * 2, h: box.h - 20,
       size: opts.titleSize, weight: 700, align: 'left', vAlign: 'middle',
       lineHeight: 1.35,
@@ -137,7 +167,7 @@ function namePersonLayers(pi, lang, box, opts) {
   const name = textLayer({
     id: `name${pi + 1}`, name: `名前${pi + 1}`,
     binding: bindName,
-    sample: lang === 'Jp' ? '森山 真吾' : 'Shingo Moriyama',
+    sample: lang === 'Jp' ? '見本 太郎' : 'Taro Mihon',
     x: opts.nameOnly ? box.x + pad : box.x + box.w - nameW - pad,
     y: box.y + 10,
     w: opts.nameOnly ? box.w - pad * 2 : nameW,
@@ -184,7 +214,7 @@ function buildSideVariant(lang) {
       textLayer({
         id: 'sideText', name: 'サイドテキスト',
         binding: lang === 'Jp' ? 'textJp' : 'textEn',
-        sample: lang === 'Jp' ? 'GMOイズム　唱和' : 'GMO ISM Chorus',
+        sample: lang === 'Jp' ? 'サンプルイベント　開催中' : 'Sample Event Now',
         x: 140, y: 48, w: 1400, h: 80,
         size: 54, weight: 800, align: 'left', vAlign: 'middle',
         letterSpacing: 0.02,

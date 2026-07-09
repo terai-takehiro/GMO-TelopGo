@@ -140,9 +140,11 @@ const Broadcast = {
     const onairEl = document.getElementById(`${type}-onair`);
     const nextEl = document.getElementById(`${type}-next`);
 
-    // ON AIR表示
+    // ON AIR表示 (行との対応が失われても送出中であることは表示し続ける)
     if (state.isOnAir && state.onAirIndex >= 0 && state.onAirIndex < data.length) {
       onairEl.innerHTML = this.formatItemHtml(type, data[state.onAirIndex]);
+    } else if (state.isOnAir) {
+      onairEl.innerHTML = '<span class="info-person">(送出中)</span>';
     } else {
       onairEl.innerHTML = '<span class="info-empty">---</span>';
     }
@@ -151,6 +153,8 @@ const Broadcast = {
     const activeIdx = this.getActiveIndex(type);
     if (activeIdx >= 0 && activeIdx < data.length) {
       nextEl.innerHTML = this.formatItemHtml(type, data[activeIdx]);
+    } else if (data.length > 0) {
+      nextEl.innerHTML = '<span class="info-empty">(未選択 — 行をクリックで選択)</span>';
     } else {
       nextEl.innerHTML = '<span class="info-empty">---</span>';
     }
@@ -203,6 +207,19 @@ const Broadcast = {
     document.getElementById(`${type}-change`).disabled = !hasSelection;
     document.getElementById(`${type}-take`).disabled = !hasSelection;
     document.getElementById(`${type}-clear`).disabled = !state.isOnAir;
+    this.updateGlobalOnAir();
+  },
+
+  /** ステータスバーの送出状態表示 (全タブから見える) */
+  updateGlobalOnAir() {
+    const el = document.getElementById('status-onair');
+    if (!el) return;
+    const parts = [];
+    if (App.broadcast.name.isOnAir) parts.push('名前');
+    if (App.broadcast.side.isOnAir) parts.push('サイド');
+    el.textContent = parts.length ? `ON AIR: ${parts.join('+')}` : 'ON AIR: なし';
+    el.style.color = parts.length ? 'var(--red)' : '';
+    el.style.fontWeight = parts.length ? '700' : '';
   },
 
   /**
@@ -226,16 +243,15 @@ const Broadcast = {
   },
 
   /**
-   * 状態リセット
+   * 選択状態リセット (データ変更・モード切替時)
+   *
+   * 実際の出力は消えていないため、送出状態 (isOnAir / onAirShotType) は保持する。
+   * 行との対応 (onAirIndex) だけ無効化し、CLEARは引き続き押せる。
    */
   reset(type) {
     const state = App.broadcast[type];
     state.currentIndex = -1;
-    state.isOnAir = false;
     state.onAirIndex = -1;
-    if (type === 'name') {
-      state.onAirShotType = null;
-    }
     this.updateInfo(type);
     this.updateButtons(type);
     this.highlightRows(type);

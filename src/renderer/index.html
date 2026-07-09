@@ -118,10 +118,11 @@
         <div class="karuta-list hidden" id="name-karuta-list"></div>
 
         <div class="broadcast-controls">
-          <button class="btn btn--broadcast btn--change" id="name-change" disabled>CHANGE</button>
-          <button class="btn btn--broadcast btn--take" id="name-take" disabled>TAKE</button>
-          <button class="btn btn--broadcast btn--clear" id="name-clear" disabled>CLEAR</button>
+          <button class="btn btn--broadcast btn--change" id="name-change" disabled title="NEXTの内容をアニメーションなしで即時表示 (カット差し替え)">CHANGE</button>
+          <button class="btn btn--broadcast btn--take" id="name-take" disabled title="NEXTの内容をINアニメーション付きで送出">TAKE</button>
+          <button class="btn btn--broadcast btn--clear" id="name-clear" disabled title="OUTアニメーションで消去">CLEAR</button>
         </div>
+        <div class="broadcast-legend">TAKE=アニメ送出 / CHANGE=即時差し替え / CLEAR=消去 (TAKE・CHANGE後はNEXTが次へ進みます)</div>
       </div>
     </div>
   </div>
@@ -194,10 +195,11 @@
         <div class="karuta-list hidden" id="side-karuta-list"></div>
 
         <div class="broadcast-controls">
-          <button class="btn btn--broadcast btn--change" id="side-change" disabled>CHANGE</button>
-          <button class="btn btn--broadcast btn--take" id="side-take" disabled>TAKE</button>
-          <button class="btn btn--broadcast btn--clear" id="side-clear" disabled>CLEAR</button>
+          <button class="btn btn--broadcast btn--change" id="side-change" disabled title="NEXTの内容をアニメーションなしで即時表示 (カット差し替え)">CHANGE</button>
+          <button class="btn btn--broadcast btn--take" id="side-take" disabled title="NEXTの内容をINアニメーション付きで送出">TAKE</button>
+          <button class="btn btn--broadcast btn--clear" id="side-clear" disabled title="OUTアニメーションで消去">CLEAR</button>
         </div>
+        <div class="broadcast-legend">TAKE=アニメ送出 / CHANGE=即時差し替え / CLEAR=消去 (TAKE・CHANGE後はNEXTが次へ進みます)</div>
       </div>
     </div>
   </div>
@@ -236,6 +238,7 @@
             <option value="1">100%</option>
           </select>
         </label>
+        <button class="btn btn--small" id="de-anim-settings" title="レイヤーの選択を解除してテンプレートのアニメーション設定を表示">アニメ設定</button>
         <button class="btn btn--small" id="de-play-in">&#9654; IN</button>
         <button class="btn btn--small" id="de-play-out">&#9654; OUT</button>
         <button class="btn btn--small" id="de-copy-lang">JP&#8594;ENコピー</button>
@@ -268,6 +271,7 @@
           </div>
         </div>
         <div class="de-viewport" id="de-viewport">
+          <div class="de-server-warning hidden" id="de-server-warning">出力サーバが停止中のため、画像・持ち込みフォントが表示されません (設定タブで起動してください)</div>
           <div class="de-canvas-wrap" id="de-canvas-wrap">
             <div class="de-canvas" id="de-canvas"></div>
             <div class="de-overlay" id="de-overlay">
@@ -349,6 +353,7 @@
         <div class="settings-row">
           <label for="remote-port">ポート番号</label>
           <input type="number" id="remote-port" class="input input--small" min="1" max="65535" placeholder="8765">
+          <span class="settings-inline-hint">※出力サーバ (既定8790) とは別のポートです</span>
         </div>
         <div class="settings-row" id="remote-host-address-row">
           <label for="remote-host-address">接続先ホストIP</label>
@@ -392,6 +397,7 @@
             <option value="on">押下でON (立ち上がり検出)</option>
             <option value="off">押下でOFF (立ち下がり検出)</option>
           </select>
+          <span class="settings-inline-hint">デバイス名・押下検出の変更は「接続」を押し直すと反映されます</span>
         </div>
         <div class="settings-row">
           <label>入力モニタ</label>
@@ -418,7 +424,7 @@
             </table>
           </div>
         </div>
-        <p class="gpio-hint">「検出」をクリックしてからリモートの割り当てたいボタンを押すと、入力ビットが自動で割り当てられます。割当後は「設定を保存」で確定してください。</p>
+        <p class="gpio-hint">「検出」をクリックしてからリモートの割り当てたいボタンを押すと、入力ビットが自動で割り当てられ、設定も自動保存されます。「接続」時にも現在の設定が自動保存されます。</p>
       </fieldset>
 
       <div class="settings-actions">
@@ -434,6 +440,7 @@
     <span class="status-item" id="status-output">出力: 停止</span>
     <span class="status-item" id="status-gpio">GPIO: 未接続</span>
     <span class="status-item" id="status-remote">リンク: -</span>
+    <span class="status-item" id="status-onair">ON AIR: なし</span>
   </footer>
 
   <script src="js/app.js"></script>
