@@ -20,6 +20,10 @@ const store = new Store({
     // 出力グループ: 複数チャンネルを1つの出力URLへレイヤー合成する定義
     // channels配列の順 = レイヤー順 (先頭=背面 / 末尾=前面)。/output/jp/g/<id> で配信
     outputGroups: [],
+    // 操作設定 (誤操作防止など)
+    operation: {
+      dblclickTake: true, // ページのダブルクリックで即TAKEする
+    },
     gpio: {
       enabled: false,
       deviceName: 'DIO000',
@@ -88,6 +92,7 @@ function getSettings() {
     channels: getChannels(),
     telopPresets: getTelopPresets(),
     outputGroups: getOutputGroups(),
+    operation: store.get('operation'),
     gpio: store.get('gpio'),
     remote,
     liveData: store.get('liveData'),
@@ -105,6 +110,7 @@ function saveSettings(settings) {
   if (Array.isArray(settings.outputGroups)) {
     store.set('outputGroups', sanitizeOutputGroups(settings.outputGroups));
   }
+  if (settings.operation) store.set('operation', settings.operation);
   if (settings.gpio) store.set('gpio', settings.gpio);
   if (settings.remote) store.set('remote', settings.remote);
   if (settings.liveData) store.set('liveData', settings.liveData);

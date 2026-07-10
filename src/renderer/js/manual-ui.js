@@ -32,9 +32,10 @@ const ManualUI = {
         </ul>
         <h2 class="manual-h2">送出タブのレイアウト</h2>
         <ul class="manual-list">
-          <li><b>左レール</b>: コーナー一覧 (並び順=送出順)。右クリックで改名/色/ロック/オートフォロー/モード切替</li>
-          <li><b>中央</b>: 選択コーナーのページを<b>系統(チャンネル)ごとの列</b>で表示 (最大4系統横並び)。各列にTAKE/CLEAR</li>
-          <li><b>右ペイン</b>: ON AIR(PGM)/NEXTプレビュー、ページエディタ、送出ボタン群</li>
+          <li><b>左レール</b>: コーナー一覧 (並び順=送出順、送出進捗を表示)。右クリックで改名/色/ロック/オートフォロー</li>
+          <li><b>上部プレビュー帯</b>: ON AIR(PGM)とNEXTを大きく表示。サイズ切替、背景変更 (黒/市松/白/任意画像 — 透過の確認用)、PGMは「合成(全系統)/操作中系統のみ」を切替可能</li>
+          <li><b>中央</b>: 選択コーナーのページを<b>系統(チャンネル)ごとの列</b>で表示 (最大4系統横並び)。各列にTAKE/CLEAR。上部の🔎でページ検索</li>
+          <li><b>右ペイン</b>: ページエディタと送出ボタン群 (TOP/BACK/SKIP/STOP/UPDATE/CLEAR/CLEAR&BACK/TAKE)。大型TAKEには操作中の系統名を表示</li>
         </ul>
         <div class="manual-tip">状態色: <span class="manual-swatch onair"></span>赤=ON AIR / <span class="manual-swatch next"></span>アンバー=NEXT / グレー=送出済み</div>`,
     },
@@ -84,6 +85,7 @@ const ManualUI = {
           <tr><td>TAKE</td><td>NEXTをINアニメ付きで送出し、NEXTを次ページへ進める</td></tr>
           <tr><td>UPDATE</td><td>アニメなしで即時差し替え (オンエア中の訂正)</td></tr>
           <tr><td>CLEAR</td><td>OUTアニメで消去</td></tr>
+          <tr><td>CLEAR&BACK</td><td>オンエアを消して1つ前のページを即表示 (誤送出のリカバリー)</td></tr>
           <tr><td>STOP</td><td>再生中アニメの一時停止/再開</td></tr>
           <tr><td>SKIP / BACK / TOP</td><td>NEXTポインタの移動</td></tr>
         </table>
@@ -105,6 +107,7 @@ const ManualUI = {
           <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>NEXTを上/下へ移動</td></tr>
           <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>コーナーを移動</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>Backspace</kbd></td><td>CLEAR</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Backspace</kbd></td><td>CLEAR&BACK (消して前へ戻る)</td></tr>
           <tr><td><kbd>0</kbd>–<kbd>9</kbd></td><td>ダイレクト送出の番号入力を開始</td></tr>
         </table>
         <div class="manual-tip">💡 列 (またはページ) をクリックするとその系統が「操作中」になり、右ペインのボタン・ホットキー・GPIOがその系統に作用します。</div>`,

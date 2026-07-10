@@ -127,6 +127,9 @@ const GraphicsUI = {
     });
   },
 
+  /** PGMプレビューの表示範囲: 'all'=合成(全系統) | 'focus'=操作中系統のみ */
+  pgmScope: 'all',
+
   /**
    * 送出画面のプレビューiframeにローカル出力を表示する。
    * 2台運用でこのPCが出力担当でない場合は、担当PC (ホスト) の出力を参照する。
@@ -147,7 +150,14 @@ const GraphicsUI = {
       if (hostAddress) base = `http://${hostAddress}:${port}`;
     }
 
-    const url = base ? `${base}/output/jp?preview=1` : 'about:blank';
+    // 操作中系統のみモード: フォーカス列の系統URLを表示
+    let path = '/output/jp';
+    if (this.pgmScope === 'focus' && typeof RundownUI !== 'undefined') {
+      const ch = App.channelById(RundownUI.activeChannelId);
+      if (ch) path = `/output/jp/${ch.region}`;
+    }
+
+    const url = base ? `${base}${path}?preview=1` : 'about:blank';
     if (pgm.src !== url) pgm.src = url;
   },
 };

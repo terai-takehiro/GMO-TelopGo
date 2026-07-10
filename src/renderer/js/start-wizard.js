@@ -56,8 +56,8 @@ const StartWizard = {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   },
 
-  promptCreateProgram() {
-    const name = prompt('番組名', '新規番組');
+  async promptCreateProgram() {
+    const name = await AppModal.prompt('番組を追加', { value: '新規番組' });
     if (!name) return;
     const prog = this._defaultProgram();
     prog.name = name;
@@ -66,10 +66,10 @@ const StartWizard = {
     App.saveRundown();
     this.render();
   },
-  promptCreateBroadcast() {
+  async promptCreateBroadcast() {
     const prog = this.currentProgram();
     if (!prog) return;
-    const name = prompt('放送名 (例: 日付)', this._today());
+    const name = await AppModal.prompt('放送を追加', { value: this._today(), message: '放送名 (例: 日付)' });
     if (!name) return;
     const bc = this._defaultBroadcast();
     bc.name = name;

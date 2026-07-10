@@ -34,8 +34,8 @@ const ChannelsUI = {
   },
 
   /** スロットの現在の枠 (label/color + 当該系統のテンプレ群) をプリセットとして保存 */
-  saveSlotAsPreset(ch) {
-    const name = prompt('系統プリセット名', ch.label);
+  async saveSlotAsPreset(ch) {
+    const name = await AppModal.prompt('系統プリセットとして保存', { value: ch.label });
     if (!name) return;
     const proj = App.graphicsProject;
     const templateKeys = proj && proj.templates
@@ -103,12 +103,12 @@ const ChannelsUI = {
       del.className = 'btn btn--small';
       del.textContent = '✕';
       del.title = 'チャンネルを削除 (このチャンネルのテンプレート/ページは送出できなくなります)';
-      del.addEventListener('click', () => {
+      del.addEventListener('click', async () => {
         if (this.rows.length <= 1) {
           App.setStatus('最後のチャンネルは削除できません', 'error');
           return;
         }
-        if (!confirm(`チャンネル「${ch.label}」を削除しますか?`)) return;
+        if (!(await AppModal.confirm('系統を削除', `系統「${ch.label}」を削除しますか?`, { danger: true, okLabel: '削除' }))) return;
         this.rows.splice(i, 1);
         this.render();
       });
@@ -123,15 +123,15 @@ const ChannelsUI = {
     const add = document.createElement('button');
     add.className = 'btn btn--small';
     add.textContent = '＋チャンネル追加';
-    add.addEventListener('click', () => {
-      const region = prompt('チャンネルのURL名 (半角英数, 例: score)');
+    add.addEventListener('click', async () => {
+      const region = await AppModal.prompt('系統を追加', { placeholder: 'URL名 (半角英数, 例: tl3)' });
       if (!region) return;
       const slug = region.toLowerCase().replace(/[^a-z0-9_-]/g, '');
       if (!slug || this.rows.some((r) => r.region === slug)) {
         App.setStatus('URL名が不正か、すでに使われています', 'error');
         return;
       }
-      const label = prompt('表示名 (例: スコア)', slug) || slug;
+      const label = (await AppModal.prompt('表示名', { value: slug.toUpperCase(), message: '一覧に表示する名前 (例: TL3)' })) || slug;
       this.rows.push({ id: slug, label, region: slug, color: '#7c5cff' });
       this.render();
     });
@@ -358,6 +358,11 @@ const SettingsUI = {
     App.outputGroups = Array.isArray(settings.outputGroups) ? settings.outputGroups : [];
     OutputGroupsUI.populate(App.outputGroups);
 
+    // 操作設定 (誤操作防止)
+    App.operation = settings.operation || { dblclickTake: true };
+    const dblTake = document.getElementById('op-dbltake');
+    if (dblTake) dblTake.checked = App.operation.dblclickTake !== false;
+
     // 出力サーバ
     GraphicsUI.populateConfig(settings.graphics);
 
@@ -380,6 +385,7 @@ const SettingsUI = {
       App.channels = settings.channels;
       App.outputGroups = settings.outputGroups || [];
       App.telopPresets = settings.telopPresets || [];
+      App.operation = settings.operation || App.operation;
       TelopPresetsUI.populate(App.telopPresets);
       ChannelsUI.populate(App.channels);
       OutputGroupsUI.populate(App.outputGroups);
@@ -403,6 +409,12 @@ const SettingsUI = {
       channels: ChannelsUI.collect(),
       telopPresets: TelopPresetsUI.collect(),
       outputGroups: OutputGroupsUI.collect(),
+      operation: {
+        dblclickTake: (() => {
+          const el = document.getElementById('op-dbltake');
+          return el ? el.checked : true;
+        })(),
+      },
       gpio: GpioRemote.collectConfig(),
       remote: RemoteSync.collectConfig(),
       liveData: typeof LiveDataUI !== 'undefined' ? LiveDataUI.collectConfig() : undefined,

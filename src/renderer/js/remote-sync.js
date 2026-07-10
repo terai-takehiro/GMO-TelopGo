@@ -189,6 +189,7 @@ const RemoteSync = {
           if (action === 'take') Broadcast.doTake(telopType);
           else if (action === 'update' || action === 'change') Broadcast.doUpdate(telopType);
           else if (action === 'clear') Broadcast.doClear(telopType);
+          else if (action === 'clearback') Broadcast.doClearBack(telopType);
           else if (action === 'stop') Broadcast.doStop(telopType);
           else if (action === 'apply-edit') Broadcast.applyOnAirEdit(telopType);
         }

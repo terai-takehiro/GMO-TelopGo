@@ -129,6 +129,7 @@
         <button class="btn btn--small od-btn" id="od-broadcast-dup" title="この放送を複製 (帯番組の日付運用)">⧉</button>
         <button class="btn btn--small od-btn" id="od-broadcast-rename" title="放送名を変更">✎</button>
         <button class="btn btn--small od-btn" id="od-broadcast-delete" title="放送を削除">🗑</button>
+        <button class="btn btn--small od-btn" id="od-reselect" title="番組/放送の選択画面に戻る">☰ 選び直す</button>
         <span class="od-sep"></span>
         <select id="od-view-mode" class="input input--small od-select" title="表示モード">
           <option value="thumb">サムネイル</option>
@@ -145,6 +146,47 @@
           <input type="checkbox" id="od-rehearsal"> リハーサル
         </label>
       </div>
+
+      <!-- プレビュー帯 (TELOP BOX流: オンエアプレビューを主役に) -->
+      <div class="od-preview-strip od-pvw-m" id="od-preview-strip">
+        <div class="od-pvw-block">
+          <div class="od-pvw-head">
+            <span class="od-pvw-label od-pvw-pgm">● ON AIR (PGM)</span>
+            <select id="od-pgm-scope" class="input input--small od-pvw-select" title="PGMプレビューに表示する範囲">
+              <option value="all">合成 (全系統)</option>
+              <option value="focus">操作中系統のみ</option>
+            </select>
+          </div>
+          <div class="od-preview-frame" id="od-pgm-frame"><iframe id="od-pgm-iframe" src="about:blank" allow="autoplay" sandbox="allow-scripts allow-same-origin"></iframe></div>
+        </div>
+        <div class="od-pvw-block">
+          <div class="od-pvw-head">
+            <span class="od-pvw-label od-pvw-next" id="od-next-label">NEXT</span>
+          </div>
+          <div class="od-preview-frame od-preview-frame--next" id="od-next-frame"><div id="od-next-preview"></div></div>
+        </div>
+        <div class="od-pvw-tools">
+          <label class="od-bar-label">サイズ
+            <select id="od-pvw-size" class="input input--small od-pvw-select">
+              <option value="s">小</option>
+              <option value="m" selected>中</option>
+              <option value="l">大</option>
+              <option value="hide">隠す</option>
+            </select>
+          </label>
+          <label class="od-bar-label">背景
+            <select id="od-pvw-bg" class="input input--small od-pvw-select" title="プレビューの背景 (透過の確認用)">
+              <option value="black">黒</option>
+              <option value="checker">市松</option>
+              <option value="white">白</option>
+              <option value="image">画像...</option>
+            </select>
+          </label>
+          <input type="file" id="od-pvw-bg-file" accept="image/*" class="hidden">
+          <div class="od-countdown" id="od-countdown"></div>
+        </div>
+      </div>
+
       <div class="od-main">
         <div class="od-corners">
           <div class="od-corners-header">
@@ -161,6 +203,7 @@
             <button class="btn btn--small od-btn" id="od-import-pool" title="名前プールをExcelから読込 (ページ編集時の名前補完に使われます)">名前プール読込</button>
             <span class="od-mode-badge" id="od-mode-label" title="コーナーを右クリック→「モード切替」で変更できます"></span>
             <span class="od-spacer"></span>
+            <input type="text" id="od-search" class="input input--small od-search" placeholder="🔎 ページ検索" title="番号・タイトル・内容・テンプレ名でこのコーナーのページを絞り込み (Escで解除)">
             <button class="btn btn--small od-btn" id="od-standby-toggle">素材集 (<span id="od-standby-count">0</span>)</button>
           </div>
           <div class="od-columns" id="od-columns"></div>
@@ -170,26 +213,18 @@
           </div>
         </div>
         <div class="od-right">
-          <div class="od-preview-block">
-            <div class="od-pvw-label od-pvw-pgm">● ON AIR (PGM)</div>
-            <div class="od-preview-frame"><iframe id="od-pgm-iframe" src="about:blank" allow="autoplay" sandbox="allow-scripts allow-same-origin"></iframe></div>
-          </div>
-          <div class="od-preview-block">
-            <div class="od-pvw-label od-pvw-next" id="od-next-label">NEXT</div>
-            <div class="od-preview-frame od-preview-frame--next"><div id="od-next-preview"></div></div>
-          </div>
           <div class="od-editor" id="od-editor"></div>
           <div class="od-focus-label" id="od-focus-label">操作中: -</div>
           <div class="od-buttons-grid">
-            <button class="od-obtn" id="od-top-btn" title="表示中コーナーの先頭ページをNEXTに">TOP</button>
-            <button class="od-obtn" id="od-back" title="NEXTを1つ戻す">BACK</button>
-            <button class="od-obtn" id="od-skip" title="NEXTを1つ進める">SKIP</button>
-            <button class="od-obtn" id="od-stop" title="再生中アニメの一時停止/再開">STOP</button>
-            <button class="od-obtn od-obtn-update" id="od-update" title="NEXTをアニメなしで即時差し替え">UPDATE</button>
-            <button class="od-obtn od-obtn-clear" id="od-clear" title="オンエアをOUTアニメで消去 (Ctrl+Backspace)">CLEAR</button>
+            <button class="od-obtn" id="od-top-btn" title="表示中コーナーの先頭ページをNEXTに">TOP<span class="od-obtn-jp">先頭</span></button>
+            <button class="od-obtn" id="od-back" title="NEXTを1つ戻す">BACK<span class="od-obtn-jp">戻す</span></button>
+            <button class="od-obtn" id="od-skip" title="NEXTを1つ進める">SKIP<span class="od-obtn-jp">送る</span></button>
+            <button class="od-obtn" id="od-stop" title="再生中アニメの一時停止/再開">STOP<span class="od-obtn-jp">停止</span></button>
+            <button class="od-obtn od-obtn-update" id="od-update" title="NEXTをアニメなしで即時差し替え">UPDATE<span class="od-obtn-jp">即差替</span></button>
+            <button class="od-obtn od-obtn-clear" id="od-clear" title="オンエアをOUTアニメで消去 (Ctrl+Backspace)">CLEAR<span class="od-obtn-jp">消去</span></button>
+            <button class="od-obtn od-obtn-clear od-obtn-cb" id="od-clearback" title="オンエアを消して1つ前のページを即表示 (誤送出のリカバリー / Ctrl+Shift+Backspace)">CLEAR&amp;BACK<span class="od-obtn-jp">消して前へ戻る</span></button>
           </div>
-          <button class="od-take-btn" id="od-take" title="NEXTをINアニメ付きで送出 (Space / Enter)">TAKE <span class="od-take-arrow">⬆</span></button>
-          <div class="od-countdown" id="od-countdown"></div>
+          <button class="od-take-btn" id="od-take" title="NEXTをINアニメ付きで送出 (Space / Enter)">TAKE <span class="od-take-arrow">⬆</span><span class="od-take-ch" id="od-take-ch"></span></button>
         </div>
       </div>
     </div>
@@ -484,6 +519,14 @@
       </fieldset>
 
       <fieldset class="settings-group">
+        <legend>操作設定</legend>
+        <div class="settings-row">
+          <label for="op-dbltake">ダブルクリックで即TAKE</label>
+          <label class="od-bar-label"><input type="checkbox" id="op-dbltake" checked> 送出リストのページをダブルクリックしたとき、確認なしで即送出する (誤操作が心配な場合はOFF)</label>
+        </div>
+      </fieldset>
+
+      <fieldset class="settings-group">
         <legend>出力グループ (URLレイヤー合成)</legend>
         <div class="settings-row">
           <label>グループ一覧</label>
@@ -601,6 +644,17 @@
     </div>
   </div>
 
+  <!-- 汎用モーダル (prompt/confirm のアプリ内統一) -->
+  <dialog id="app-modal" class="de-dialog app-modal">
+    <h3 id="am-title"></h3>
+    <p class="de-props-hint" id="am-msg"></p>
+    <input type="text" id="am-input" class="input" maxlength="60">
+    <div class="de-dialog-actions">
+      <button class="btn btn--small" id="am-cancel">キャンセル</button>
+      <button class="btn btn--small btn--primary" id="am-ok">OK</button>
+    </div>
+  </dialog>
+
   <!-- ステータスバー -->
   <footer class="status-bar">
     <span class="status-item" id="status-text">準備完了</span>
@@ -611,6 +665,7 @@
   </footer>
 
   <script src="js/app.js"></script>
+  <script src="js/modal.js"></script>
   <script src="js/home-ui.js"></script>
   <script src="js/manual-ui.js"></script>
   <script src="js/start-wizard.js"></script>

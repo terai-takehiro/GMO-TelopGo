@@ -13,10 +13,11 @@
  * リハーサルモード中は出力サーバへ送らない (UI上の状態遷移のみ)。
  */
 const Broadcast = {
-  /** ページの内容要約 (ログ・表示用) */
+  /** ページの内容要約 (ログ・表示用)。タイトルがあれば優先 */
   summarize(page) {
-    if (page.kind === 'still') return page.title || (page.still && page.still.file) || '(静止画)';
-    if (page.kind === 'design') return page.title || '(作画)';
+    if (page.title) return page.title;
+    if (page.kind === 'still') return (page.still && page.still.file) || '(静止画)';
+    if (page.kind === 'design') return '(作画)';
     const values = page.values || {};
     const texts = Object.entries(values)
       .filter(([k, v]) => v && /Jp$/i.test(k))
@@ -190,6 +191,49 @@ const Broadcast = {
     st.onAirAt = 0;
     App.setStatus(`${App.rehearsal ? '[リハーサル] ' : ''}CLEAR 完了 (${channel.label})`, 'success');
     this.notifyChanged();
+  },
+
+  /**
+   * CLEAR&BACK: オンエア中を消して1つ前のページを即表示する (誤送出のリカバリー)。
+   * 前のページが無い場合は通常のCLEARになる。NEXTは消したページへ戻す。
+   */
+  async doClearBack(channelId) {
+    if (typeof RemoteSync !== 'undefined' && RemoteSync.shouldDelegate()) {
+      return RemoteSync.sendCommand('clearback', channelId);
+    }
+    const channel = App.channelById(channelId);
+    if (!channel) return;
+    const st = App.chState(channelId);
+    const curId = st.onAirPageId;
+
+    // オンエア中ページの1つ前 (同コーナー・同系統) を探す
+    let prev = null;
+    const found = curId ? App.findPage(curId) : null;
+    if (found && found.list === 'pages') {
+      const siblings = this.channelPagesInCorner(found.corner, channelId);
+      const idx = siblings.findIndex((pg) => pg.id === curId);
+      if (idx > 0) prev = siblings[idx - 1];
+    }
+
+    if (prev) {
+      const detail = `P${prev.pageNo} ${this.summarize(prev)} (C&B)`;
+      if (!App.rehearsal) {
+        const result = await this.sendPage(prev, false, detail);
+        if (!result.ok) {
+          App.setStatus(`CLEAR&BACK エラー: ${result.error}`, 'error');
+          return;
+        }
+      }
+      st.onAirPageId = prev.id;
+      st.onAirSummary = detail;
+      st.onAirAt = performance.now();
+      st.nextPageId = curId; // 消したページをNEXTへ戻す (やり直しできる)
+      App.setStatus(`${App.rehearsal ? '[リハーサル] ' : ''}CLEAR&BACK — P${prev.pageNo} に戻しました`, 'success');
+      this.notifyChanged();
+    } else {
+      // 前のページが無い → 通常CLEAR
+      await this.doClear(channelId);
+    }
   },
 
   async doStop(channelId) {

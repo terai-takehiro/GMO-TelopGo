@@ -1648,6 +1648,44 @@ body {
 .od-direct { width: 200px; font-family: var(--font-mono); }
 .od-rehearsal-label input { accent-color: var(--yellow); }
 
+/* --- プレビュー帯 (TELOP BOX流: オンエアプレビューを主役に) --- */
+.od-preview-strip {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  padding: 8px 12px;
+  background: var(--od-bg2);
+  border-bottom: 1px solid var(--od-border);
+}
+.od-pvw-block { display: flex; flex-direction: column; gap: 3px; }
+.od-pvw-head { display: flex; align-items: center; gap: 8px; }
+.od-pvw-select { padding: 1px 4px; font-size: 11px; height: 22px; }
+/* サイズプリセット: 16:9 の幅で高さが決まる (padding-bottomトリック) */
+.od-pvw-s .od-pvw-block { width: 220px; }
+.od-pvw-m .od-pvw-block { width: 330px; }
+.od-pvw-l .od-pvw-block { width: 480px; }
+.od-pvw-hide .od-pvw-block { display: none; }
+.od-pvw-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  margin-left: auto;
+  align-items: flex-end;
+}
+/* プレビュー背景 (透過確認用) */
+.od-preview-frame.bg-black { background: #000; }
+.od-preview-frame.bg-white { background: #fff; }
+.od-preview-frame.bg-checker {
+  background-image:
+    linear-gradient(45deg, #b9c2cf 25%, transparent 25%, transparent 75%, #b9c2cf 75%),
+    linear-gradient(45deg, #b9c2cf 25%, transparent 25%, transparent 75%, #b9c2cf 75%);
+  background-color: #dfe6ee;
+  background-size: 22px 22px;
+  background-position: 0 0, 11px 11px;
+}
+.od-preview-frame.bg-image { background-size: cover; background-position: center; }
+
 /* --- メイン3ペイン --- */
 .od-main { display: flex; flex: 1; min-height: 0; }
 
@@ -2028,7 +2066,63 @@ body {
 .od-take-btn:hover { background: linear-gradient(180deg, #38d76c, #23af53); }
 .od-take-btn:active { transform: translateY(1px); }
 .od-take-arrow { font-size: 16px; }
-.od-countdown { font-family: var(--font-mono); font-size: 11px; color: var(--green); min-height: 16px; text-align: center; }
+/* 残尺カウントダウン (プレビュー帯右側・大型表示) */
+.od-countdown {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--green);
+  min-height: 24px;
+  text-align: right;
+  letter-spacing: 0.5px;
+}
+.od-countdown:empty { display: none; }
+
+/* 送出ボタンの日本語補助ラベル */
+.od-obtn-jp { display: block; font-size: 9px; font-weight: 500; opacity: 0.65; letter-spacing: 0; margin-top: 1px; }
+.od-obtn-cb { grid-column: 1 / -1; }
+
+/* 大型TAKEの操作中系統表示 (renderFocusLabelで系統色の枠が付く) */
+.od-take-ch { display: block; font-size: 11px; font-weight: 700; letter-spacing: 1px; opacity: 0.9; margin-top: 2px; }
+
+/* ページ検索 */
+.od-search { width: 170px; }
+
+/* ダイレクト入力中の候補ハイライト */
+.od-page.od-direct-hit { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ページカードのアニメバッジ */
+.od-page-fx { cursor: help; }
+
+/* ホバー時クイックアクション */
+.od-page-actions {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: flex;
+  gap: 3px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  z-index: 2;
+}
+.od-page:hover .od-page-actions { opacity: 1; }
+.od-page-action {
+  width: 24px; height: 24px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: var(--shadow-sm);
+}
+.od-page-action:hover { background: var(--bg-hover); border-color: var(--accent); }
+
+/* 汎用モーダル */
+.app-modal { width: 420px; max-width: 90vw; }
+.app-modal h3 { margin-bottom: 8px; }
+.app-modal #am-input { width: 100%; margin: 6px 0 14px; }
+.app-modal #am-msg { margin-bottom: 8px; }
 
 /* コンテキストメニュー (body直下・ライト) */
 .od-context-menu {

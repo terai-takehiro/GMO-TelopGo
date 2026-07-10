@@ -21,6 +21,7 @@ const RundownUI = {
   _playedPages: new Set(), // 送出済みページ (グレー表示)
   _autoFired: new Set(),
   _directArmedNo: null,
+  searchQuery: '',     // ページ検索 (コーナー内絞り込み)
   loaded: false,
 
   async init() {
@@ -73,7 +74,10 @@ const RundownUI = {
         direct.blur();
       }
     });
-    direct.addEventListener('input', () => { this._directArmedNo = null; });
+    direct.addEventListener('input', () => {
+      this._directArmedNo = null;
+      this.highlightDirectCandidates(direct.value.trim());
+    });
 
     // モードバナー (クリックでホームへ戻りモード変更)
     const modeBanner = document.getElementById('od-mode-label');
@@ -109,10 +113,52 @@ const RundownUI = {
     document.getElementById('od-take').addEventListener('click', () => Broadcast.doTake(this.activeChannelId));
     document.getElementById('od-update').addEventListener('click', () => Broadcast.doUpdate(this.activeChannelId));
     document.getElementById('od-clear').addEventListener('click', () => Broadcast.doClear(this.activeChannelId));
+    document.getElementById('od-clearback').addEventListener('click', () => Broadcast.doClearBack(this.activeChannelId));
     document.getElementById('od-stop').addEventListener('click', () => Broadcast.doStop(this.activeChannelId));
     document.getElementById('od-skip').addEventListener('click', () => Broadcast.moveNext(this.activeChannelId, 1));
     document.getElementById('od-back').addEventListener('click', () => Broadcast.moveNext(this.activeChannelId, -1));
     document.getElementById('od-top-btn').addEventListener('click', () => Broadcast.goTop(this.activeChannelId));
+
+    // 番組/放送の選び直し (入場ウィザードを再表示)
+    const reselect = document.getElementById('od-reselect');
+    if (reselect) reselect.addEventListener('click', () => {
+      if (typeof StartWizard !== 'undefined') StartWizard.open(App.activeMode);
+    });
+
+    // ページ検索 (コーナー内の絞り込み)
+    const search = document.getElementById('od-search');
+    if (search) {
+      search.addEventListener('input', () => {
+        this.searchQuery = search.value.trim();
+        this.renderColumns();
+      });
+      search.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { search.value = ''; this.searchQuery = ''; this.renderColumns(); search.blur(); }
+      });
+    }
+
+    // プレビュー帯 (サイズ/背景/PGM範囲)
+    this.initPreviewStrip();
+
+    // 素材集へのドロップ受け (ページを予備へ退避)
+    const standbyList = document.getElementById('od-standby-list');
+    if (standbyList) {
+      standbyList.addEventListener('dragover', (e) => {
+        if (e.dataTransfer.types.includes('text/page')) {
+          e.preventDefault();
+          standbyList.classList.add('od-file-drop');
+        }
+      });
+      standbyList.addEventListener('dragleave', () => standbyList.classList.remove('od-file-drop'));
+      standbyList.addEventListener('drop', (e) => {
+        standbyList.classList.remove('od-file-drop');
+        e.preventDefault();
+        let payload;
+        try { payload = JSON.parse(e.dataTransfer.getData('text/page')); } catch (_) { return; }
+        const corner = this.currentCorner();
+        if (payload && corner) this.movePageBefore(payload.pageId, null, corner, 'standby');
+      });
+    }
 
     // ホットキー
     document.addEventListener('keydown', (e) => this.onKeyDown(e));
@@ -122,6 +168,83 @@ const RundownUI = {
 
     // 残尺カウントダウン / オートフォロー
     setInterval(() => this.tick(), 250);
+  },
+
+  /** プレビュー帯 (PGM|NEXT) のサイズ/背景/PGM範囲コントロール */
+  initPreviewStrip() {
+    const strip = document.getElementById('od-preview-strip');
+    const sizeSel = document.getElementById('od-pvw-size');
+    const bgSel = document.getElementById('od-pvw-bg');
+    const bgFile = document.getElementById('od-pvw-bg-file');
+    const scopeSel = document.getElementById('od-pgm-scope');
+    if (!strip || !sizeSel) return;
+
+    const applySize = (v) => {
+      strip.classList.remove('od-pvw-s', 'od-pvw-m', 'od-pvw-l', 'od-pvw-hide');
+      strip.classList.add(`od-pvw-${v}`);
+      // NEXTプレビューのスケールを幅に追従させる
+      this.renderNextPreview();
+    };
+    const applyBg = (v, imageUrl) => {
+      ['od-pgm-frame', 'od-next-frame'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove('bg-black', 'bg-checker', 'bg-white', 'bg-image');
+        el.classList.add(`bg-${v}`);
+        el.style.backgroundImage = v === 'image' && imageUrl ? `url(${imageUrl})` : '';
+      });
+    };
+
+    sizeSel.addEventListener('change', () => {
+      applySize(sizeSel.value);
+      try { localStorage.setItem('od.pvwSize', sizeSel.value); } catch (_) { /* ignore */ }
+    });
+    bgSel.addEventListener('change', () => {
+      if (bgSel.value === 'image') {
+        bgFile.click(); // 選択キャンセル時は onchange が来ないので黒へ戻す
+        return;
+      }
+      this._pvwBgImage = null;
+      applyBg(bgSel.value);
+      try { localStorage.setItem('od.pvwBg', bgSel.value); } catch (_) { /* ignore */ }
+    });
+    bgFile.addEventListener('change', () => {
+      const f = bgFile.files && bgFile.files[0];
+      if (!f) { bgSel.value = 'black'; applyBg('black'); return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        this._pvwBgImage = reader.result;
+        applyBg('image', reader.result);
+      };
+      reader.readAsDataURL(f);
+      bgFile.value = '';
+    });
+    if (scopeSel) {
+      scopeSel.addEventListener('change', () => {
+        GraphicsUI.pgmScope = scopeSel.value;
+        if (GraphicsUI.status) GraphicsUI.applyPreview(GraphicsUI.status);
+      });
+    }
+
+    // 前回のUI設定を復元
+    let size = 'm'; let bg = 'black';
+    try {
+      size = localStorage.getItem('od.pvwSize') || 'm';
+      bg = localStorage.getItem('od.pvwBg') || 'black';
+      if (bg === 'image') bg = 'black'; // 画像は永続化しない
+    } catch (_) { /* ignore */ }
+    sizeSel.value = size;
+    bgSel.value = bg;
+    applySize(size);
+    applyBg(bg);
+  },
+
+  /** ダイレクト入力中、番号が一致するページを一覧上でハイライト */
+  highlightDirectCandidates(value) {
+    document.querySelectorAll('#od-columns .od-page').forEach((el) => {
+      const no = el.querySelector('.od-page-no');
+      el.classList.toggle('od-direct-hit', !!value && !!no && no.textContent.startsWith(value));
+    });
   },
 
   /** 起動時ロード (設定 → チャンネル反映後に呼ばれる) */
@@ -249,10 +372,12 @@ const RundownUI = {
       name.textContent = `${idx + 1}. ${corner.name}`;
       const meta = document.createElement('span');
       meta.className = 'od-corner-meta';
+      meta.dataset.cornerId = corner.id;
       const badges = [];
       if (corner.locked) badges.push('🔒');
       if (corner.autoFollow && corner.autoFollow !== 'off') badges.push('⏱');
-      meta.textContent = `${badges.join('')} ${corner.pages.length}`;
+      const played = corner.pages.filter((pg) => this._playedPages.has(pg.id)).length;
+      meta.textContent = `${badges.join('')} ${played}/${corner.pages.length}`;
 
       li.appendChild(color);
       li.appendChild(name);
@@ -339,6 +464,20 @@ const RundownUI = {
       : page.kind === 'design' ? '🎨 作画'
         : this.templateLabel(page.templateKey);
     metaLine.appendChild(tplName);
+    // INアニメが設定されているCGページはバッジで可視化 (TELOP BOXのエフェクトアイコン相当)
+    if (!page.kind || page.kind === 'cg') {
+      const tpl = App.graphicsProject && App.graphicsProject.templates
+        && App.graphicsProject.templates[page.templateKey];
+      const inAnim = tpl && tpl.variants && tpl.variants.jp
+        && tpl.variants.jp.animation && tpl.variants.jp.animation.in;
+      if (inAnim && inAnim.preset && inAnim.preset !== 'none' && inAnim.duration !== 0) {
+        const fx = document.createElement('span');
+        fx.className = 'od-page-fx';
+        fx.textContent = '✨';
+        fx.title = `INアニメ: ${inAnim.preset}`;
+        metaLine.appendChild(fx);
+      }
+    }
     if (page.duration > 0) {
       const dur = document.createElement('span');
       dur.className = 'od-page-dur';
@@ -376,6 +515,8 @@ const RundownUI = {
     });
     el.addEventListener('dblclick', () => {
       if (listName !== 'pages' || !channelId) return;
+      // 設定でダブルクリック即TAKEを無効化できる (誤操作防止)
+      if (App.operation && App.operation.dblclickTake === false) return;
       this.selectedPageId = page.id;
       this.activeChannelId = channelId;
       Broadcast.setNext(page.id);
@@ -417,6 +558,41 @@ const RundownUI = {
       this.movePageBefore(payload.pageId, page.id, corner, listName);
     });
 
+    // ホバー時クイックアクション (右クリックメニューの主要操作を露出)
+    const actions = document.createElement('div');
+    actions.className = 'od-page-actions';
+    const mkAction = (label, title, fn) => {
+      const b = document.createElement('button');
+      b.className = 'od-page-action';
+      b.textContent = label;
+      b.title = title;
+      b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+      b.addEventListener('dblclick', (e) => e.stopPropagation());
+      actions.appendChild(b);
+    };
+    mkAction(page.locked ? '🔓' : '🔒', page.locked ? 'ロック解除' : '送出ロック (誤TAKE防止)',
+      () => this.mutate(() => { page.locked = !page.locked; }));
+    mkAction('⧉', '複製', () => this.mutate(() => {
+      const copy = JSON.parse(JSON.stringify(page));
+      copy.id = this.uid('pg');
+      copy.pageNo = this.nextPageNo(corner);
+      const list = corner[listName];
+      list.splice(list.indexOf(page) + 1, 0, copy);
+    }));
+    mkAction(listName === 'pages' ? '⤵' : '⤴',
+      listName === 'pages' ? '素材集へ移動 (予備)' : 'プレイリストへ戻す',
+      () => this.mutate(() => {
+        const from = corner[listName];
+        from.splice(from.indexOf(page), 1);
+        if (listName === 'pages') {
+          corner.standby = corner.standby || [];
+          corner.standby.push(page);
+        } else {
+          corner.pages.push(page);
+        }
+      }));
+    el.appendChild(actions);
+
     return el;
   },
 
@@ -447,8 +623,11 @@ const RundownUI = {
       dot.style.background = ch.color;
       const name = document.createElement('span');
       name.className = 'od-col-name';
-      const pages = Broadcast.channelPagesInCorner(corner, ch.id);
-      name.textContent = `${ch.label} (${pages.length})`;
+      const allPages = Broadcast.channelPagesInCorner(corner, ch.id);
+      const pages = this.searchQuery ? allPages.filter((pg) => this.matchPage(pg)) : allPages;
+      name.textContent = this.searchQuery
+        ? `${ch.label} (${pages.length}/${allPages.length})`
+        : `${ch.label} (${allPages.length})`;
       const addBtn = document.createElement('button');
       addBtn.className = 'od-col-add';
       addBtn.textContent = '＋';
@@ -467,7 +646,8 @@ const RundownUI = {
       if (pages.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'od-empty';
-        empty.textContent = telopMode ? '(画像をドロップ / ＋で追加)' : '(ページなし)';
+        empty.textContent = this.searchQuery ? '(一致するページなし)'
+          : telopMode ? '(画像をドロップ / ＋で追加)' : '(ページなし)';
         body.appendChild(empty);
       }
       // 末尾ドロップで並べ替え/系統への移動、または電テロでは画像ファイルの取込
@@ -529,6 +709,19 @@ const RundownUI = {
     this.applyRowStates();
   },
 
+  /** コーナーレールの進捗表示 (送出済み/全ページ) を最新化 */
+  updateCornerProgress() {
+    document.querySelectorAll('#od-corner-list .od-corner-meta').forEach((meta) => {
+      const corner = App.corners().find((c) => c.id === meta.dataset.cornerId);
+      if (!corner) return;
+      const badges = [];
+      if (corner.locked) badges.push('🔒');
+      if (corner.autoFollow && corner.autoFollow !== 'off') badges.push('⏱');
+      const played = corner.pages.filter((pg) => this._playedPages.has(pg.id)).length;
+      meta.textContent = `${badges.join('')} ${played}/${corner.pages.length}`;
+    });
+  },
+
   /** 操作対象の系統をフォーカス (右ペインのフルボタン/プレビュー/ホットキーの対象) */
   focusChannel(channelId) {
     if (this.activeChannelId === channelId) return;
@@ -546,6 +739,17 @@ const RundownUI = {
     const ch = App.channelById(this.activeChannelId);
     el.textContent = `操作中: ${ch ? ch.label : '-'}`;
     el.style.color = ch ? ch.color : '';
+
+    // 大型TAKEを操作中系統と色/名前で連動 (どの系統に作用するかを常に明示)
+    const takeCh = document.getElementById('od-take-ch');
+    if (takeCh) takeCh.textContent = ch ? `${ch.label} へ送出` : '';
+    const takeBtn = document.getElementById('od-take');
+    if (takeBtn) takeBtn.style.borderColor = ch ? ch.color : '';
+
+    // PGMプレビューが「操作中系統のみ」のときはフォーカス変更に追従
+    if (typeof GraphicsUI !== 'undefined' && GraphicsUI.pgmScope === 'focus' && GraphicsUI.status) {
+      GraphicsUI.applyPreview(GraphicsUI.status);
+    }
   },
 
   renderStandby() {
@@ -580,11 +784,17 @@ const RundownUI = {
       el.classList.toggle('played', this._playedPages.has(id) && !onAirIds.has(id) && !nextIds.has(id));
       el.classList.toggle('editing', id === this.selectedPageId);
     });
+    // コーナーレールの進捗 (送出済み/全ページ) を更新
+    this.updateCornerProgress();
     // 列フッタのNEXT/ON AIRバッジと強調を更新
     document.querySelectorAll('#od-columns .od-col').forEach((col) => {
       const ch = App.channelById(col.dataset.channelId);
       if (!ch) return;
-      col.classList.toggle('active', ch.id === this.activeChannelId);
+      const active = ch.id === this.activeChannelId;
+      col.classList.toggle('active', active);
+      // 操作中系統の列を系統色で縁取る (大型TAKEと色連動)
+      col.style.borderColor = active ? ch.color : '';
+      col.style.boxShadow = active ? `0 0 0 1px ${ch.color}` : '';
       const st = App.chState(ch.id);
       const nextFound = st.nextPageId ? App.findPage(st.nextPageId) : null;
       const onAirFound = st.onAirPageId ? App.findPage(st.onAirPageId) : null;
@@ -690,15 +900,18 @@ const RundownUI = {
     noDur.appendChild(durInput);
     row('番号 / 尺(秒)', noDur);
 
-    // 電テロ (静止画/作画): タイトル + (静止画は) 表示方法
-    if (page.kind === 'still' || page.kind === 'design') {
+    // タイトル (全種別共通 — 一覧・ログでの識別用。空なら内容の要約を表示)
+    {
       const titleInput = document.createElement('input');
       titleInput.className = 'input';
       titleInput.value = page.title || '';
-      titleInput.placeholder = page.kind === 'still' ? 'テロップ名 (一覧・ログ表示用)' : 'テロップ名';
+      titleInput.placeholder = 'テロップ名 (任意 — 一覧・ログでの識別用)';
       titleInput.addEventListener('change', () => this.mutate(() => { page.title = titleInput.value; }));
       row('タイトル', titleInput);
+    }
 
+    // 電テロ (静止画): 表示方法
+    if (page.kind === 'still' || page.kind === 'design') {
       if (page.kind === 'still') {
         const fitSel = document.createElement('select');
         fitSel.className = 'input input--small';
@@ -773,6 +986,20 @@ const RundownUI = {
   },
 
   // ===== サムネイル =====
+
+  /** ページ検索: 番号/タイトル/内容要約/テンプレ名のいずれかに一致するか */
+  matchPage(page) {
+    const q = this.searchQuery.toLowerCase();
+    if (!q) return true;
+    const hay = [
+      String(page.pageNo || ''),
+      page.title || '',
+      Broadcast.summarize(page) || '',
+      page.templateKey ? this.templateLabel(page.templateKey) : '',
+      Object.values(page.values || {}).join(' '),
+    ].join(' ').toLowerCase();
+    return hay.includes(q);
+  },
 
   /** ページ種別に応じた描画バリアント (サムネ/プレビュー/出力の共通ソース) */
   pageVariant(page) {
@@ -1076,8 +1303,8 @@ const RundownUI = {
             document.querySelector('.tab-btn[data-tab="design"]').click();
           }
         } },
-      { label: '削除', danger: true, action: () => {
-          if (!confirm(`ページ ${page.pageNo} を削除しますか?`)) return;
+      { label: '削除', danger: true, action: async () => {
+          if (!(await AppModal.confirm('ページを削除', `ページ ${page.pageNo} を削除しますか?`, { danger: true, okLabel: '削除' }))) return;
           this.mutate(() => {
             const list = corner[listName];
             list.splice(list.indexOf(page), 1);
@@ -1088,8 +1315,8 @@ const RundownUI = {
 
   showCornerMenu(e, corner) {
     this.showMenu(e, [
-      { label: '名前を変更...', action: () => {
-          const name = prompt('コーナー名', corner.name);
+      { label: '名前を変更...', action: async () => {
+          const name = await AppModal.prompt('コーナー名を変更', { value: corner.name });
           if (name) this.mutate(() => { corner.name = name; });
         } },
       { label: '色を変更...', action: () => {
@@ -1106,12 +1333,12 @@ const RundownUI = {
           this.mutate(() => { corner.autoFollow = next; });
           App.setStatus(`オートフォロー: ${{ off: 'なし', take: '尺経過で次ページへTAKE', clear: '尺経過でCLEAR' }[next]}`);
         } },
-      { label: '削除', danger: true, action: () => {
+      { label: '削除', danger: true, action: async () => {
           if (App.corners().length <= 1) {
             App.setStatus('最後のコーナーは削除できません', 'error');
             return;
           }
-          if (!confirm(`コーナー「${corner.name}」を削除しますか? (ページ${corner.pages.length}件も削除)`)) return;
+          if (!(await AppModal.confirm('コーナーを削除', `コーナー「${corner.name}」を削除しますか? (ページ${corner.pages.length}件も削除)`, { danger: true, okLabel: '削除' }))) return;
           this.mutate(() => {
             const corners = App.corners();
             corners.splice(corners.indexOf(corner), 1);
@@ -1133,8 +1360,8 @@ const RundownUI = {
     };
   },
 
-  addProgram() {
-    const name = prompt('番組名');
+  async addProgram() {
+    const name = await AppModal.prompt('番組を追加', { placeholder: '番組名' });
     if (!name) return;
     const corner = this.makeCorner();
     const broadcast = { id: this.uid('bc'), name: '放送1', corners: [corner] };
@@ -1148,14 +1375,14 @@ const RundownUI = {
     });
   },
 
-  renameProgram() {
+  async renameProgram() {
     const program = App.activeProgram();
     if (!program) return;
-    const name = prompt('番組名', program.name);
+    const name = await AppModal.prompt('番組名を変更', { value: program.name });
     if (name) this.mutate(() => { program.name = name; });
   },
 
-  deleteProgram() {
+  async deleteProgram() {
     const program = App.activeProgram();
     if (!program) return;
     const tree = App.modeTree();
@@ -1163,7 +1390,7 @@ const RundownUI = {
       App.setStatus('最後の番組は削除できません', 'error');
       return;
     }
-    if (!confirm(`番組「${program.name}」を削除しますか?`)) return;
+    if (!(await AppModal.confirm('番組を削除', `番組「${program.name}」を削除しますか?`, { danger: true, okLabel: '削除' }))) return;
     this.mutate(() => {
       tree.programs.splice(tree.programs.indexOf(program), 1);
       tree.activeProgramId = tree.programs[0].id;
@@ -1172,12 +1399,12 @@ const RundownUI = {
     });
   },
 
-  addBroadcast(duplicate) {
+  async addBroadcast(duplicate) {
     const program = App.activeProgram();
     if (!program) return;
     const today = new Date();
     const suggested = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    const name = prompt(duplicate ? '複製先の放送名 (例: 日付)' : '放送名 (例: 日付)', suggested);
+    const name = await AppModal.prompt(duplicate ? '放送を複製' : '放送を追加', { value: suggested, message: '放送名 (例: 日付)' });
     if (!name) return;
     let broadcast;
     if (duplicate && App.activeBroadcast()) {
@@ -1198,14 +1425,14 @@ const RundownUI = {
     });
   },
 
-  renameBroadcast() {
+  async renameBroadcast() {
     const broadcast = App.activeBroadcast();
     if (!broadcast) return;
-    const name = prompt('放送名', broadcast.name);
+    const name = await AppModal.prompt('放送名を変更', { value: broadcast.name });
     if (name) this.mutate(() => { broadcast.name = name; });
   },
 
-  deleteBroadcast() {
+  async deleteBroadcast() {
     const program = App.activeProgram();
     const broadcast = App.activeBroadcast();
     if (!program || !broadcast) return;
@@ -1213,7 +1440,7 @@ const RundownUI = {
       App.setStatus('最後の放送は削除できません', 'error');
       return;
     }
-    if (!confirm(`放送「${broadcast.name}」を削除しますか?`)) return;
+    if (!(await AppModal.confirm('放送を削除', `放送「${broadcast.name}」を削除しますか?`, { danger: true, okLabel: '削除' }))) return;
     this.mutate(() => {
       program.broadcasts.splice(program.broadcasts.indexOf(broadcast), 1);
       App.modeTree().activeBroadcastId = program.broadcasts[0].id;
@@ -1221,8 +1448,8 @@ const RundownUI = {
     });
   },
 
-  addCorner() {
-    const name = prompt('コーナー名');
+  async addCorner() {
+    const name = await AppModal.prompt('コーナーを追加', { placeholder: 'コーナー名' });
     if (!name) return;
     const broadcast = App.activeBroadcast();
     if (!broadcast) return;
@@ -1292,6 +1519,9 @@ const RundownUI = {
         this.renderColumns();
         this.renderStandby();
       }
+    } else if (e.key === 'Backspace' && e.ctrlKey && e.shiftKey) {
+      e.preventDefault();
+      Broadcast.doClearBack(this.activeChannelId);
     } else if (e.key === 'Backspace' && e.ctrlKey) {
       e.preventDefault();
       Broadcast.doClear(this.activeChannelId);

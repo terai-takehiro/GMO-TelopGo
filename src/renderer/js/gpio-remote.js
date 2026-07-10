@@ -22,6 +22,7 @@ const GpioRemote = {
     { key: 'take',   label: 'TAKE (アニメ送出)' },
     { key: 'update', label: 'UPDATE (即時差し替え)' },
     { key: 'clear',  label: 'CLEAR (表示消去)' },
+    { key: 'clearback', label: 'CLEAR&BACK (消して前へ戻る)' },
     { key: 'stop',   label: 'STOP (アニメ一時停止)' },
     { key: 'top',    label: '先頭へ (NEXTをコーナー先頭に)' },
     { key: 'skip',   label: '次へ (NEXTを1つ進める)' },
@@ -384,6 +385,7 @@ const GpioRemote = {
       case 'update':
       case 'change': Broadcast.doUpdate(channelId); break;
       case 'clear': Broadcast.doClear(channelId); break;
+      case 'clearback': Broadcast.doClearBack(channelId); break;
       case 'stop': Broadcast.doStop(channelId); break;
       case 'top': Broadcast.goTop(channelId); break;
       case 'skip': Broadcast.moveNext(channelId, 1); break;
