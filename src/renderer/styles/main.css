@@ -2058,8 +2058,15 @@ body {
 
 /* 設定タブ: チャンネル管理 */
 .ch-list { display: flex; flex-direction: column; gap: 6px; flex: 1; }
-.ch-row { display: flex; gap: 6px; align-items: center; }
+.ch-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .ch-region { max-width: 140px; font-family: var(--font-mono); }
+
+/* 設定タブ: 系統プリセット */
+.tp-list { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.tp-row { display: flex; gap: 8px; align-items: center; }
+.tp-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.tp-meta { font-size: 11px; color: var(--text-muted); }
+.og-empty { font-size: 12px; color: var(--text-muted); padding: 6px 2px; }
 
 /* 出力グループ設定 (v2.1.0) */
 .og-list { display: flex; flex-direction: column; gap: 10px; flex: 1; }
@@ -2123,12 +2130,42 @@ body {
 }
 .home-onair.live { background: var(--red-dim); border-color: #f0a9a2; color: var(--red); }
 
+.home-section-label { font-size: 13px; font-weight: 700; color: var(--text-secondary); margin: 22px 2px 10px; }
+.home-modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.home-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  text-align: left;
+  padding: 22px 24px;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+.home-mode:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.home-mode--cg { border-color: #bcdcff; background: linear-gradient(180deg, var(--accent-soft), var(--bg-secondary)); }
+.home-mode--cg:hover { border-color: var(--accent); }
+.home-mode--telop { border-color: #e6c37a; background: linear-gradient(180deg, var(--yellow-dim), var(--bg-secondary)); }
+.home-mode--telop:hover { border-color: #d99000; }
+.home-mode-icon { font-size: 34px; }
+.home-mode-title { font-size: 19px; font-weight: 800; color: var(--text-primary); }
+.home-mode-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
 .home-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 14px;
   margin: 20px 0;
 }
+.home-cards--sub { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 .home-card {
   display: flex;
   flex-direction: column;

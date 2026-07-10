@@ -24,19 +24,50 @@ const App = {
   /** リハーサルモード (ONの間は出力サーバへ送らない) */
   rehearsal: false,
 
-  // ===== ランダウンアクセサ =====
+  // ===== モード (リアルタイムCG / 電テロ) =====
+
+  /** 現在の送出モード ('cg' | 'telop') */
+  get activeMode() {
+    return (this.rundown && this.rundown.activeMode) || 'cg';
+  },
+
+  /** 現在モードのランダウンツリー { programs, activeProgramId, activeBroadcastId } */
+  modeTree() {
+    if (!this.rundown) return null;
+    return this.rundown[this.activeMode] || null;
+  },
+
+  /** 送出モードを切り替える */
+  setMode(mode) {
+    if (!this.rundown || (mode !== 'cg' && mode !== 'telop')) return;
+    this.rundown.activeMode = mode;
+    this.saveRundown();
+  },
+
+  // ===== ランダウンアクセサ (現在モードツリー起点) =====
 
   activeProgram() {
-    if (!this.rundown) return null;
-    return this.rundown.programs.find((p) => p.id === this.rundown.activeProgramId)
-      || this.rundown.programs[0] || null;
+    const tree = this.modeTree();
+    if (!tree) return null;
+    return tree.programs.find((p) => p.id === tree.activeProgramId) || tree.programs[0] || null;
   },
 
   activeBroadcast() {
     const program = this.activeProgram();
     if (!program) return null;
-    return program.broadcasts.find((b) => b.id === this.rundown.activeBroadcastId)
+    const tree = this.modeTree();
+    return program.broadcasts.find((b) => b.id === tree.activeBroadcastId)
       || program.broadcasts[0] || null;
+  },
+
+  setActiveProgram(id) {
+    const tree = this.modeTree();
+    if (tree) { tree.activeProgramId = id; tree.activeBroadcastId = null; }
+  },
+
+  setActiveBroadcast(id) {
+    const tree = this.modeTree();
+    if (tree) tree.activeBroadcastId = id;
   },
 
   corners() {

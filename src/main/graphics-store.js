@@ -67,11 +67,23 @@ function saveRegistry() {
   fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2), 'utf-8');
 }
 
+/** 旧 region (name/side) を汎用TL枠 (tl1/tl2) へ張り替える */
+const REGION_REMAP = { name: 'tl1', side: 'tl2' };
+function migrateRegions(proj) {
+  let changed = false;
+  Object.values((proj && proj.templates) || {}).forEach((tpl) => {
+    if (tpl && REGION_REMAP[tpl.region]) { tpl.region = REGION_REMAP[tpl.region]; changed = true; }
+  });
+  return changed;
+}
+
 function reload() {
   try {
     project = JSON.parse(fs.readFileSync(projectPath, 'utf-8'));
     // 旧バージョンのサンプルに含まれていた実在の人名・社名を架空のものへ置換
-    if (sanitizeSamples(project)) saveProject();
+    const dirtySamples = sanitizeSamples(project);
+    const dirtyRegions = migrateRegions(project);
+    if (dirtySamples || dirtyRegions) saveProject();
   } catch (err) {
     // 壊れたJSONは既定テンプレートで復旧 (元ファイルは退避)
     try { fs.renameSync(projectPath, `${projectPath}.broken`); } catch (_) { /* ignore */ }
@@ -240,6 +252,7 @@ function switchSet(id) {
   if (!fs.existsSync(file)) throw new Error('デザインセットのファイルが見つかりません。');
   project = JSON.parse(fs.readFileSync(file, 'utf-8'));
   sanitizeSamples(project);
+  migrateRegions(project);
   registry.activeId = id;
   saveRegistry();
   saveProject();
@@ -418,7 +431,7 @@ function buildDefaultProject() {
   const templates = {};
   Object.keys(NAME_LAYOUTS).forEach((shotType) => {
     templates[`name-${shotType}`] = {
-      region: 'name',
+      region: 'tl1',
       variants: {
         jp: buildNameVariant(shotType, 'Jp'),
         en: buildNameVariant(shotType, 'En'),
@@ -426,7 +439,7 @@ function buildDefaultProject() {
     };
   });
   templates.side = {
-    region: 'side',
+    region: 'tl2',
     variants: {
       jp: buildSideVariant('Jp'),
       en: buildSideVariant('En'),

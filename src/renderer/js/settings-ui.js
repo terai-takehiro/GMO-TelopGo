@@ -8,10 +8,44 @@ const ChannelsUI = {
 
   populate(channels) {
     this.rows = JSON.parse(JSON.stringify(channels && channels.length ? channels : [
-      { id: 'name', label: '名前', region: 'name', color: '#e8b93c' },
-      { id: 'side', label: 'サイド', region: 'side', color: '#4da3ff' },
+      { id: 'tl1', label: 'TL1', region: 'tl1', color: '#e8b93c' },
+      { id: 'tl2', label: 'TL2', region: 'tl2', color: '#4da3ff' },
     ]));
     this.render();
+  },
+
+  /** 系統プリセットをスロットへ適用: label/color を反映し、プリセットのテンプレを当該系統へ張替 */
+  async applyPreset(presetId, ch) {
+    const preset = (App.telopPresets || []).find((p) => p.id === presetId);
+    if (!preset) return;
+    ch.label = preset.name;
+    ch.color = preset.color;
+    const proj = App.graphicsProject;
+    if (proj && proj.templates) {
+      (preset.templateKeys || []).forEach((k) => {
+        if (proj.templates[k]) proj.templates[k].region = ch.region;
+      });
+      await window.api.graphicsSaveProject(proj);
+      if (typeof RundownUI !== 'undefined' && RundownUI.loaded) RundownUI.refreshTemplates();
+    }
+    this.render();
+    await SettingsUI.save();
+    App.setStatus(`${ch.label} にプリセット「${preset.name}」を適用しました`, 'success');
+  },
+
+  /** スロットの現在の枠 (label/color + 当該系統のテンプレ群) をプリセットとして保存 */
+  saveSlotAsPreset(ch) {
+    const name = prompt('系統プリセット名', ch.label);
+    if (!name) return;
+    const proj = App.graphicsProject;
+    const templateKeys = proj && proj.templates
+      ? Object.keys(proj.templates).filter((k) => proj.templates[k].region === ch.region) : [];
+    TelopPresetsUI.rows.push({
+      id: `tp_${Date.now().toString(36)}`, name: name.slice(0, 20), color: ch.color, templateKeys,
+    });
+    TelopPresetsUI.render();
+    SettingsUI.save();
+    App.setStatus(`系統プリセット「${name}」を保存しました (${templateKeys.length}テンプレート)`, 'success');
   },
 
   render() {
@@ -44,6 +78,27 @@ const ChannelsUI = {
         ch.id = ch.region;
         region.value = ch.region;
       });
+      // 系統プリセットの適用 (この枠へ 名前/サイド 等をストックから割当)
+      const presetSel = document.createElement('select');
+      presetSel.className = 'input input--small';
+      presetSel.title = 'ストックした系統プリセットをこの枠へ適用 (ラベル/色 + デザインを割当)';
+      const ph = document.createElement('option');
+      ph.value = ''; ph.textContent = 'プリセット適用…';
+      presetSel.appendChild(ph);
+      (App.telopPresets || []).forEach((p) => {
+        const opt = document.createElement('option');
+        opt.value = p.id; opt.textContent = p.name;
+        presetSel.appendChild(opt);
+      });
+      presetSel.addEventListener('change', () => {
+        if (presetSel.value) this.applyPreset(presetSel.value, ch);
+      });
+      const savePreset = document.createElement('button');
+      savePreset.className = 'btn btn--small';
+      savePreset.textContent = '★';
+      savePreset.title = 'この枠の内容 (ラベル/色 + 割当デザイン) を系統プリセットとして保存';
+      savePreset.addEventListener('click', () => this.saveSlotAsPreset(ch));
+
       const del = document.createElement('button');
       del.className = 'btn btn--small';
       del.textContent = '✕';
@@ -60,6 +115,8 @@ const ChannelsUI = {
       row.appendChild(color);
       row.appendChild(label);
       row.appendChild(region);
+      row.appendChild(presetSel);
+      row.appendChild(savePreset);
       row.appendChild(del);
       wrap.appendChild(row);
     });
@@ -212,6 +269,58 @@ const OutputGroupsUI = {
   },
 };
 
+/** 系統プリセット (テロップ枠のストック) のライブラリ管理UI */
+const TelopPresetsUI = {
+  rows: [],
+
+  populate(presets) {
+    this.rows = JSON.parse(JSON.stringify(Array.isArray(presets) ? presets : []));
+    this.render();
+  },
+
+  render() {
+    const wrap = document.getElementById('tp-list');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    if (this.rows.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'og-empty';
+      empty.textContent = 'プリセットはまだありません。系統の「★」で現在の枠を保存できます。';
+      wrap.appendChild(empty);
+    }
+    this.rows.forEach((p, i) => {
+      const row = document.createElement('div');
+      row.className = 'tp-row';
+      const dot = document.createElement('span');
+      dot.className = 'tp-dot';
+      dot.style.background = p.color || '#4da3ff';
+      const name = document.createElement('input');
+      name.type = 'text';
+      name.className = 'input input--small';
+      name.value = p.name || '';
+      name.maxLength = 20;
+      name.addEventListener('change', () => { p.name = name.value.trim() || p.id; });
+      const meta = document.createElement('span');
+      meta.className = 'tp-meta';
+      meta.textContent = `デザイン${(p.templateKeys || []).length}件`;
+      const del = document.createElement('button');
+      del.className = 'btn btn--small';
+      del.textContent = '✕';
+      del.title = 'プリセットを削除';
+      del.addEventListener('click', () => { this.rows.splice(i, 1); this.render(); });
+      row.appendChild(dot);
+      row.appendChild(name);
+      row.appendChild(meta);
+      row.appendChild(del);
+      wrap.appendChild(row);
+    });
+  },
+
+  collect() {
+    return JSON.parse(JSON.stringify(this.rows));
+  },
+};
+
 const SettingsUI = {
   async init() {
     // 保存済み設定を読み込み
@@ -237,9 +346,12 @@ const SettingsUI = {
   populateFields(settings) {
     // 出力チャンネル (他モジュールより先に反映する)
     App.channels = (settings.channels && settings.channels.length) ? settings.channels : [
-      { id: 'name', label: '名前', region: 'name', color: '#e8b93c' },
-      { id: 'side', label: 'サイド', region: 'side', color: '#4da3ff' },
+      { id: 'tl1', label: 'TL1', region: 'tl1', color: '#e8b93c' },
+      { id: 'tl2', label: 'TL2', region: 'tl2', color: '#4da3ff' },
     ];
+    // 系統プリセット (ChannelsUI のプリセット適用より先に反映)
+    App.telopPresets = Array.isArray(settings.telopPresets) ? settings.telopPresets : [];
+    TelopPresetsUI.populate(App.telopPresets);
     ChannelsUI.populate(App.channels);
 
     // 出力グループ (チャンネル確定後)
@@ -267,6 +379,8 @@ const SettingsUI = {
       // チャンネル変更を即時反映できる範囲で反映
       App.channels = settings.channels;
       App.outputGroups = settings.outputGroups || [];
+      App.telopPresets = settings.telopPresets || [];
+      TelopPresetsUI.populate(App.telopPresets);
       ChannelsUI.populate(App.channels);
       OutputGroupsUI.populate(App.outputGroups);
       if (typeof GpioRemote !== 'undefined') GpioRemote.populateConfig(GpioRemote.collectConfig());
@@ -287,6 +401,7 @@ const SettingsUI = {
     return {
       graphics: GraphicsUI.collectConfig(),
       channels: ChannelsUI.collect(),
+      telopPresets: TelopPresetsUI.collect(),
       outputGroups: OutputGroupsUI.collect(),
       gpio: GpioRemote.collectConfig(),
       remote: RemoteSync.collectConfig(),

@@ -26,14 +26,13 @@ const RundownUI = {
   async init() {
     // 上部バー
     document.getElementById('od-program').addEventListener('change', (e) => {
-      App.rundown.activeProgramId = e.target.value;
-      App.rundown.activeBroadcastId = null;
+      App.setActiveProgram(e.target.value);
       this.ensureSelections();
       App.saveRundown();
       this.renderAll();
     });
     document.getElementById('od-broadcast').addEventListener('change', (e) => {
-      App.rundown.activeBroadcastId = e.target.value;
+      App.setActiveBroadcast(e.target.value);
       this.currentCornerId = null;
       this.ensureSelections();
       App.saveRundown();
@@ -75,6 +74,16 @@ const RundownUI = {
       }
     });
     direct.addEventListener('input', () => { this._directArmedNo = null; });
+
+    // モードバナー (クリックでホームへ戻りモード変更)
+    const modeBanner = document.getElementById('od-mode-label');
+    if (modeBanner) {
+      modeBanner.style.cursor = 'pointer';
+      modeBanner.addEventListener('click', () => {
+        const homeBtn = document.querySelector('.tab-btn[data-tab="home"]');
+        if (homeBtn) homeBtn.click();
+      });
+    }
 
     // コーナー
     document.getElementById('od-corner-add').addEventListener('click', () => this.addCorner());
@@ -135,12 +144,12 @@ const RundownUI = {
   },
 
   ensureSelections() {
-    if (!App.rundown) return;
+    if (!App.rundown || !App.modeTree()) return;
     const program = App.activeProgram();
     if (program) {
-      App.rundown.activeProgramId = program.id;
+      App.modeTree().activeProgramId = program.id;
       const broadcast = App.activeBroadcast();
-      if (broadcast) App.rundown.activeBroadcastId = broadcast.id;
+      if (broadcast) App.modeTree().activeBroadcastId = broadcast.id;
     }
     const corners = App.corners();
     if (!corners.find((c) => c.id === this.currentCornerId)) {
@@ -189,15 +198,17 @@ const RundownUI = {
   },
 
   renderTopBar() {
+    const tree = App.modeTree() || { programs: [], activeProgramId: null, activeBroadcastId: null };
+    this.renderModeBanner();
     const progSel = document.getElementById('od-program');
     progSel.innerHTML = '';
-    App.rundown.programs.forEach((p) => {
+    tree.programs.forEach((p) => {
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = p.name;
       progSel.appendChild(opt);
     });
-    progSel.value = App.rundown.activeProgramId;
+    progSel.value = tree.activeProgramId;
 
     const bcSel = document.getElementById('od-broadcast');
     bcSel.innerHTML = '';
@@ -208,7 +219,17 @@ const RundownUI = {
       opt.textContent = b.name;
       bcSel.appendChild(opt);
     });
-    bcSel.value = App.rundown.activeBroadcastId;
+    bcSel.value = tree.activeBroadcastId;
+  },
+
+  /** 送出タブ上部のモード表示バナー (クリックでホームへ = モード変更) */
+  renderModeBanner() {
+    const el = document.getElementById('od-mode-label');
+    if (!el) return;
+    const telop = App.activeMode === 'telop';
+    el.textContent = telop ? '🟧 電テロ送出' : '🟦 リアルタイムCG送出';
+    el.title = 'クリックでホームに戻りモードを変更';
+    el.classList.toggle('telop', telop);
   },
 
   renderCornerRail() {
@@ -229,7 +250,6 @@ const RundownUI = {
       const meta = document.createElement('span');
       meta.className = 'od-corner-meta';
       const badges = [];
-      if (corner.mode === 'telop') badges.push('電');
       if (corner.locked) badges.push('🔒');
       if (corner.autoFollow && corner.autoFollow !== 'off') badges.push('⏱');
       meta.textContent = `${badges.join('')} ${corner.pages.length}`;
@@ -375,7 +395,7 @@ const RundownUI = {
       if (e.dataTransfer.types.includes('text/page')) {
         e.preventDefault();
         el.classList.add('od-drop-target');
-      } else if (corner.mode === 'telop' && listName === 'pages' && e.dataTransfer.types.includes('Files')) {
+      } else if (App.activeMode === 'telop' && listName === 'pages' && e.dataTransfer.types.includes('Files')) {
         e.preventDefault();
         el.classList.add('od-drop-target');
       }
@@ -385,7 +405,7 @@ const RundownUI = {
       el.classList.remove('od-drop-target');
       // 電テロ: 画像ファイルのドロップ取込 (このページの系統へ)
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        if (corner.mode !== 'telop' || listName !== 'pages') return;
+        if (App.activeMode !== 'telop' || listName !== 'pages') return;
         e.preventDefault();
         this.importDroppedFiles(corner, App.channelOfPage(page), e.dataTransfer.files);
         return;
@@ -406,13 +426,9 @@ const RundownUI = {
     wrap.innerHTML = '';
     const corner = this.currentCorner();
     if (!corner) return;
-    const telopMode = corner.mode === 'telop';
+    const telopMode = App.activeMode === 'telop';
 
-    const modeLabel = document.getElementById('od-mode-label');
-    if (modeLabel) {
-      modeLabel.textContent = telopMode ? '電テロモード (静的送出)' : 'リアルタイムCGモード';
-      modeLabel.classList.toggle('telop', telopMode);
-    }
+    this.renderModeBanner();
     // 電テロモードでは Excel取込 (変数代入) は無関係なので隠す
     const excelBtn = document.getElementById('od-import-excel');
     if (excelBtn) excelBtn.classList.toggle('hidden', telopMode);
@@ -904,8 +920,7 @@ const RundownUI = {
 
   /** コーナーのモードに応じて適切な追加フローを開く */
   addPageForChannel(channelId) {
-    const corner = this.currentCorner();
-    if (corner && corner.mode === 'telop') this.openTelopDialog(channelId);
+    if (App.activeMode === 'telop') this.openTelopDialog(channelId);
     else this.openPageDialog('add', channelId);
   },
 
@@ -1084,10 +1099,6 @@ const RundownUI = {
           input.addEventListener('input', () => this.mutate(() => { corner.color = input.value; }));
           input.click();
         } },
-      { label: `モード: ${corner.mode === 'telop' ? '電テロ (静的)' : 'リアルタイムCG'} → 切替`, action: () => {
-          this.mutate(() => { corner.mode = corner.mode === 'telop' ? 'cg' : 'telop'; });
-          App.setStatus(`コーナー「${corner.name}」を${corner.mode === 'telop' ? '電テロモード (静的送出)' : 'リアルタイムCGモード'}に切り替えました`, 'success');
-        } },
       { label: corner.locked ? 'ロック解除' : '送出ロック (コーナー全体)', action: () => this.mutate(() => { corner.locked = !corner.locked; }) },
       { label: `オートフォロー: ${{ off: 'なし', take: '次へTAKE', clear: 'CLEAR' }[corner.autoFollow || 'off']} → 切替`, action: () => {
           const order = ['off', 'take', 'clear'];
@@ -1110,18 +1121,29 @@ const RundownUI = {
     ]);
   },
 
-  // ===== 番組 / 放送 / コーナー管理 =====
+  // ===== 番組 / 放送 / コーナー管理 (現在モードツリー) =====
+
+  /** 現在モードの既定コーナーを生成 */
+  makeCorner(name) {
+    const telop = App.activeMode === 'telop';
+    return {
+      id: this.uid('cn'), name: name || (telop ? '電テロ1' : 'コーナー1'),
+      color: telop ? '#e8b160' : '#4da3ff', mode: App.activeMode,
+      locked: false, autoFollow: 'off', pages: [], standby: [],
+    };
+  },
 
   addProgram() {
     const name = prompt('番組名');
     if (!name) return;
-    const corner = { id: this.uid('cn'), name: 'コーナー1', color: '#4da3ff', mode: 'cg', locked: false, autoFollow: 'off', pages: [], standby: [] };
+    const corner = this.makeCorner();
     const broadcast = { id: this.uid('bc'), name: '放送1', corners: [corner] };
     const program = { id: this.uid('pg'), name, broadcasts: [broadcast] };
     this.mutate(() => {
-      App.rundown.programs.push(program);
-      App.rundown.activeProgramId = program.id;
-      App.rundown.activeBroadcastId = broadcast.id;
+      const tree = App.modeTree();
+      tree.programs.push(program);
+      tree.activeProgramId = program.id;
+      tree.activeBroadcastId = broadcast.id;
       this.currentCornerId = corner.id;
     });
   },
@@ -1136,15 +1158,16 @@ const RundownUI = {
   deleteProgram() {
     const program = App.activeProgram();
     if (!program) return;
-    if (App.rundown.programs.length <= 1) {
+    const tree = App.modeTree();
+    if (tree.programs.length <= 1) {
       App.setStatus('最後の番組は削除できません', 'error');
       return;
     }
     if (!confirm(`番組「${program.name}」を削除しますか?`)) return;
     this.mutate(() => {
-      App.rundown.programs.splice(App.rundown.programs.indexOf(program), 1);
-      App.rundown.activeProgramId = App.rundown.programs[0].id;
-      App.rundown.activeBroadcastId = null;
+      tree.programs.splice(tree.programs.indexOf(program), 1);
+      tree.activeProgramId = tree.programs[0].id;
+      tree.activeBroadcastId = null;
       this.currentCornerId = null;
     });
   },
@@ -1166,15 +1189,11 @@ const RundownUI = {
         [...c.pages, ...(c.standby || [])].forEach((pg) => { pg.id = this.uid('pg'); });
       });
     } else {
-      broadcast = {
-        id: this.uid('bc'),
-        name,
-        corners: [{ id: this.uid('cn'), name: 'コーナー1', color: '#4da3ff', mode: 'cg', locked: false, autoFollow: 'off', pages: [], standby: [] }],
-      };
+      broadcast = { id: this.uid('bc'), name, corners: [this.makeCorner()] };
     }
     this.mutate(() => {
       program.broadcasts.push(broadcast);
-      App.rundown.activeBroadcastId = broadcast.id;
+      App.modeTree().activeBroadcastId = broadcast.id;
       this.currentCornerId = null;
     });
   },
@@ -1197,7 +1216,7 @@ const RundownUI = {
     if (!confirm(`放送「${broadcast.name}」を削除しますか?`)) return;
     this.mutate(() => {
       program.broadcasts.splice(program.broadcasts.indexOf(broadcast), 1);
-      App.rundown.activeBroadcastId = program.broadcasts[0].id;
+      App.modeTree().activeBroadcastId = program.broadcasts[0].id;
       this.currentCornerId = null;
     });
   },
@@ -1207,7 +1226,7 @@ const RundownUI = {
     if (!name) return;
     const broadcast = App.activeBroadcast();
     if (!broadcast) return;
-    const corner = { id: this.uid('cn'), name, color: '#4da3ff', mode: 'cg', locked: false, autoFollow: 'off', pages: [], standby: [] };
+    const corner = this.makeCorner(name);
     this.mutate(() => broadcast.corners.push(corner));
     this.currentCornerId = corner.id;
     this.renderCornerRail();

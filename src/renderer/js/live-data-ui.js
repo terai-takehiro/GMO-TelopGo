@@ -36,7 +36,7 @@ const LiveDataUI = {
     if (!sel) return;
     const current = sel.value;
     sel.innerHTML = '';
-    (App.channels.length ? App.channels : [{ id: 'name', label: '名前', region: 'name' }, { id: 'side', label: 'サイド', region: 'side' }])
+    (App.channels.length ? App.channels : [{ id: 'tl1', label: 'TL1', region: 'tl1' }, { id: 'tl2', label: 'TL2', region: 'tl2' }])
       .forEach((ch) => {
         const opt = document.createElement('option');
         opt.value = ch.region;
@@ -112,7 +112,7 @@ const LiveDataUI = {
   collectConfig() {
     return {
       file: this.file || '',
-      region: document.getElementById('ld-region') ? document.getElementById('ld-region').value : 'name',
+      region: document.getElementById('ld-region') ? document.getElementById('ld-region').value : 'tl1',
       mappings: this.mappings.filter((m) => m.field && m.cell),
     };
   },

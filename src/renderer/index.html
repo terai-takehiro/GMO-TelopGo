@@ -47,12 +47,21 @@
         <div class="home-onair" id="home-onair">ON AIR: なし</div>
       </div>
 
-      <div class="home-cards">
-        <button class="home-card home-card--primary" data-goto="onair">
-          <span class="home-card-icon">📺</span>
-          <span class="home-card-title">送出</span>
-          <span class="home-card-desc">ランダウンを操作してテロップを送出 (リアルタイムCG / 電テロ)</span>
+      <p class="home-section-label">送出モードを選んでください</p>
+      <div class="home-modes">
+        <button class="home-mode home-mode--cg" data-mode="cg">
+          <span class="home-mode-icon">📺</span>
+          <span class="home-mode-title">リアルタイムCG送出</span>
+          <span class="home-mode-desc">Excelの文字リストをテンプレートに差し込んで送出。名前スーパー・サイド等、内容だけ差し替える運用に。</span>
         </button>
+        <button class="home-mode home-mode--telop" data-mode="telop">
+          <span class="home-mode-icon">🖼</span>
+          <span class="home-mode-title">電テロ送出</span>
+          <span class="home-mode-desc">作画した1枚絵や静止画ファイルを並べて静的に送出。ドラッグ&amp;ドロップで流し込み。</span>
+        </button>
+      </div>
+
+      <div class="home-cards home-cards--sub">
         <button class="home-card" data-goto="design">
           <span class="home-card-icon">🎨</span>
           <span class="home-card-title">デザイン</span>
@@ -66,24 +75,11 @@
         <button class="home-card" data-goto="settings">
           <span class="home-card-icon">⚙️</span>
           <span class="home-card-title">設定</span>
-          <span class="home-card-desc">出力チャンネル・出力グループ・サーバ・GPIO・連携</span>
+          <span class="home-card-desc">系統(TL枠)・出力グループ・サーバ・GPIO・連携</span>
         </button>
       </div>
 
       <div class="home-lower">
-        <section class="home-panel">
-          <h2 class="home-panel-title">クイックスタート</h2>
-          <div class="home-quick">
-            <label class="home-quick-row">番組
-              <select id="home-program" class="input input--small"></select>
-            </label>
-            <label class="home-quick-row">放送
-              <select id="home-broadcast" class="input input--small"></select>
-            </label>
-            <button class="btn btn--primary" id="home-go-onair">送出タブへ ▶</button>
-          </div>
-        </section>
-
         <section class="home-panel">
           <h2 class="home-panel-title">出力サーバ</h2>
           <div class="home-server" id="home-server">
@@ -457,12 +453,21 @@
       </fieldset>
 
       <fieldset class="settings-group">
-        <legend>出力チャンネル</legend>
+        <legend>系統 (TL枠)</legend>
         <div class="settings-row">
-          <label>チャンネル一覧</label>
+          <label>系統一覧</label>
           <div class="ch-list" id="ch-list"></div>
         </div>
-        <p class="gpio-hint">チャンネル=出力の系統です (例: 名前 / サイド / スコア)。チャンネルごとに /output/jp/(URL名) の出力URLが作られ、vMixで個別に取り込めます。テロップのテンプレート (デザインタブ) をチャンネルに割り当てて使います。変更は「設定を保存」後、出力サーバ再起動とアプリ再読込で完全に反映されます。</p>
+        <p class="gpio-hint">系統=出力の枠です。既定は汎用的な TL1 / TL2 で、番組に合わせてラベル(表示名)や色を自由に変えられます。系統ごとに /output/jp/(URL名) の出力URLが作られ、vMixで個別に取り込めます。各行の「プリセット適用…」で、ストックした枠 (名前/サイド 等) をその系統へ割り当てられます (ラベル・色 + 割当デザインが切替わります)。「★」で現在の枠をプリセットとして保存。変更は「設定を保存」後、出力サーバ再起動とアプリ再読込で完全に反映されます。</p>
+      </fieldset>
+
+      <fieldset class="settings-group">
+        <legend>系統プリセット (テロップ枠のストック)</legend>
+        <div class="settings-row">
+          <label>プリセット一覧</label>
+          <div class="tp-list" id="tp-list"></div>
+        </div>
+        <p class="gpio-hint">「名前」「サイド」など、系統に割り当てる枠 (表示名・色 + 使用するデザイン) をストックしておく場所です。系統一覧の各行「★」で保存、「プリセット適用…」で任意の系統(TL枠)へ個別に割り当てできます (例: TL1←名前, TL2←サイド)。</p>
       </fieldset>
 
       <fieldset class="settings-group">

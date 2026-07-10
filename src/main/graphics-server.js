@@ -55,8 +55,8 @@ function regionState(region) {
 }
 
 let getChannels = () => [
-  { id: 'name', label: '名前', region: 'name' },
-  { id: 'side', label: 'サイド', region: 'side' },
+  { id: 'tl1', label: 'TL1', region: 'tl1' },
+  { id: 'tl2', label: 'TL2', region: 'tl2' },
 ];
 let getGroups = () => [];
 

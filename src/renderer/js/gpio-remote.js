@@ -30,7 +30,7 @@ const GpioRemote = {
 
   /** マッピング対象のチャンネル一覧 (設定読込時に確定) */
   channelIds() {
-    return App.channels.length ? App.channels.map((c) => c.id) : ['name', 'side'];
+    return App.channels.length ? App.channels.map((c) => c.id) : ['tl1', 'tl2'];
   },
 
   channelLabel(id) {

@@ -1,49 +1,41 @@
 /**
- * ホーム画面 (起動時ランディング)
+ * ホーム画面 (起動時ランディング / モード選択ハブ)
  *
- * 起動時に最初に表示され、各タブ (送出/デザイン/マニュアル/設定) への入口、
- * クイックスタート (番組・放送の選択→送出タブへ)、現在のON AIR状況、
- * 出力サーバの状態、最近の更新ハイライトを表示する。
+ * 起動時に最初に表示され、送出モード (リアルタイムCG / 電テロ) を選んで送出画面へ入る。
+ * デザイン/マニュアル/設定への入口、現在のON AIR状況、出力サーバの状態、
+ * 最近の更新ハイライトも表示する。
  */
 const HomeUI = {
   // 最近の更新ハイライト (新しい順)
   CHANGES: [
+    'v2.4.0 送出モードをホームで選ぶ方式に整理、系統をTL1/TL2の汎用枠+プリセット化',
     'v2.3.0 ホーム画面・アプリ内マニュアルを追加、送出画面を白基調に統一',
     'v2.2.0 電テロモード (静止画・作画の静的送出) を追加',
     'v2.1.0 送出を最大4系統の横並び表示 + 出力グループ (URLレイヤー合成)',
-    'v2.0.0 ランダウン方式の送出システム (番組>放送>コーナー>ページ) に刷新',
   ],
 
   init() {
-    // ナビカード → 対応タブへ (tab-controllerのボタンクリックを再利用)
+    // モードカード → そのモードで送出画面へ
+    document.querySelectorAll('#tab-home [data-mode]').forEach((el) => {
+      el.addEventListener('click', () => this.enterMode(el.dataset.mode));
+    });
+    // 通常のナビカード → 対応タブへ
     document.querySelectorAll('#tab-home [data-goto]').forEach((el) => {
       el.addEventListener('click', () => this.goTab(el.dataset.goto));
     });
-    document.getElementById('home-go-onair').addEventListener('click', () => this.goOnair());
-    document.getElementById('home-open-settings').addEventListener('click', () => this.goTab('settings'));
-
-    // 番組/放送セレクタ (クイックスタート)
-    document.getElementById('home-program').addEventListener('change', (e) => {
-      if (!App.rundown) return;
-      App.rundown.activeProgramId = e.target.value;
-      App.rundown.activeBroadcastId = null;
-      App.saveRundown();
-      this.renderQuick();
-    });
-    document.getElementById('home-broadcast').addEventListener('change', (e) => {
-      if (!App.rundown) return;
-      App.rundown.activeBroadcastId = e.target.value;
-      App.saveRundown();
-    });
+    const openSettings = document.getElementById('home-open-settings');
+    if (openSettings) openSettings.addEventListener('click', () => this.goTab('settings'));
 
     // 最近の更新
     const ul = document.getElementById('home-changes');
-    ul.innerHTML = '';
-    this.CHANGES.forEach((c) => {
-      const li = document.createElement('li');
-      li.textContent = c;
-      ul.appendChild(li);
-    });
+    if (ul) {
+      ul.innerHTML = '';
+      this.CHANGES.forEach((c) => {
+        const li = document.createElement('li');
+        li.textContent = c;
+        ul.appendChild(li);
+      });
+    }
 
     // バージョン
     if (window.api && window.api.getAppVersion) {
@@ -59,16 +51,13 @@ const HomeUI = {
     if (btn) btn.click();
   },
 
-  /** クイックスタートで選んだ番組/放送を反映して送出タブへ */
-  goOnair() {
+  /** モードを選んで送出画面へ */
+  enterMode(mode) {
     if (App.rundown) {
-      const prog = document.getElementById('home-program').value;
-      const bc = document.getElementById('home-broadcast').value;
-      if (prog) App.rundown.activeProgramId = prog;
-      if (bc) App.rundown.activeBroadcastId = bc;
-      App.saveRundown();
+      App.setMode(mode);
       if (typeof RundownUI !== 'undefined' && RundownUI.loaded) {
         RundownUI.currentCornerId = null;
+        RundownUI.ensureSelections();
         RundownUI.renderAll();
       }
     }
@@ -77,31 +66,8 @@ const HomeUI = {
 
   /** タブ表示時・ロード完了時に呼ぶ (状況を最新化) */
   refresh() {
-    this.renderQuick();
     this.renderOnair();
     this.renderServer();
-  },
-
-  renderQuick() {
-    const progSel = document.getElementById('home-program');
-    const bcSel = document.getElementById('home-broadcast');
-    if (!progSel || !bcSel || !App.rundown) return;
-    progSel.innerHTML = '';
-    (App.rundown.programs || []).forEach((p) => {
-      const opt = document.createElement('option');
-      opt.value = p.id; opt.textContent = p.name;
-      progSel.appendChild(opt);
-    });
-    progSel.value = App.rundown.activeProgramId;
-
-    bcSel.innerHTML = '';
-    const program = App.activeProgram();
-    ((program && program.broadcasts) || []).forEach((b) => {
-      const opt = document.createElement('option');
-      opt.value = b.id; opt.textContent = b.name;
-      bcSel.appendChild(opt);
-    });
-    bcSel.value = App.rundown.activeBroadcastId;
   },
 
   renderOnair() {
@@ -129,17 +95,19 @@ const HomeUI = {
       stateEl.textContent = `稼働中 — ポート ${status.port} / 接続 ${status.clients || 0}`;
       stateEl.className = 'home-server-state running';
       const host = (status.lanAddresses && status.lanAddresses[0]) || '127.0.0.1';
-      urlsEl.innerHTML = '';
-      [`http://${host}:${status.port}/output/jp`, `http://${host}:${status.port}/output/en`].forEach((u) => {
-        const code = document.createElement('code');
-        code.className = 'home-url';
-        code.textContent = u;
-        urlsEl.appendChild(code);
-      });
+      if (urlsEl) {
+        urlsEl.innerHTML = '';
+        [`http://${host}:${status.port}/output/jp`, `http://${host}:${status.port}/output/en`].forEach((u) => {
+          const code = document.createElement('code');
+          code.className = 'home-url';
+          code.textContent = u;
+          urlsEl.appendChild(code);
+        });
+      }
     } else {
       stateEl.textContent = '停止中 — 設定タブで起動してください';
       stateEl.className = 'home-server-state stopped';
-      urlsEl.innerHTML = '';
+      if (urlsEl) urlsEl.innerHTML = '';
     }
   },
 };
