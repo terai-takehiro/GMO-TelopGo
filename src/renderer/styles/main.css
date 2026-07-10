@@ -2056,6 +2056,29 @@ body {
 .od-context-menu button:hover { background: var(--bg-hover); }
 .od-context-menu button.danger { color: var(--red); }
 
+/* モード入場ウィザード (番組 → 放送) */
+.start-dialog { width: 520px; max-width: 92vw; }
+.start-steps { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 12px; }
+.start-step { padding: 3px 10px; border-radius: 999px; background: var(--bg-panel); color: var(--text-muted); border: 1px solid var(--border); }
+.start-step.active { background: var(--accent-soft); color: var(--accent); border-color: #bcdcff; font-weight: 700; }
+.start-step.done { color: var(--text-secondary); }
+.start-step-sep { color: var(--text-muted); }
+.start-list { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow-y: auto; margin-bottom: 14px; }
+.start-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-radius: 10px; cursor: pointer; text-align: left;
+  background: var(--bg-secondary); border: 2px solid var(--border);
+}
+.start-item:hover { border-color: #c2d4ea; }
+.start-item.selected { border-color: var(--accent); background: var(--accent-soft); }
+.start-item-name { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.start-item-meta { font-size: 11px; color: var(--text-muted); }
+.start-new {
+  padding: 10px 14px; border-radius: 10px; cursor: pointer; text-align: center;
+  background: none; border: 1px dashed var(--border); color: var(--accent); font-weight: 600; font-size: 13px;
+}
+.start-new:hover { background: var(--accent-soft); border-color: var(--accent); }
+
 /* 設定タブ: チャンネル管理 */
 .ch-list { display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .ch-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }

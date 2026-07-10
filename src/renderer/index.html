@@ -97,6 +97,19 @@
     </div>
   </div>
 
+  <!-- モード入場ウィザード (番組 → 放送) -->
+  <dialog id="od-start-dialog" class="de-dialog start-dialog">
+    <div class="start-steps" id="start-steps"></div>
+    <h3 id="start-title">番組を選択</h3>
+    <div class="start-list" id="start-list"></div>
+    <div class="de-dialog-actions">
+      <button class="btn btn--small hidden" id="start-back">◀ 戻る</button>
+      <span class="od-spacer"></span>
+      <button class="btn btn--small" id="start-cancel">キャンセル</button>
+      <button class="btn btn--small btn--primary" id="start-next">次へ ▶</button>
+    </div>
+  </dialog>
+
   <!-- ===== 送出タブ (ランダウン) ===== -->
   <div class="tab-content" id="tab-onair">
     <div class="od-layout">
@@ -600,6 +613,7 @@
   <script src="js/app.js"></script>
   <script src="js/home-ui.js"></script>
   <script src="js/manual-ui.js"></script>
+  <script src="js/start-wizard.js"></script>
   <script src="js/tab-controller.js"></script>
   <script src="js/drag-drop.js"></script>
   <script src="js/broadcast.js"></script>

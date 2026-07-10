@@ -53,17 +53,14 @@ const store = new Store({
   },
 });
 
-/** 旧チャンネルID (name/side) を汎用TL枠 (tl1/tl2) へ張り替える一度きりの移行 */
-const CH_REMAP = { name: 'tl1', side: 'tl2' };
+const { CH_REMAP, migrateChannelList } = require('./channel-migrate');
+
 function migrateChannelIds() {
   const chs = store.get('channels');
   if (!Array.isArray(chs)) return;
-  if (!chs.some((c) => CH_REMAP[c.region] || CH_REMAP[c.id])) return; // 移行不要
-  // ラベル/色は保持し id/region のみ張替 (既存ユーザーの「名前/サイド」表示を尊重)
-  store.set('channels', chs.map((c) => {
-    const to = CH_REMAP[c.region] || CH_REMAP[c.id] || c.region || c.id;
-    return { ...c, id: to, region: to };
-  }));
+  const { channels, changed } = migrateChannelList(chs);
+  if (!changed) return; // 移行不要
+  store.set('channels', channels);
   const groups = store.get('outputGroups');
   if (Array.isArray(groups)) {
     store.set('outputGroups', groups.map((g) => ({
@@ -198,4 +195,4 @@ function getGraphicsConfig() {
   return store.get('graphics');
 }
 
-module.exports = { getSettings, saveSettings, getGpioConfig, getGraphicsConfig, getChannels, getOutputGroups, getTelopPresets };
+module.exports = { getSettings, saveSettings, getGpioConfig, getGraphicsConfig, getChannels, getOutputGroups, getTelopPresets, migrateChannelList };

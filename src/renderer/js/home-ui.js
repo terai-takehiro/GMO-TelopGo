@@ -8,6 +8,7 @@
 const HomeUI = {
   // 最近の更新ハイライト (新しい順)
   CHANGES: [
+    'v2.4.1 モード選択後に番組→放送(日付)を選ぶ入場ポップアップを追加、系統ラベルをTL1/TL2に統一',
     'v2.4.0 送出モードをホームで選ぶ方式に整理、系統をTL1/TL2の汎用枠+プリセット化',
     'v2.3.0 ホーム画面・アプリ内マニュアルを追加、送出画面を白基調に統一',
     'v2.2.0 電テロモード (静止画・作画の静的送出) を追加',
@@ -53,13 +54,18 @@ const HomeUI = {
 
   /** モードを選んで送出画面へ */
   enterMode(mode) {
-    if (App.rundown) {
-      App.setMode(mode);
-      if (typeof RundownUI !== 'undefined' && RundownUI.loaded) {
-        RundownUI.currentCornerId = null;
-        RundownUI.ensureSelections();
-        RundownUI.renderAll();
-      }
+    if (!App.rundown) return;
+    // 番組 → 放送(日付) を選ぶ入場ウィザードを開く
+    if (typeof StartWizard !== 'undefined') {
+      StartWizard.open(mode);
+      return;
+    }
+    // フォールバック (ウィザード未読込時は従来どおり直接入場)
+    App.setMode(mode);
+    if (typeof RundownUI !== 'undefined' && RundownUI.loaded) {
+      RundownUI.currentCornerId = null;
+      RundownUI.ensureSelections();
+      RundownUI.renderAll();
     }
     this.goTab('onair');
   },
