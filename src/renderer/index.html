@@ -24,8 +24,10 @@
 
   <!-- タブバー -->
   <nav class="tab-bar">
-    <button class="tab-btn active" data-tab="onair">送出</button>
+    <button class="tab-btn active" data-tab="home">ホーム</button>
+    <button class="tab-btn" data-tab="onair">送出</button>
     <button class="tab-btn" data-tab="design">デザイン</button>
+    <button class="tab-btn" data-tab="manual">マニュアル</button>
     <button class="tab-btn tab-btn--settings" data-tab="settings">設定</button>
     <div class="tab-bar-right">
       <button class="btn btn--small" id="project-load">読込</button>
@@ -33,8 +35,74 @@
     </div>
   </nav>
 
+  <!-- ===== ホームタブ (起動時ランディング) ===== -->
+  <div class="tab-content active" id="tab-home">
+    <div class="home-wrap">
+      <div class="home-hero">
+        <img src="../../assets/icon.png" alt="" class="home-hero-icon">
+        <div>
+          <h1 class="home-hero-title">GMO TelopGo</h1>
+          <p class="home-hero-sub">HTML5 テロップ送出システム <span class="home-version" id="home-version"></span></p>
+        </div>
+        <div class="home-onair" id="home-onair">ON AIR: なし</div>
+      </div>
+
+      <div class="home-cards">
+        <button class="home-card home-card--primary" data-goto="onair">
+          <span class="home-card-icon">📺</span>
+          <span class="home-card-title">送出</span>
+          <span class="home-card-desc">ランダウンを操作してテロップを送出 (リアルタイムCG / 電テロ)</span>
+        </button>
+        <button class="home-card" data-goto="design">
+          <span class="home-card-icon">🎨</span>
+          <span class="home-card-title">デザイン</span>
+          <span class="home-card-desc">テロップのテンプレートを作画・編集</span>
+        </button>
+        <button class="home-card" data-goto="manual">
+          <span class="home-card-icon">📖</span>
+          <span class="home-card-title">マニュアル</span>
+          <span class="home-card-desc">使い方・操作ガイド・ショートカット</span>
+        </button>
+        <button class="home-card" data-goto="settings">
+          <span class="home-card-icon">⚙️</span>
+          <span class="home-card-title">設定</span>
+          <span class="home-card-desc">出力チャンネル・出力グループ・サーバ・GPIO・連携</span>
+        </button>
+      </div>
+
+      <div class="home-lower">
+        <section class="home-panel">
+          <h2 class="home-panel-title">クイックスタート</h2>
+          <div class="home-quick">
+            <label class="home-quick-row">番組
+              <select id="home-program" class="input input--small"></select>
+            </label>
+            <label class="home-quick-row">放送
+              <select id="home-broadcast" class="input input--small"></select>
+            </label>
+            <button class="btn btn--primary" id="home-go-onair">送出タブへ ▶</button>
+          </div>
+        </section>
+
+        <section class="home-panel">
+          <h2 class="home-panel-title">出力サーバ</h2>
+          <div class="home-server" id="home-server">
+            <div class="home-server-state" id="home-server-state">状態を取得中…</div>
+            <div class="home-server-urls" id="home-server-urls"></div>
+            <button class="btn btn--small" id="home-open-settings">設定タブで管理 ▶</button>
+          </div>
+        </section>
+
+        <section class="home-panel">
+          <h2 class="home-panel-title">最近の更新</h2>
+          <ul class="home-changes" id="home-changes"></ul>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== 送出タブ (ランダウン) ===== -->
-  <div class="tab-content active" id="tab-onair">
+  <div class="tab-content" id="tab-onair">
     <div class="od-layout">
       <div class="od-rehearsal-banner hidden" id="od-rehearsal-banner">リハーサルモード — 出力には送出されません</div>
       <div class="od-topbar">
@@ -507,6 +575,14 @@
     </div>
   </div>
 
+  <!-- ===== マニュアルタブ (アプリ内マニュアル) ===== -->
+  <div class="tab-content" id="tab-manual">
+    <div class="manual-layout">
+      <nav class="manual-nav" id="manual-nav"></nav>
+      <div class="manual-body" id="manual-body"></div>
+    </div>
+  </div>
+
   <!-- ステータスバー -->
   <footer class="status-bar">
     <span class="status-item" id="status-text">準備完了</span>
@@ -517,6 +593,8 @@
   </footer>
 
   <script src="js/app.js"></script>
+  <script src="js/home-ui.js"></script>
+  <script src="js/manual-ui.js"></script>
   <script src="js/tab-controller.js"></script>
   <script src="js/drag-drop.js"></script>
   <script src="js/broadcast.js"></script>

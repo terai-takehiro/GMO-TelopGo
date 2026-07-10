@@ -53,6 +53,9 @@ contextBridge.exposeInMainWorld('api', {
   liveDataStatus: () => ipcRenderer.invoke('live-data-status'),
   onLiveDataUpdate: (callback) => ipcRenderer.on('live-data-update', (_event, status) => callback(status)),
 
+  // アプリ情報
+  getAppVersion: () => ipcRenderer.invoke('app-version'),
+
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),

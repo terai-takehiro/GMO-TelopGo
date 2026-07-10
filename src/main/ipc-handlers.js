@@ -225,6 +225,8 @@ function registerIpcHandlers() {
     }
   });
 
+  ipcMain.handle('app-version', () => app.getVersion());
+
   ipcMain.handle('open-onair-logs', async () => {
     fs.mkdirSync(logsDirPath, { recursive: true });
     await shell.openPath(logsDirPath);

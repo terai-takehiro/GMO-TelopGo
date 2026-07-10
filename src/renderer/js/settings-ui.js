@@ -230,6 +230,8 @@ const SettingsUI = {
       await RundownUI.load();
       RundownUI.updateNamePool();
     }
+    // ランダウン確定後にホーム画面を更新 (起動時ホームが最初に表示されるため)
+    if (typeof HomeUI !== 'undefined') HomeUI.refresh();
   },
 
   populateFields(settings) {

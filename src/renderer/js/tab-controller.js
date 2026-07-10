@@ -1,5 +1,5 @@
 /**
- * タブ切替制御 (送出 / デザイン / 設定)
+ * タブ切替制御 (ホーム / 送出 / デザイン / マニュアル / 設定)
  */
 (function () {
   const tabBtns = document.querySelectorAll('.tab-btn');
@@ -20,6 +20,12 @@
       if (target === 'onair' && typeof RundownUI !== 'undefined' && RundownUI.loaded) {
         // デザイン変更後に戻ってきたときテンプレ情報を再取得
         RundownUI.refreshTemplates();
+      }
+      if (target === 'home' && typeof HomeUI !== 'undefined') {
+        HomeUI.refresh();
+      }
+      if (target === 'manual' && typeof ManualUI !== 'undefined') {
+        ManualUI.onShow();
       }
     });
   });
