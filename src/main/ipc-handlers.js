@@ -179,6 +179,26 @@ function registerIpcHandlers() {
     }
   });
 
+  // --- 静的送出 (電テロ: 静止画/作画をテンプレート非依存で送出) ---
+  ipcMain.handle('graphics-take-static', async (_event, payload, animate, logDetail) => {
+    try {
+      if (!graphicsServer.isRunning()) {
+        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
+      }
+      if (!payload || !payload.region) {
+        return { ok: false, error: '出力先の系統が指定されていません。' };
+      }
+      const content = { kind: payload.kind };
+      if (payload.kind === 'still') content.still = payload.still;
+      else content.variant = payload.variant;
+      graphicsServer.takeStatic(payload.region, content, animate !== false);
+      appendOnairLog(animate !== false ? 'TAKE' : 'UPDATE', logDetail || `${payload.region} ${payload.kind}`);
+      return { ok: true, region: payload.region };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('graphics-clear', async (_event, region, logDetail) => {
     try {
       if (!graphicsServer.isRunning()) {
@@ -298,18 +318,31 @@ function registerIpcHandlers() {
     }
   });
 
-  ipcMain.handle('graphics-import-asset', async () => {
-    const result = await dialog.showOpenDialog({
-      title: '画像を選択',
-      filters: [{ name: '画像', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'] }],
-      properties: ['openFile'],
-    });
-    if (result.canceled || result.filePaths.length === 0) return null;
+  // source 無し → OSダイアログ / 文字列 → そのパスをコピー / {name,data} → バッファを書き出し
+  //   (ドラッグ&ドロップ取込では file.path 文字列またはバイト列が渡される)
+  ipcMain.handle('graphics-import-asset', async (_event, source) => {
     try {
-      const src = result.filePaths[0];
+      const assetsDir = graphicsStore.getAssetsDir();
+      // バイト列で受け取った場合 (file.path が使えない環境のフォールバック)
+      if (source && typeof source === 'object' && source.data) {
+        const safe = path.basename(source.name || 'image').replace(/[\\/:*?"<>|\s]/g, '_') || 'image';
+        const file = `${Date.now()}_${safe}`;
+        fs.writeFileSync(path.join(assetsDir, file), Buffer.from(source.data));
+        return { ok: true, file };
+      }
+      let src = typeof source === 'string' && source ? source : null;
+      if (!src) {
+        const result = await dialog.showOpenDialog({
+          title: '画像を選択',
+          filters: [{ name: '画像', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'] }],
+          properties: ['openFile'],
+        });
+        if (result.canceled || result.filePaths.length === 0) return null;
+        src = result.filePaths[0];
+      }
       const safe = path.basename(src).replace(/[\\/:*?"<>|\s]/g, '_');
       const file = `${Date.now()}_${safe}`;
-      fs.copyFileSync(src, path.join(graphicsStore.getAssetsDir(), file));
+      fs.copyFileSync(src, path.join(assetsDir, file));
       return { ok: true, file };
     } catch (err) {
       return { ok: false, error: err.message };

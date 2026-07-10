@@ -15,12 +15,32 @@
 const Broadcast = {
   /** ページの内容要約 (ログ・表示用) */
   summarize(page) {
+    if (page.kind === 'still') return page.title || (page.still && page.still.file) || '(静止画)';
+    if (page.kind === 'design') return page.title || '(作画)';
     const values = page.values || {};
     const texts = Object.entries(values)
       .filter(([k, v]) => v && /Jp$/i.test(k))
       .map(([, v]) => v);
     const joined = (texts.length ? texts : Object.values(values).filter(Boolean)).join(' / ');
     return joined.replace(/\n/g, ' ').slice(0, 60);
+  },
+
+  /**
+   * ページの送出内容を出力サーバへ送る (種別で分岐)。
+   *   cg              → graphicsTake(templateKey, values)  (リアルタイムCG)
+   *   still / design  → graphicsTakeStatic({region, kind, still|variant})  (電テロ静的送出)
+   * @returns {Promise<{ok, error?}>}
+   */
+  async sendPage(page, animate, detail) {
+    if (page.kind === 'still' || page.kind === 'design') {
+      const channel = App.channelById(App.channelOfPage(page));
+      if (!channel) return { ok: false, error: '出力先の系統が見つかりません' };
+      const payload = { region: channel.region, kind: page.kind };
+      if (page.kind === 'still') payload.still = page.still;
+      else payload.variant = (page.design && page.design.variant) || null;
+      return window.api.graphicsTakeStatic(payload, animate, detail);
+    }
+    return window.api.graphicsTake(page.templateKey, page.values, animate, detail);
   },
 
   /** コーナー内で同チャンネルのページ一覧 (プレイリストのみ) */
@@ -70,7 +90,7 @@ const Broadcast = {
 
     const detail = `P${page.pageNo} ${this.summarize(page)}`;
     if (!App.rehearsal) {
-      const result = await window.api.graphicsTake(page.templateKey, page.values, true, detail);
+      const result = await this.sendPage(page, true, detail);
       if (!result.ok) {
         App.setStatus(`TAKE エラー: ${result.error}`, 'error');
         return;
@@ -109,7 +129,7 @@ const Broadcast = {
 
     const detail = `P${page.pageNo} ${this.summarize(page)}`;
     if (!App.rehearsal) {
-      const result = await window.api.graphicsTake(page.templateKey, page.values, false, detail);
+      const result = await this.sendPage(page, false, detail);
       if (!result.ok) {
         App.setStatus(`UPDATE エラー: ${result.error}`, 'error');
         return;
@@ -139,7 +159,7 @@ const Broadcast = {
     if (!found) return;
     const detail = `P${found.page.pageNo} ${this.summarize(found.page)} (訂正)`;
     if (!App.rehearsal) {
-      const result = await window.api.graphicsTake(found.page.templateKey, found.page.values, false, detail);
+      const result = await this.sendPage(found.page, false, detail);
       if (!result.ok) {
         App.setStatus(`反映エラー: ${result.error}`, 'error');
         return;

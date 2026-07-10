@@ -65,8 +65,13 @@ const App = {
     return null;
   },
 
-  /** ページの出力チャンネルID (テンプレートのregion) */
+  /**
+   * ページの出力チャンネルID。
+   * 電テロ (静止画/作画) ページは page.channelId を直接持つ。
+   * リアルタイムCGページはテンプレートの region から決まる。
+   */
   channelOfPage(page) {
+    if (page.channelId) return page.channelId;
     const tpl = this.templates[page.templateKey];
     return tpl ? tpl.region : null;
   },

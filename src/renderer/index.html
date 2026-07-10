@@ -82,6 +82,7 @@
             <button class="btn btn--small od-btn" id="od-add-page">＋ページ</button>
             <button class="btn btn--small od-btn" id="od-import-excel">Excel取込</button>
             <button class="btn btn--small od-btn" id="od-import-pool" title="名前プールをExcelから読込 (ページ編集時の名前補完に使われます)">名前プール読込</button>
+            <span class="od-mode-badge" id="od-mode-label" title="コーナーを右クリック→「モード切替」で変更できます"></span>
             <span class="od-spacer"></span>
             <button class="btn btn--small od-btn" id="od-standby-toggle">素材集 (<span id="od-standby-count">0</span>)</button>
           </div>
@@ -153,6 +154,27 @@
     <div class="de-dialog-actions">
       <button class="btn btn--small" id="od-page-dialog-cancel">キャンセル</button>
       <button class="btn btn--small btn--primary" id="od-page-dialog-ok">OK</button>
+    </div>
+  </dialog>
+
+  <!-- 電テロ追加ダイアログ (静的送出: デザイン or 静止画ファイル) -->
+  <dialog id="od-telop-dialog" class="de-dialog">
+    <h3>電テロを追加 (静的)</h3>
+    <p class="de-props-hint">アプリ内で作画したデザインを1枚絵として追加するか、別ソフトで作った静止画ファイルを取り込みます。列へ画像ファイルを直接ドラッグ&amp;ドロップしても追加できます。</p>
+    <div class="settings-row">
+      <label for="od-telop-source">追加元</label>
+      <select id="od-telop-source" class="input input--small">
+        <option value="design">デザインから (アプリ内で作画)</option>
+        <option value="still">静止画ファイル (別ソフト)</option>
+      </select>
+    </div>
+    <div class="settings-row" id="od-telop-design-row">
+      <label for="od-telop-design">デザイン</label>
+      <select id="od-telop-design" class="input"></select>
+    </div>
+    <div class="de-dialog-actions">
+      <button class="btn btn--small" id="od-telop-cancel">キャンセル</button>
+      <button class="btn btn--small btn--primary" id="od-telop-ok">OK</button>
     </div>
   </dialog>
 

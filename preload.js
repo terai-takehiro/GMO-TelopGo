@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('api', {
 
   // グラフィックス送出 (ページ = テンプレート + 値)
   graphicsTake: (templateKey, values, animate, logDetail) => ipcRenderer.invoke('graphics-take', templateKey, values, animate, logDetail),
+  // 静的送出 (電テロ: 静止画/作画をテンプレート非依存で送出) payload={region, kind, still?|variant?}
+  graphicsTakeStatic: (payload, animate, logDetail) => ipcRenderer.invoke('graphics-take-static', payload, animate, logDetail),
   graphicsClear: (region, logDetail) => ipcRenderer.invoke('graphics-clear', region, logDetail),
   graphicsStop: (region) => ipcRenderer.invoke('graphics-stop', region),
   openOnairLogs: () => ipcRenderer.invoke('open-onair-logs'),
@@ -36,7 +38,7 @@ contextBridge.exposeInMainWorld('api', {
   graphicsExportPng: (dataUrl, suggestedName) => ipcRenderer.invoke('graphics-export-png', dataUrl, suggestedName),
   graphicsGetProject: () => ipcRenderer.invoke('graphics-get-project'),
   graphicsSaveProject: (project) => ipcRenderer.invoke('graphics-save-project', project),
-  graphicsImportAsset: () => ipcRenderer.invoke('graphics-import-asset'),
+  graphicsImportAsset: (source) => ipcRenderer.invoke('graphics-import-asset', source),
   graphicsImportFont: () => ipcRenderer.invoke('graphics-import-font'),
   graphicsFetchGoogleFont: (family, weights) => ipcRenderer.invoke('graphics-fetch-gfont', family, weights),
   getSystemFonts: () => ipcRenderer.invoke('system-fonts'),

@@ -22,7 +22,7 @@ function uid(prefix) {
 }
 
 function buildDefault() {
-  const corner = { id: uid('cn'), name: 'コーナー1', color: '#4da3ff', locked: false, autoFollow: 'off', pages: [], standby: [] };
+  const corner = { id: uid('cn'), name: 'コーナー1', color: '#4da3ff', mode: 'cg', locked: false, autoFollow: 'off', pages: [], standby: [] };
   const broadcast = { id: uid('bc'), name: '放送1', corners: [corner] };
   const program = { id: uid('pg'), name: '既定番組', broadcasts: [broadcast] };
   return {
@@ -34,12 +34,32 @@ function buildDefault() {
   };
 }
 
+/**
+ * 永続データを正規化する (旧バージョンのランダウンに新フィールドを補完)。
+ *   - コーナーに mode ('cg' | 'telop', 既定 'cg')
+ *   - ページに kind ('cg' | 'still' | 'design', 既定 'cg')
+ */
+function normalize(rd) {
+  if (!rd || !Array.isArray(rd.programs)) return rd;
+  rd.programs.forEach((prog) => {
+    (prog.broadcasts || []).forEach((bc) => {
+      (bc.corners || []).forEach((cn) => {
+        if (!cn.mode) cn.mode = 'cg';
+        ['pages', 'standby'].forEach((listName) => {
+          (cn[listName] || []).forEach((pg) => { if (!pg.kind) pg.kind = 'cg'; });
+        });
+      });
+    });
+  });
+  return rd;
+}
+
 function init(baseDir) {
   fs.mkdirSync(baseDir, { recursive: true });
   rundownPath = path.join(baseDir, 'rundown.json');
   if (fs.existsSync(rundownPath)) {
     try {
-      data = JSON.parse(fs.readFileSync(rundownPath, 'utf-8'));
+      data = normalize(JSON.parse(fs.readFileSync(rundownPath, 'utf-8')));
     } catch (_) {
       try { fs.renameSync(rundownPath, `${rundownPath}.broken`); } catch (_e) { /* ignore */ }
       data = buildDefault();
@@ -85,7 +105,7 @@ function migrateLegacy(legacy) {
 
   const PERSON_PREFIXES = ['', '2nd', '3rd', '4th'];
   const nameCorner = {
-    id: uid('cn'), name: '名前テロップ', color: '#e8b93c', locked: false, autoFollow: 'off', pages: [], standby: [],
+    id: uid('cn'), name: '名前テロップ', color: '#e8b93c', mode: 'cg', locked: false, autoFollow: 'off', pages: [], standby: [],
   };
   (legacy.nameData || []).forEach((row, i) => {
     const values = {};
@@ -99,6 +119,7 @@ function migrateLegacy(legacy) {
     nameCorner.pages.push({
       id: uid('pg'),
       pageNo: String(101 + i),
+      kind: 'cg',
       templateKey: `name-${row.shotType || '1S'}`,
       values,
       note: '',
@@ -108,12 +129,13 @@ function migrateLegacy(legacy) {
   });
 
   const sideCorner = {
-    id: uid('cn'), name: 'サイドテロップ', color: '#4da3ff', locked: false, autoFollow: 'off', pages: [], standby: [],
+    id: uid('cn'), name: 'サイドテロップ', color: '#4da3ff', mode: 'cg', locked: false, autoFollow: 'off', pages: [], standby: [],
   };
   (legacy.sideData || []).forEach((row, i) => {
     sideCorner.pages.push({
       id: uid('pg'),
       pageNo: String(201 + i),
+      kind: 'cg',
       templateKey: 'side',
       values: { textJp: row.textJp || '', textEn: row.textEn || '' },
       note: '',
@@ -125,7 +147,7 @@ function migrateLegacy(legacy) {
   if (nameCorner.pages.length) broadcast.corners.push(nameCorner);
   if (sideCorner.pages.length) broadcast.corners.push(sideCorner);
   if (broadcast.corners.length === 0) {
-    broadcast.corners.push({ id: uid('cn'), name: 'コーナー1', color: '#4da3ff', locked: false, autoFollow: 'off', pages: [], standby: [] });
+    broadcast.corners.push({ id: uid('cn'), name: 'コーナー1', color: '#4da3ff', mode: 'cg', locked: false, autoFollow: 'off', pages: [], standby: [] });
   }
   rd.activeProgramId = program.id;
   rd.activeBroadcastId = broadcast.id;

@@ -80,11 +80,18 @@ const RundownUI = {
     document.getElementById('od-corner-add').addEventListener('click', () => this.addCorner());
 
     // ページ操作
-    document.getElementById('od-add-page').addEventListener('click', () => this.openPageDialog('add'));
+    document.getElementById('od-add-page').addEventListener('click', () => this.addPageForChannel(this.activeChannelId));
     document.getElementById('od-import-excel').addEventListener('click', () => this.openPageDialog('excel'));
     document.getElementById('od-import-pool').addEventListener('click', () => this.importNamePool());
     document.getElementById('od-page-dialog-cancel').addEventListener('click', () => document.getElementById('od-page-dialog').close());
     document.getElementById('od-page-dialog-ok').addEventListener('click', () => this.submitPageDialog());
+
+    // 電テロ追加ダイアログ (静的送出)
+    document.getElementById('od-telop-cancel').addEventListener('click', () => document.getElementById('od-telop-dialog').close());
+    document.getElementById('od-telop-ok').addEventListener('click', () => this.submitTelopDialog());
+    document.getElementById('od-telop-source').addEventListener('change', (e) => {
+      document.getElementById('od-telop-design-row').classList.toggle('hidden', e.target.value !== 'design');
+    });
     document.getElementById('od-standby-toggle').addEventListener('click', () => {
       document.getElementById('od-standby').classList.toggle('hidden');
     });
@@ -222,6 +229,7 @@ const RundownUI = {
       const meta = document.createElement('span');
       meta.className = 'od-corner-meta';
       const badges = [];
+      if (corner.mode === 'telop') badges.push('電');
       if (corner.locked) badges.push('🔒');
       if (corner.autoFollow && corner.autoFollow !== 'off') badges.push('⏱');
       meta.textContent = `${badges.join('')} ${corner.pages.length}`;
@@ -307,7 +315,9 @@ const RundownUI = {
     metaLine.appendChild(chip);
     const tplName = document.createElement('span');
     tplName.className = 'od-page-tpl';
-    tplName.textContent = this.templateLabel(page.templateKey);
+    tplName.textContent = page.kind === 'still' ? '🖼 静止画'
+      : page.kind === 'design' ? '🎨 作画'
+        : this.templateLabel(page.templateKey);
     metaLine.appendChild(tplName);
     if (page.duration > 0) {
       const dur = document.createElement('span');
@@ -365,12 +375,22 @@ const RundownUI = {
       if (e.dataTransfer.types.includes('text/page')) {
         e.preventDefault();
         el.classList.add('od-drop-target');
+      } else if (corner.mode === 'telop' && listName === 'pages' && e.dataTransfer.types.includes('Files')) {
+        e.preventDefault();
+        el.classList.add('od-drop-target');
       }
     });
     el.addEventListener('dragleave', () => el.classList.remove('od-drop-target'));
     el.addEventListener('drop', (e) => {
-      e.preventDefault();
       el.classList.remove('od-drop-target');
+      // 電テロ: 画像ファイルのドロップ取込 (このページの系統へ)
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        if (corner.mode !== 'telop' || listName !== 'pages') return;
+        e.preventDefault();
+        this.importDroppedFiles(corner, App.channelOfPage(page), e.dataTransfer.files);
+        return;
+      }
+      e.preventDefault();
       let payload;
       try { payload = JSON.parse(e.dataTransfer.getData('text/page')); } catch (_) { return; }
       if (!payload || payload.pageId === page.id) return;
@@ -386,6 +406,16 @@ const RundownUI = {
     wrap.innerHTML = '';
     const corner = this.currentCorner();
     if (!corner) return;
+    const telopMode = corner.mode === 'telop';
+
+    const modeLabel = document.getElementById('od-mode-label');
+    if (modeLabel) {
+      modeLabel.textContent = telopMode ? '電テロモード (静的送出)' : 'リアルタイムCGモード';
+      modeLabel.classList.toggle('telop', telopMode);
+    }
+    // 電テロモードでは Excel取込 (変数代入) は無関係なので隠す
+    const excelBtn = document.getElementById('od-import-excel');
+    if (excelBtn) excelBtn.classList.toggle('hidden', telopMode);
 
     App.channels.forEach((ch) => {
       const col = document.createElement('div');
@@ -406,8 +436,8 @@ const RundownUI = {
       const addBtn = document.createElement('button');
       addBtn.className = 'od-col-add';
       addBtn.textContent = '＋';
-      addBtn.title = `${ch.label} にページを追加`;
-      addBtn.addEventListener('click', (e) => { e.stopPropagation(); this.openPageDialog('add', ch.id); });
+      addBtn.title = telopMode ? `${ch.label} に電テロを追加` : `${ch.label} にページを追加`;
+      addBtn.addEventListener('click', (e) => { e.stopPropagation(); this.addPageForChannel(ch.id); });
       header.appendChild(dot);
       header.appendChild(name);
       header.appendChild(addBtn);
@@ -421,14 +451,27 @@ const RundownUI = {
       if (pages.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'od-empty';
-        empty.textContent = '(ページなし)';
+        empty.textContent = telopMode ? '(画像をドロップ / ＋で追加)' : '(ページなし)';
         body.appendChild(empty);
       }
-      // 末尾ドロップで並べ替え/系統への移動 (この系統のテンプレは変わらないので同系統内のみ意味を持つ)
+      // 末尾ドロップで並べ替え/系統への移動、または電テロでは画像ファイルの取込
       body.addEventListener('dragover', (e) => {
-        if (e.dataTransfer.types.includes('text/page')) e.preventDefault();
+        if (e.dataTransfer.types.includes('text/page')) {
+          e.preventDefault();
+        } else if (telopMode && e.dataTransfer.types.includes('Files')) {
+          e.preventDefault();
+          body.classList.add('od-file-drop');
+        }
       });
+      body.addEventListener('dragleave', () => body.classList.remove('od-file-drop'));
       body.addEventListener('drop', (e) => {
+        body.classList.remove('od-file-drop');
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          if (!telopMode) return; // 画像取込は電テロモードのみ
+          e.preventDefault();
+          this.importDroppedFiles(corner, ch.id, e.dataTransfer.files);
+          return;
+        }
         e.preventDefault();
         let payload;
         try { payload = JSON.parse(e.dataTransfer.getData('text/page')); } catch (_) { return; }
@@ -552,10 +595,9 @@ const RundownUI = {
     }
     const { page } = found;
     if (label) label.textContent = `NEXT — P${page.pageNo}`;
-    const tpl = App.graphicsProject && App.graphicsProject.templates[page.templateKey];
-    const variant = tpl && tpl.variants && tpl.variants.jp;
+    const variant = this.pageVariant(page);
     if (!variant) {
-      host.innerHTML = '<div class="od-preview-empty">テンプレートなし</div>';
+      host.innerHTML = '<div class="od-preview-empty">内容なし</div>';
       return;
     }
     host.innerHTML = '';
@@ -580,6 +622,13 @@ const RundownUI = {
     return labels[key] || key;
   },
 
+  /** ページ種別のラベル (エディタ見出し用) */
+  pageKindLabel(page) {
+    if (page.kind === 'still') return '🖼 静止画';
+    if (page.kind === 'design') return '🎨 作画';
+    return this.templateLabel(page.templateKey);
+  },
+
   renderEditor() {
     const panel = document.getElementById('od-editor');
     panel.innerHTML = '';
@@ -593,7 +642,7 @@ const RundownUI = {
 
     const head = document.createElement('div');
     head.className = 'od-editor-head';
-    head.textContent = `P${page.pageNo} — ${this.templateLabel(page.templateKey)}`;
+    head.textContent = `P${page.pageNo} — ${this.pageKindLabel(page)}`;
     panel.appendChild(head);
 
     const row = (label, input) => {
@@ -624,6 +673,37 @@ const RundownUI = {
     noDur.appendChild(noInput);
     noDur.appendChild(durInput);
     row('番号 / 尺(秒)', noDur);
+
+    // 電テロ (静止画/作画): タイトル + (静止画は) 表示方法
+    if (page.kind === 'still' || page.kind === 'design') {
+      const titleInput = document.createElement('input');
+      titleInput.className = 'input';
+      titleInput.value = page.title || '';
+      titleInput.placeholder = page.kind === 'still' ? 'テロップ名 (一覧・ログ表示用)' : 'テロップ名';
+      titleInput.addEventListener('change', () => this.mutate(() => { page.title = titleInput.value; }));
+      row('タイトル', titleInput);
+
+      if (page.kind === 'still') {
+        const fitSel = document.createElement('select');
+        fitSel.className = 'input input--small';
+        [['contain', '全体表示 (contain)'], ['cover', '画面いっぱい (cover)'], ['fill', '引き伸ばし (fill)']]
+          .forEach(([v, lbl]) => {
+            const opt = document.createElement('option');
+            opt.value = v; opt.textContent = lbl;
+            fitSel.appendChild(opt);
+          });
+        fitSel.value = (page.still && page.still.objectFit) || 'contain';
+        fitSel.addEventListener('change', () => {
+          page.still = page.still || {};
+          page.still.objectFit = fitSel.value;
+          this._thumbCache.delete(this.thumbKey(page));
+          App.saveRundown();
+          this.renderColumns();
+          this.renderNextPreview();
+        });
+        row('表示方法', fitSel);
+      }
+    }
 
     // フィールド (テンプレートのbinding)
     tplInfo.bindings.forEach((binding) => {
@@ -678,7 +758,29 @@ const RundownUI = {
 
   // ===== サムネイル =====
 
+  /** ページ種別に応じた描画バリアント (サムネ/プレビュー/出力の共通ソース) */
+  pageVariant(page) {
+    if (page.kind === 'still') return this.stillVariant(page.still);
+    if (page.kind === 'design') return (page.design && page.design.variant) || null;
+    const tpl = App.graphicsProject && App.graphicsProject.templates[page.templateKey];
+    return (tpl && tpl.variants && tpl.variants.jp) || null;
+  },
+
+  /** 静止画1枚を全画面(1920x1080)に敷くバリアント */
+  stillVariant(still) {
+    if (!still || !still.file) return null;
+    return {
+      layers: [{
+        id: 'still', type: 'image', x: 0, y: 0, w: 1920, h: 1080,
+        file: still.file, objectFit: still.objectFit || 'contain', visible: true,
+      }],
+      animation: {},
+    };
+  },
+
   thumbKey(page) {
+    if (page.kind === 'still') return `still|${page.still ? `${page.still.file}|${page.still.objectFit || ''}` : ''}`;
+    if (page.kind === 'design') return `design|${page.id}`;
     return `${page.templateKey}|${JSON.stringify(page.values || {})}`;
   },
 
@@ -704,8 +806,7 @@ const RundownUI = {
         continue;
       }
       try {
-        const tpl = App.graphicsProject && App.graphicsProject.templates[page.templateKey];
-        const variant = tpl && tpl.variants && tpl.variants.jp;
+        const variant = this.pageVariant(page);
         if (!variant || typeof DesignEditor === 'undefined') continue;
         const canvas = await DesignEditor.renderVariantToCanvas(variant, page.values || {}, 240 / 1920);
         const url = canvas.toDataURL('image/png');
@@ -790,13 +891,104 @@ const RundownUI = {
     }
 
     const page = {
-      id: this.uid('pg'), pageNo: this.nextPageNo(corner), templateKey,
+      id: this.uid('pg'), pageNo: this.nextPageNo(corner), kind: 'cg', templateKey,
       values: {}, note: '', duration: 0, locked: false,
     };
     this.mutate(() => corner.pages.push(page));
     this.selectedPageId = page.id;
     this.renderEditor();
     this.applyRowStates();
+  },
+
+  // ===== 電テロ (静的) ページの追加 =====
+
+  /** コーナーのモードに応じて適切な追加フローを開く */
+  addPageForChannel(channelId) {
+    const corner = this.currentCorner();
+    if (corner && corner.mode === 'telop') this.openTelopDialog(channelId);
+    else this.openPageDialog('add', channelId);
+  },
+
+  openTelopDialog(channelId) {
+    this._telopChannelId = channelId || this.activeChannelId;
+    const sel = document.getElementById('od-telop-design');
+    sel.innerHTML = '';
+    Object.keys(App.templates).forEach((key) => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      const ch = App.channelById(App.templates[key].region);
+      opt.textContent = `${this.templateLabel(key)}${ch ? ` [${ch.label}]` : ''}`;
+      sel.appendChild(opt);
+    });
+    document.getElementById('od-telop-source').value = 'design';
+    document.getElementById('od-telop-design-row').classList.toggle('hidden', Object.keys(App.templates).length === 0);
+    document.getElementById('od-telop-dialog').showModal();
+  },
+
+  async submitTelopDialog() {
+    const source = document.getElementById('od-telop-source').value;
+    const channelId = this._telopChannelId;
+    const corner = this.currentCorner();
+    document.getElementById('od-telop-dialog').close();
+    if (!corner || !channelId) return;
+    if (source === 'design') {
+      const key = document.getElementById('od-telop-design').value;
+      if (key) this.addDesignPage(corner, channelId, key);
+    } else {
+      const res = await window.api.graphicsImportAsset();
+      if (res === null) return; // キャンセル
+      if (!res.ok) { App.setStatus(`画像取込エラー: ${res.error}`, 'error'); return; }
+      this.addStillPage(corner, channelId, res.file, '');
+    }
+  },
+
+  /** アプリ内デザインを1枚絵として固定コピーし電テロページを追加 */
+  addDesignPage(corner, channelId, templateKey) {
+    const tpl = App.graphicsProject && App.graphicsProject.templates[templateKey];
+    const variant = tpl && tpl.variants && tpl.variants.jp;
+    if (!variant) { App.setStatus('デザインが見つかりません', 'error'); return; }
+    const page = {
+      id: this.uid('pg'), pageNo: this.nextPageNo(corner), kind: 'design', channelId,
+      design: { variant: JSON.parse(JSON.stringify(variant)) },
+      title: this.templateLabel(templateKey),
+      values: {}, note: '', duration: 0, locked: false,
+    };
+    this.mutate(() => corner.pages.push(page));
+    this.selectedPageId = page.id;
+    App.setStatus('作画を電テロリストへ追加しました (以後テンプレートを編集しても固定です)', 'success');
+  },
+
+  /** 静止画ファイル(取込済みファイル名)から電テロページを追加 */
+  addStillPage(corner, channelId, file, title) {
+    const page = {
+      id: this.uid('pg'), pageNo: this.nextPageNo(corner), kind: 'still', channelId,
+      still: { file, objectFit: 'contain' },
+      title: title || '', values: {}, note: '', duration: 0, locked: false,
+    };
+    this.mutate(() => corner.pages.push(page));
+    this.selectedPageId = page.id;
+  },
+
+  /** ドロップされた画像ファイルを取り込み、静止画ページを順に追加 */
+  async importDroppedFiles(corner, channelId, fileList) {
+    if (!channelId) { App.setStatus('取込先の系統が特定できません', 'error'); return; }
+    const files = [...fileList].filter((f) => /^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|svg)$/i.test(f.name));
+    if (files.length === 0) { App.setStatus('画像ファイルではありません', 'error'); return; }
+    let added = 0;
+    for (const f of files) {
+      let res;
+      try {
+        if (f.path) {
+          res = await window.api.graphicsImportAsset(f.path);
+        } else {
+          const buf = new Uint8Array(await f.arrayBuffer());
+          res = await window.api.graphicsImportAsset({ name: f.name, data: buf });
+        }
+      } catch (err) { res = { ok: false, error: err.message }; }
+      if (res && res.ok) { this.addStillPage(corner, channelId, res.file, f.name.replace(/\.[^.]+$/, '')); added++; }
+      else App.setStatus(`取込失敗: ${(res && res.error) || f.name}`, 'error');
+    }
+    if (added > 0) App.setStatus(`静止画${added}枚を電テロリストへ取り込みました`, 'success');
   },
 
   movePageBefore(pageId, beforePageId, corner, listName) {
@@ -892,6 +1084,10 @@ const RundownUI = {
           input.addEventListener('input', () => this.mutate(() => { corner.color = input.value; }));
           input.click();
         } },
+      { label: `モード: ${corner.mode === 'telop' ? '電テロ (静的)' : 'リアルタイムCG'} → 切替`, action: () => {
+          this.mutate(() => { corner.mode = corner.mode === 'telop' ? 'cg' : 'telop'; });
+          App.setStatus(`コーナー「${corner.name}」を${corner.mode === 'telop' ? '電テロモード (静的送出)' : 'リアルタイムCGモード'}に切り替えました`, 'success');
+        } },
       { label: corner.locked ? 'ロック解除' : '送出ロック (コーナー全体)', action: () => this.mutate(() => { corner.locked = !corner.locked; }) },
       { label: `オートフォロー: ${{ off: 'なし', take: '次へTAKE', clear: 'CLEAR' }[corner.autoFollow || 'off']} → 切替`, action: () => {
           const order = ['off', 'take', 'clear'];
@@ -919,7 +1115,7 @@ const RundownUI = {
   addProgram() {
     const name = prompt('番組名');
     if (!name) return;
-    const corner = { id: this.uid('cn'), name: 'コーナー1', color: '#4da3ff', locked: false, autoFollow: 'off', pages: [], standby: [] };
+    const corner = { id: this.uid('cn'), name: 'コーナー1', color: '#4da3ff', mode: 'cg', locked: false, autoFollow: 'off', pages: [], standby: [] };
     const broadcast = { id: this.uid('bc'), name: '放送1', corners: [corner] };
     const program = { id: this.uid('pg'), name, broadcasts: [broadcast] };
     this.mutate(() => {
@@ -973,7 +1169,7 @@ const RundownUI = {
       broadcast = {
         id: this.uid('bc'),
         name,
-        corners: [{ id: this.uid('cn'), name: 'コーナー1', color: '#4da3ff', locked: false, autoFollow: 'off', pages: [], standby: [] }],
+        corners: [{ id: this.uid('cn'), name: 'コーナー1', color: '#4da3ff', mode: 'cg', locked: false, autoFollow: 'off', pages: [], standby: [] }],
       };
     }
     this.mutate(() => {
@@ -1011,7 +1207,7 @@ const RundownUI = {
     if (!name) return;
     const broadcast = App.activeBroadcast();
     if (!broadcast) return;
-    const corner = { id: this.uid('cn'), name, color: '#4da3ff', locked: false, autoFollow: 'off', pages: [], standby: [] };
+    const corner = { id: this.uid('cn'), name, color: '#4da3ff', mode: 'cg', locked: false, autoFollow: 'off', pages: [], standby: [] };
     this.mutate(() => broadcast.corners.push(corner));
     this.currentCornerId = corner.id;
     this.renderCornerRail();

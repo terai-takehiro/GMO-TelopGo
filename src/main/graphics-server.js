@@ -50,7 +50,7 @@ let getProject = () => null;
 const state = {};
 
 function regionState(region) {
-  if (!state[region]) state[region] = { onAir: false, templateKey: null, values: {} };
+  if (!state[region]) state[region] = { onAir: false, templateKey: null, values: {}, static: null };
   return state[region];
 }
 
@@ -218,7 +218,21 @@ function take(region, templateKey, values, animate = true) {
   st.onAir = true;
   st.templateKey = templateKey;
   st.values = values;
+  st.static = null;
   broadcast({ type: 'take', region, templateKey, values, animate });
+}
+
+/**
+ * TAKE (静的): テンプレート非依存の静止画/作画を送出 (電テロモード)
+ * payload = { kind: 'still'|'design', still?: {file, objectFit}, variant?: {layers, animation} }
+ */
+function takeStatic(region, payload, animate = true) {
+  const st = regionState(region);
+  st.onAir = true;
+  st.templateKey = null;
+  st.values = {};
+  st.static = payload;
+  broadcast({ type: 'take', region, static: payload, animate });
 }
 
 /** CHANGE: アニメーションなしの即時差し替え */
@@ -232,6 +246,7 @@ function clear(region) {
   st.onAir = false;
   st.templateKey = null;
   st.values = {};
+  st.static = null;
   broadcast({ type: 'clear', region });
 }
 
@@ -247,5 +262,5 @@ function refreshProject() {
 
 module.exports = {
   events, configure, start, stop, isRunning, getStatus,
-  take, change, clear, stopAnim, refreshProject,
+  take, takeStatic, change, clear, stopAnim, refreshProject,
 };

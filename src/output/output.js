@@ -90,16 +90,43 @@
     return project.templates[templateKey].variants[lang] || null;
   }
 
-  function show(region, templateKey, values, animate) {
+  /** 静止画1枚を全画面(1920x1080)に敷くバリアントを組む */
+  function stillVariant(still) {
+    if (!still || !still.file) return null;
+    return {
+      layers: [{
+        id: 'still', type: 'image', x: 0, y: 0, w: 1920, h: 1080,
+        file: still.file, objectFit: still.objectFit || 'contain', visible: true,
+      }],
+      animation: {},
+    };
+  }
+
+  /**
+   * 送出内容 (content) から描画バリアントと値を解決する。
+   *   content = { templateKey, values }               (リアルタイムCG)
+   *           | { static: { kind, still?|variant? } }  (電テロ: 静的)
+   */
+  function resolveContent(content) {
+    if (content && content.static) {
+      const s = content.static;
+      if (s.kind === 'still') return { variant: stillVariant(s.still), values: {} };
+      if (s.kind === 'design') return { variant: s.variant || null, values: {} };
+      return { variant: null, values: {} };
+    }
+    return { variant: findVariant(content.templateKey), values: content.values || {} };
+  }
+
+  function show(region, content, animate) {
     if (!handlesRegion(region)) return;
     const container = containerFor(region);
-    const variant = findVariant(templateKey);
+    const { variant, values } = resolveContent(content);
     if (!variant) return;
 
     generation[region]++;
-    TelopRenderer.renderVariant(container, variant, values || {});
+    TelopRenderer.renderVariant(container, variant, values);
     container.classList.add('on-air');
-    container.dataset.templateKey = templateKey;
+    container._variant = variant; // OUTアニメ用に保持 (静的送出はtemplateKeyを持たない)
 
     if (animate) {
       TelopAnimator.play(container, variant, 'in');
@@ -110,7 +137,7 @@
     if (!handlesRegion(region)) return;
     const container = containerFor(region);
     if (!container.classList.contains('on-air')) return;
-    const variant = findVariant(container.dataset.templateKey);
+    const variant = container._variant || null;
 
     const gen = ++generation[region];
     TelopAnimator.play(container, variant, 'out').then(() => {
@@ -139,8 +166,8 @@
       if (!handlesRegion(region)) return;
       const s = state[region];
       const container = containerFor(region);
-      if (s && s.onAir && s.templateKey) {
-        show(region, s.templateKey, s.values, false);
+      if (s && s.onAir && (s.templateKey || s.static)) {
+        show(region, s.static ? { static: s.static } : { templateKey: s.templateKey, values: s.values }, false);
       } else {
         generation[region] = (generation[region] || 0) + 1;
         container.classList.remove('on-air');
@@ -167,7 +194,11 @@
           applyState(msg.payload.state);
           break;
         case 'take':
-          show(msg.region, msg.templateKey, msg.values, msg.animate !== false);
+          show(
+            msg.region,
+            msg.static ? { static: msg.static } : { templateKey: msg.templateKey, values: msg.values },
+            msg.animate !== false,
+          );
           break;
         case 'clear':
           hide(msg.region);
