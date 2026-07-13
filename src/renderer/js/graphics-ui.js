@@ -146,13 +146,8 @@ const GraphicsUI = {
     return base;
   },
 
-  /** 上部の合成PGMプレビューと、各TL列のOAモニターを最新のサーバ状態へ向ける */
+  /** 各TL列のOAモニターを最新のサーバ状態へ向ける */
   applyPreview(status) {
-    const pgm = document.getElementById('od-pgm-iframe');
-    if (!pgm) return;
-    const base = this.previewBase(status);
-    const url = base ? `${base}/output/jp?preview=1` : 'about:blank';
-    if (pgm.src !== url) pgm.src = url;
     if (typeof RundownUI !== 'undefined' && RundownUI.updateChannelMonitors) {
       RundownUI.updateChannelMonitors(status);
     }

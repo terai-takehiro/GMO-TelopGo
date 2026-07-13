@@ -33,8 +33,7 @@ const ManualUI = {
         <h2 class="manual-h2">送出タブのレイアウト</h2>
         <ul class="manual-list">
           <li><b>左レール</b>: コーナー一覧 (並び順=送出順、送出進捗を表示)。右クリックで改名/色/ロック/オートフォロー</li>
-          <li><b>上部プレビュー帯</b>: 全系統を重ねた<b>最終合成のON AIR</b>を確認。サイズ切替 (隠すも可)、背景変更 (黒/市松/白/任意画像 — 透過の確認用)</li>
-          <li><b>中央</b>: TL1/TL2…の<b>系統ごとの列がそのままコンソール</b>。各列の上部に <b>OA|NEXT</b> のミニモニター、下部にその系統専用の送出ボタン一式 (TOP/BACK/SKIP/STOP/UPDATE/CLEAR/CLEAR&BACK) と大型<b>TAKE</b>。上部の🔎でページ検索</li>
+          <li><b>中央</b>: TL1/TL2…の<b>系統ごとの列がそのままコンソール</b>。各列の上部に <b>OA|NEXT</b> のミニモニター、下部にその系統専用の送出ボタン一式 (TOP/BACK/SKIP/STOP/UPDATE/CLEAR/CLEAR&BACK) と大型<b>TAKE</b>。ツールバーの🔎でページ検索、「モニタ背景」で黒/市松/白/任意画像 (透過の確認用) に変更可</li>
           <li><b>右ペイン</b>: ページエディタ (選択ページの内容編集専用)</li>
         </ul>
         <div class="manual-tip">状態色: <span class="manual-swatch onair"></span>赤=ON AIR / <span class="manual-swatch next"></span>アンバー=NEXT / グレー=送出済み</div>`,

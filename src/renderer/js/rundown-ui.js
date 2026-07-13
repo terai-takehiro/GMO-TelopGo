@@ -160,23 +160,12 @@ const RundownUI = {
     setInterval(() => this.tick(), 250);
   },
 
-  /** プレビュー帯 (合成PGM) と各列モニターのサイズ/背景コントロール */
+  /** 各列のOA/NEXTモニターの背景コントロール (透過確認用) */
   initPreviewStrip() {
-    const strip = document.getElementById('od-preview-strip');
-    const sizeSel = document.getElementById('od-pvw-size');
     const bgSel = document.getElementById('od-pvw-bg');
     const bgFile = document.getElementById('od-pvw-bg-file');
-    if (!strip || !sizeSel) return;
+    if (!bgSel) return;
 
-    const applySize = (v) => {
-      strip.classList.remove('od-pvw-s', 'od-pvw-m', 'od-pvw-l', 'od-pvw-hide');
-      strip.classList.add(`od-pvw-${v}`);
-    };
-
-    sizeSel.addEventListener('change', () => {
-      applySize(sizeSel.value);
-      try { localStorage.setItem('od.pvwSize', sizeSel.value); } catch (_) { /* ignore */ }
-    });
     bgSel.addEventListener('change', () => {
       if (bgSel.value === 'image') {
         bgFile.click(); // 選択キャンセル時は onchange が来ないので黒へ戻す
@@ -201,25 +190,20 @@ const RundownUI = {
     });
 
     // 前回のUI設定を復元
-    let size = 'm'; let bg = 'black';
+    let bg = 'black';
     try {
-      size = localStorage.getItem('od.pvwSize') || 'm';
       bg = localStorage.getItem('od.pvwBg') || 'black';
       if (bg === 'image') bg = 'black'; // 画像は永続化しない
     } catch (_) { /* ignore */ }
-    sizeSel.value = size;
     bgSel.value = bg;
     this._pvwBg = bg;
-    applySize(size);
     this.applyPreviewBg();
   },
 
-  /** 背景設定 (透過確認用) を合成PGMと各列のOA/NEXTモニターへ適用 */
+  /** 背景設定 (透過確認用) を各列のOA/NEXTモニターへ適用 */
   applyPreviewBg() {
     const v = this._pvwBg || 'black';
-    const targets = [document.getElementById('od-pgm-frame'), ...document.querySelectorAll('#od-columns .od-col-mon')];
-    targets.forEach((el) => {
-      if (!el) return;
+    document.querySelectorAll('#od-columns .od-col-mon').forEach((el) => {
       el.classList.remove('bg-black', 'bg-checker', 'bg-white', 'bg-image');
       el.classList.add(`bg-${v}`);
       el.style.backgroundImage = v === 'image' && this._pvwBgImage ? `url(${this._pvwBgImage})` : '';

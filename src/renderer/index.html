@@ -147,36 +147,6 @@
         </label>
       </div>
 
-      <!-- プレビュー帯 (全系統の最終合成を確認する用途。系統別のOA/NEXTは各TL列に表示) -->
-      <div class="od-preview-strip od-pvw-m" id="od-preview-strip">
-        <div class="od-pvw-block">
-          <div class="od-pvw-head">
-            <span class="od-pvw-label od-pvw-pgm">● ON AIR (全系統合成)</span>
-          </div>
-          <div class="od-preview-frame" id="od-pgm-frame"><iframe id="od-pgm-iframe" src="about:blank" allow="autoplay" sandbox="allow-scripts allow-same-origin"></iframe></div>
-        </div>
-        <div class="od-pvw-tools">
-          <label class="od-bar-label">サイズ
-            <select id="od-pvw-size" class="input input--small od-pvw-select">
-              <option value="s">小</option>
-              <option value="m" selected>中</option>
-              <option value="l">大</option>
-              <option value="hide">隠す</option>
-            </select>
-          </label>
-          <label class="od-bar-label">背景
-            <select id="od-pvw-bg" class="input input--small od-pvw-select" title="プレビューの背景 (透過の確認用)">
-              <option value="black">黒</option>
-              <option value="checker">市松</option>
-              <option value="white">白</option>
-              <option value="image">画像...</option>
-            </select>
-          </label>
-          <input type="file" id="od-pvw-bg-file" accept="image/*" class="hidden">
-          <div class="od-countdown" id="od-countdown"></div>
-        </div>
-      </div>
-
       <div class="od-main">
         <div class="od-corners">
           <div class="od-corners-header">
@@ -194,6 +164,16 @@
             <span class="od-mode-badge" id="od-mode-label" title="コーナーを右クリック→「モード切替」で変更できます"></span>
             <span class="od-key-target" id="od-key-target" title="キーボード操作 (Space=TAKE / ←→=NEXT移動 など) が効く系統。列をクリックで切替">⌨ -</span>
             <span class="od-spacer"></span>
+            <div class="od-countdown" id="od-countdown"></div>
+            <label class="od-bar-label">モニタ背景
+              <select id="od-pvw-bg" class="input input--small od-pvw-select" title="各列のOA/NEXTモニターの背景 (透過の確認用)">
+                <option value="black">黒</option>
+                <option value="checker">市松</option>
+                <option value="white">白</option>
+                <option value="image">画像...</option>
+              </select>
+            </label>
+            <input type="file" id="od-pvw-bg-file" accept="image/*" class="hidden">
             <input type="text" id="od-search" class="input input--small od-search" placeholder="🔎 ページ検索" title="番号・タイトル・内容・テンプレ名でこのコーナーのページを絞り込み (Escで解除)">
             <button class="btn btn--small od-btn" id="od-standby-toggle">素材集 (<span id="od-standby-count">0</span>)</button>
           </div>
