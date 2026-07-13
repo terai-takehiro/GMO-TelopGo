@@ -109,16 +109,6 @@ const RundownUI = {
       document.getElementById('od-standby').classList.toggle('hidden');
     });
 
-    // 送出ボタン
-    document.getElementById('od-take').addEventListener('click', () => Broadcast.doTake(this.activeChannelId));
-    document.getElementById('od-update').addEventListener('click', () => Broadcast.doUpdate(this.activeChannelId));
-    document.getElementById('od-clear').addEventListener('click', () => Broadcast.doClear(this.activeChannelId));
-    document.getElementById('od-clearback').addEventListener('click', () => Broadcast.doClearBack(this.activeChannelId));
-    document.getElementById('od-stop').addEventListener('click', () => Broadcast.doStop(this.activeChannelId));
-    document.getElementById('od-skip').addEventListener('click', () => Broadcast.moveNext(this.activeChannelId, 1));
-    document.getElementById('od-back').addEventListener('click', () => Broadcast.moveNext(this.activeChannelId, -1));
-    document.getElementById('od-top-btn').addEventListener('click', () => Broadcast.goTop(this.activeChannelId));
-
     // 番組/放送の選び直し (入場ウィザードを再表示)
     const reselect = document.getElementById('od-reselect');
     if (reselect) reselect.addEventListener('click', () => {
@@ -170,29 +160,17 @@ const RundownUI = {
     setInterval(() => this.tick(), 250);
   },
 
-  /** プレビュー帯 (PGM|NEXT) のサイズ/背景/PGM範囲コントロール */
+  /** プレビュー帯 (合成PGM) と各列モニターのサイズ/背景コントロール */
   initPreviewStrip() {
     const strip = document.getElementById('od-preview-strip');
     const sizeSel = document.getElementById('od-pvw-size');
     const bgSel = document.getElementById('od-pvw-bg');
     const bgFile = document.getElementById('od-pvw-bg-file');
-    const scopeSel = document.getElementById('od-pgm-scope');
     if (!strip || !sizeSel) return;
 
     const applySize = (v) => {
       strip.classList.remove('od-pvw-s', 'od-pvw-m', 'od-pvw-l', 'od-pvw-hide');
       strip.classList.add(`od-pvw-${v}`);
-      // NEXTプレビューのスケールを幅に追従させる
-      this.renderNextPreview();
-    };
-    const applyBg = (v, imageUrl) => {
-      ['od-pgm-frame', 'od-next-frame'].forEach((id) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.classList.remove('bg-black', 'bg-checker', 'bg-white', 'bg-image');
-        el.classList.add(`bg-${v}`);
-        el.style.backgroundImage = v === 'image' && imageUrl ? `url(${imageUrl})` : '';
-      });
     };
 
     sizeSel.addEventListener('change', () => {
@@ -205,26 +183,22 @@ const RundownUI = {
         return;
       }
       this._pvwBgImage = null;
-      applyBg(bgSel.value);
+      this._pvwBg = bgSel.value;
+      this.applyPreviewBg();
       try { localStorage.setItem('od.pvwBg', bgSel.value); } catch (_) { /* ignore */ }
     });
     bgFile.addEventListener('change', () => {
       const f = bgFile.files && bgFile.files[0];
-      if (!f) { bgSel.value = 'black'; applyBg('black'); return; }
+      if (!f) { bgSel.value = 'black'; this._pvwBg = 'black'; this.applyPreviewBg(); return; }
       const reader = new FileReader();
       reader.onload = () => {
         this._pvwBgImage = reader.result;
-        applyBg('image', reader.result);
+        this._pvwBg = 'image';
+        this.applyPreviewBg();
       };
       reader.readAsDataURL(f);
       bgFile.value = '';
     });
-    if (scopeSel) {
-      scopeSel.addEventListener('change', () => {
-        GraphicsUI.pgmScope = scopeSel.value;
-        if (GraphicsUI.status) GraphicsUI.applyPreview(GraphicsUI.status);
-      });
-    }
 
     // 前回のUI設定を復元
     let size = 'm'; let bg = 'black';
@@ -235,8 +209,21 @@ const RundownUI = {
     } catch (_) { /* ignore */ }
     sizeSel.value = size;
     bgSel.value = bg;
+    this._pvwBg = bg;
     applySize(size);
-    applyBg(bg);
+    this.applyPreviewBg();
+  },
+
+  /** 背景設定 (透過確認用) を合成PGMと各列のOA/NEXTモニターへ適用 */
+  applyPreviewBg() {
+    const v = this._pvwBg || 'black';
+    const targets = [document.getElementById('od-pgm-frame'), ...document.querySelectorAll('#od-columns .od-col-mon')];
+    targets.forEach((el) => {
+      if (!el) return;
+      el.classList.remove('bg-black', 'bg-checker', 'bg-white', 'bg-image');
+      el.classList.add(`bg-${v}`);
+      el.style.backgroundImage = v === 'image' && this._pvwBgImage ? `url(${this._pvwBgImage})` : '';
+    });
   },
 
   /** ダイレクト入力中、番号が一致するページを一覧上でハイライト */
@@ -306,17 +293,16 @@ const RundownUI = {
     this.renderCornerRail();
     this.renderColumns();
     this.renderStandby();
-    this.renderFocusLabel();
+    this.renderKeyTarget();
     this.renderEditor();
-    this.renderNextPreview();
     Broadcast.updateGlobalOnAir();
   },
 
   /** 送出状態のみが変わったときの軽量再描画 */
   renderBroadcastState() {
     this.applyRowStates();
-    this.renderFocusLabel();
-    this.renderNextPreview();
+    this.renderKeyTarget();
+    this.renderNextPreviews();
     this.renderEditor();
   },
 
@@ -509,8 +495,7 @@ const RundownUI = {
       if (listName === 'pages') Broadcast.setNext(page.id);
       if (channelId) this.activeChannelId = channelId;
       this.renderColumns();
-      this.renderFocusLabel();
-      this.renderNextPreview();
+      this.renderKeyTarget();
       this.renderEditor();
     });
     el.addEventListener('dblclick', () => {
@@ -639,6 +624,45 @@ const RundownUI = {
       header.addEventListener('click', () => this.focusChannel(ch.id));
       col.appendChild(header);
 
+      // OA|NEXT ミニモニター (系統ごとの出力/次ページ確認)
+      const monitors = document.createElement('div');
+      monitors.className = 'od-col-monitors';
+      const oaBox = document.createElement('div');
+      oaBox.className = 'od-col-mon-box';
+      const oaLabel = document.createElement('span');
+      oaLabel.className = 'od-col-mon-label oa';
+      oaLabel.dataset.channelId = ch.id;
+      oaLabel.textContent = 'OA';
+      const oaFrame = document.createElement('div');
+      oaFrame.className = 'od-col-mon';
+      const oaIframe = document.createElement('iframe');
+      oaIframe.className = 'od-col-oa';
+      oaIframe.dataset.region = ch.region;
+      oaIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+      oaIframe.setAttribute('allow', 'autoplay');
+      oaIframe.src = 'about:blank';
+      oaFrame.appendChild(oaIframe);
+      oaBox.appendChild(oaLabel);
+      oaBox.appendChild(oaFrame);
+      const nextBox = document.createElement('div');
+      nextBox.className = 'od-col-mon-box';
+      const nextLabel = document.createElement('span');
+      nextLabel.className = 'od-col-mon-label next od-col-next-label';
+      nextLabel.dataset.channelId = ch.id;
+      nextLabel.textContent = 'NEXT';
+      const nextFrame = document.createElement('div');
+      nextFrame.className = 'od-col-mon';
+      const nextHost = document.createElement('div');
+      nextHost.className = 'od-col-next';
+      nextHost.dataset.channelId = ch.id;
+      nextFrame.appendChild(nextHost);
+      nextBox.appendChild(nextLabel);
+      nextBox.appendChild(nextFrame);
+      monitors.appendChild(oaBox);
+      monitors.appendChild(nextBox);
+      monitors.addEventListener('click', () => this.focusChannel(ch.id));
+      col.appendChild(monitors);
+
       // ボディ (その系統のページ)
       const body = document.createElement('div');
       body.className = `od-col-body od-pages--${this.viewMode}`;
@@ -675,7 +699,7 @@ const RundownUI = {
       });
       col.appendChild(body);
 
-      // フッタ (NEXT/ON AIRバッジ + TAKE + CLEAR)
+      // フッタ = 系統コンソール (バッジ + ボタン一式 + 大型TAKE)
       const footer = document.createElement('div');
       footer.className = 'od-col-footer';
       const st = App.chState(ch.id);
@@ -686,27 +710,55 @@ const RundownUI = {
       badges.innerHTML = `<span class="od-col-badge next">NEXT ${nextFound ? 'P' + nextFound.page.pageNo : '—'}</span>`
         + `<span class="od-col-badge onair">ON AIR ${onAirFound ? 'P' + onAirFound.page.pageNo : '—'}</span>`;
       footer.appendChild(badges);
-      const btns = document.createElement('div');
-      btns.className = 'od-col-btns';
+
+      const VERBS = [
+        { verb: 'top', en: 'TOP', jp: '先頭', title: 'このコーナーの先頭ページをNEXTに', cls: '', run: (id) => Broadcast.goTop(id) },
+        { verb: 'back', en: 'BACK', jp: '戻す', title: 'NEXTを1つ戻す', cls: '', run: (id) => Broadcast.moveNext(id, -1) },
+        { verb: 'skip', en: 'SKIP', jp: '送る', title: 'NEXTを1つ進める', cls: '', run: (id) => Broadcast.moveNext(id, 1) },
+        { verb: 'stop', en: 'STOP', jp: '停止', title: '再生中アニメの一時停止/再開', cls: '', run: (id) => Broadcast.doStop(id) },
+        { verb: 'update', en: 'UPDATE', jp: '即差替', title: 'NEXTをアニメなしで即時差し替え', cls: ' od-obtn-update', run: (id) => Broadcast.doUpdate(id) },
+        { verb: 'clear', en: 'CLEAR', jp: '消去', title: 'オンエアをOUTアニメで消去 (Ctrl+Backspace)', cls: ' od-obtn-clear', run: (id) => Broadcast.doClear(id) },
+        { verb: 'clearback', en: 'CLEAR&BACK', jp: '消して前へ', title: 'オンエアを消して1つ前のページを即表示 (Ctrl+Shift+Backspace)', cls: ' od-obtn-clear od-obtn-cb', run: (id) => Broadcast.doClearBack(id) },
+      ];
+      const grid = document.createElement('div');
+      grid.className = 'od-col-verbs';
+      VERBS.forEach((v) => {
+        const btn = document.createElement('button');
+        btn.className = `od-obtn od-obtn--sm${v.cls}`;
+        btn.dataset.verb = v.verb;
+        btn.title = `${ch.label}: ${v.title}`;
+        btn.innerHTML = `${v.en.replace('&', '&amp;')}<span class="od-obtn-jp">${v.jp}</span>`;
+        btn.addEventListener('click', (e) => { e.stopPropagation(); this.focusChannel(ch.id); v.run(ch.id); });
+        grid.appendChild(btn);
+      });
+      footer.appendChild(grid);
+
       const take = document.createElement('button');
       take.className = 'od-col-take';
-      take.textContent = 'TAKE';
-      take.title = `${ch.label} を送出 (NEXT→ON AIR)`;
+      take.title = `${ch.label} を送出: NEXT→ON AIR (フォーカス中は Space / Enter)`;
+      take.innerHTML = 'TAKE <span class="od-take-arrow">⬆</span>';
+      take.style.borderColor = ch.color;
       take.addEventListener('click', (e) => { e.stopPropagation(); this.focusChannel(ch.id); Broadcast.doTake(ch.id); });
-      const clr = document.createElement('button');
-      clr.className = 'od-col-clear';
-      clr.textContent = 'CLEAR';
-      clr.title = `${ch.label} を消去`;
-      clr.addEventListener('click', (e) => { e.stopPropagation(); this.focusChannel(ch.id); Broadcast.doClear(ch.id); });
-      btns.appendChild(take);
-      btns.appendChild(clr);
-      footer.appendChild(btns);
+      footer.appendChild(take);
       col.appendChild(footer);
 
       wrap.appendChild(col);
     });
 
+    this.updateChannelMonitors();
+    this.renderNextPreviews();
+    this.applyPreviewBg();
     this.applyRowStates();
+  },
+
+  /** 各列のOAモニター (出力サーバの系統別プレビュー) のURLを最新化 */
+  updateChannelMonitors(status) {
+    const st = status || (typeof GraphicsUI !== 'undefined' ? GraphicsUI.status : null);
+    const base = (typeof GraphicsUI !== 'undefined' && GraphicsUI.previewBase) ? GraphicsUI.previewBase(st) : null;
+    document.querySelectorAll('#od-columns iframe.od-col-oa').forEach((frame) => {
+      const url = base ? `${base}/output/jp/${frame.dataset.region}?preview=1` : 'about:blank';
+      if (frame.src !== url) frame.src = url;
+    });
   },
 
   /** コーナーレールの進捗表示 (送出済み/全ページ) を最新化 */
@@ -722,34 +774,28 @@ const RundownUI = {
     });
   },
 
-  /** 操作対象の系統をフォーカス (右ペインのフルボタン/プレビュー/ホットキーの対象) */
+  /** キーボード操作 (Space=TAKE等) の対象系統をフォーカス。列クリックで切替 */
   focusChannel(channelId) {
     if (this.activeChannelId === channelId) return;
     this.activeChannelId = channelId;
     document.querySelectorAll('#od-columns .od-col').forEach((el) => {
-      el.classList.toggle('active', el.dataset.channelId === channelId);
+      const ch = App.channelById(el.dataset.channelId);
+      const active = el.dataset.channelId === channelId;
+      el.classList.toggle('active', active);
+      el.style.borderColor = active && ch ? ch.color : '';
+      el.style.boxShadow = active && ch ? `0 0 0 1px ${ch.color}` : '';
     });
-    this.renderFocusLabel();
-    this.renderNextPreview();
+    this.renderKeyTarget();
   },
 
-  renderFocusLabel() {
-    const el = document.getElementById('od-focus-label');
+  /** ツールバーの「⌨ TL1」ピル = ホットキーが効く系統の表示 */
+  renderKeyTarget() {
+    const el = document.getElementById('od-key-target');
     if (!el) return;
     const ch = App.channelById(this.activeChannelId);
-    el.textContent = `操作中: ${ch ? ch.label : '-'}`;
+    el.textContent = `⌨ ${ch ? ch.label : '-'}`;
     el.style.color = ch ? ch.color : '';
-
-    // 大型TAKEを操作中系統と色/名前で連動 (どの系統に作用するかを常に明示)
-    const takeCh = document.getElementById('od-take-ch');
-    if (takeCh) takeCh.textContent = ch ? `${ch.label} へ送出` : '';
-    const takeBtn = document.getElementById('od-take');
-    if (takeBtn) takeBtn.style.borderColor = ch ? ch.color : '';
-
-    // PGMプレビューが「操作中系統のみ」のときはフォーカス変更に追従
-    if (typeof GraphicsUI !== 'undefined' && GraphicsUI.pgmScope === 'focus' && GraphicsUI.status) {
-      GraphicsUI.applyPreview(GraphicsUI.status);
-    }
+    el.style.borderColor = ch ? ch.color : '';
   },
 
   renderStandby() {
@@ -810,35 +856,39 @@ const RundownUI = {
 
   // ===== プレビュー =====
 
-  renderNextPreview() {
-    const host = document.getElementById('od-next-preview');
-    const found = this.activeChannelId ? Broadcast.nextPage(this.activeChannelId) : null;
-    const label = document.getElementById('od-next-label');
-    if (!found) {
-      host.innerHTML = '<div class="od-preview-empty">NEXT未設定</div>';
-      if (label) label.textContent = 'NEXT';
-      return;
-    }
-    const { page } = found;
-    if (label) label.textContent = `NEXT — P${page.pageNo}`;
-    const variant = this.pageVariant(page);
-    if (!variant) {
-      host.innerHTML = '<div class="od-preview-empty">内容なし</div>';
-      return;
-    }
-    host.innerHTML = '';
-    const canvas = document.createElement('div');
-    canvas.className = 'od-next-canvas';
-    host.appendChild(canvas);
-    TelopRenderer.renderVariant(canvas, variant, page.values || {}, {
-      assetBase: (typeof DesignEditor !== 'undefined') ? DesignEditor.assetBase() : '/assets/',
+  /** 各列のNEXTモニターへ、その系統のNEXTページを描画 */
+  renderNextPreviews() {
+    document.querySelectorAll('#od-columns .od-col-next').forEach((host) => {
+      const chId = host.dataset.channelId;
+      const label = document.querySelector(`#od-columns .od-col-next-label[data-channel-id="${chId}"]`);
+      const found = chId ? Broadcast.nextPage(chId) : null;
+      if (!found) {
+        host.innerHTML = '<div class="od-preview-empty">NEXT未設定</div>';
+        if (label) label.textContent = 'NEXT';
+        return;
+      }
+      const { page } = found;
+      if (label) label.textContent = `NEXT P${page.pageNo}`;
+      const variant = this.pageVariant(page);
+      if (!variant) {
+        host.innerHTML = '<div class="od-preview-empty">内容なし</div>';
+        return;
+      }
+      host.innerHTML = '';
+      const canvas = document.createElement('div');
+      canvas.className = 'od-next-canvas';
+      host.appendChild(canvas);
+      TelopRenderer.renderVariant(canvas, variant, page.values || {}, {
+        assetBase: (typeof DesignEditor !== 'undefined') ? DesignEditor.assetBase() : '/assets/',
+      });
+      // 16:9で親にフィット
+      canvas.style.transform = `scale(${host.clientWidth / 1920})`;
     });
-    // 16:9で親にフィット
-    const fit = () => {
-      const scale = host.clientWidth / 1920;
-      canvas.style.transform = `scale(${scale})`;
-    };
-    fit();
+  },
+
+  /** 互換エイリアス (旧: 単一NEXTプレビュー) */
+  renderNextPreview() {
+    this.renderNextPreviews();
   },
 
   // ===== ページエディタ (右ペイン) =====
@@ -928,7 +978,6 @@ const RundownUI = {
           this._thumbCache.delete(this.thumbKey(page));
           App.saveRundown();
           this.renderColumns();
-          this.renderNextPreview();
         });
         row('表示方法', fitSel);
       }
@@ -949,7 +998,6 @@ const RundownUI = {
         this._thumbCache.delete(this.thumbKey(page));
         App.saveRundown();
         this.renderColumns();
-        this.renderNextPreview();
       });
       row(binding, input);
     });

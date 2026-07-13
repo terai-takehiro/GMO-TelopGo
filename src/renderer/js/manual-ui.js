@@ -33,9 +33,9 @@ const ManualUI = {
         <h2 class="manual-h2">送出タブのレイアウト</h2>
         <ul class="manual-list">
           <li><b>左レール</b>: コーナー一覧 (並び順=送出順、送出進捗を表示)。右クリックで改名/色/ロック/オートフォロー</li>
-          <li><b>上部プレビュー帯</b>: ON AIR(PGM)とNEXTを大きく表示。サイズ切替、背景変更 (黒/市松/白/任意画像 — 透過の確認用)、PGMは「合成(全系統)/操作中系統のみ」を切替可能</li>
-          <li><b>中央</b>: 選択コーナーのページを<b>系統(チャンネル)ごとの列</b>で表示 (最大4系統横並び)。各列にTAKE/CLEAR。上部の🔎でページ検索</li>
-          <li><b>右ペイン</b>: ページエディタと送出ボタン群 (TOP/BACK/SKIP/STOP/UPDATE/CLEAR/CLEAR&BACK/TAKE)。大型TAKEには操作中の系統名を表示</li>
+          <li><b>上部プレビュー帯</b>: 全系統を重ねた<b>最終合成のON AIR</b>を確認。サイズ切替 (隠すも可)、背景変更 (黒/市松/白/任意画像 — 透過の確認用)</li>
+          <li><b>中央</b>: TL1/TL2…の<b>系統ごとの列がそのままコンソール</b>。各列の上部に <b>OA|NEXT</b> のミニモニター、下部にその系統専用の送出ボタン一式 (TOP/BACK/SKIP/STOP/UPDATE/CLEAR/CLEAR&BACK) と大型<b>TAKE</b>。上部の🔎でページ検索</li>
+          <li><b>右ペイン</b>: ページエディタ (選択ページの内容編集専用)</li>
         </ul>
         <div class="manual-tip">状態色: <span class="manual-swatch onair"></span>赤=ON AIR / <span class="manual-swatch next"></span>アンバー=NEXT / グレー=送出済み</div>`,
     },
@@ -89,6 +89,7 @@ const ManualUI = {
           <tr><td>STOP</td><td>再生中アニメの一時停止/再開</td></tr>
           <tr><td>SKIP / BACK / TOP</td><td>NEXTポインタの移動</td></tr>
         </table>
+        <div class="manual-tip">これらのボタンは<b>各TL列の下部</b>にあり、押した列の系統だけに作用します (TL1のTAKEはTL1のみ送出)。</div>
         <h2 class="manual-h2">便利機能</h2>
         <ul class="manual-list">
           <li><b>ダイレクト送出</b>: ページ番号を入力→Enterで NEXT、もう一度Enterで TAKE</li>
@@ -110,7 +111,7 @@ const ManualUI = {
           <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Backspace</kbd></td><td>CLEAR&BACK (消して前へ戻る)</td></tr>
           <tr><td><kbd>0</kbd>–<kbd>9</kbd></td><td>ダイレクト送出の番号入力を開始</td></tr>
         </table>
-        <div class="manual-tip">💡 列 (またはページ) をクリックするとその系統が「操作中」になり、右ペインのボタン・ホットキー・GPIOがその系統に作用します。</div>`,
+        <div class="manual-tip">💡 列 (またはページ) をクリックするとその系統がキー操作の対象になります (ツールバーの「⌨ TL1」表示)。列内のボタンは常にその列の系統に作用します。</div>`,
     },
     {
       id: 'output', title: '出力URLとvMix取込', html: `

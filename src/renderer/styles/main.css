@@ -1699,10 +1699,10 @@ body {
   margin-left: auto;
   align-items: flex-end;
 }
-/* プレビュー背景 (透過確認用) */
-.od-preview-frame.bg-black { background: #000; }
-.od-preview-frame.bg-white { background: #fff; }
-.od-preview-frame.bg-checker {
+/* プレビュー背景 (透過確認用) — 合成PGMと各列のOA/NEXTモニターで共通 */
+.od-preview-frame.bg-black, .od-col-mon.bg-black { background: #000; }
+.od-preview-frame.bg-white, .od-col-mon.bg-white { background: #fff; }
+.od-preview-frame.bg-checker, .od-col-mon.bg-checker {
   background-image:
     linear-gradient(45deg, #b9c2cf 25%, transparent 25%, transparent 75%, #b9c2cf 75%),
     linear-gradient(45deg, #b9c2cf 25%, transparent 25%, transparent 75%, #b9c2cf 75%);
@@ -1710,7 +1710,7 @@ body {
   background-size: 22px 22px;
   background-position: 0 0, 11px 11px;
 }
-.od-preview-frame.bg-image { background-size: cover; background-position: center; }
+.od-preview-frame.bg-image, .od-col-mon.bg-image { background-size: cover; background-position: center; }
 
 /* --- メイン3ペイン --- */
 .od-main { display: flex; flex: 1; min-height: 0; }
@@ -1897,7 +1897,6 @@ body {
   border: 1px solid var(--od-border);
 }
 .od-preview-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
-.od-preview-frame--next #od-next-preview { position: absolute; inset: 0; }
 .od-next-canvas {
   position: absolute;
   top: 0; left: 0;
@@ -1959,15 +1958,15 @@ body {
   font-weight: 700;
 }
 
-/* 操作中系統ラベル */
-.od-focus-label {
+/* キーボード操作対象の系統ピル (ページツールバー内) */
+.od-key-target {
   font-size: 11px;
   font-weight: 700;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
   background: var(--od-bg3);
   border: 1px solid var(--od-border);
-  text-align: center;
+  white-space: nowrap;
 }
 
 /* 系統ごとの列 (多系統横並び) */
@@ -1982,7 +1981,7 @@ body {
 }
 .od-col {
   flex: 1 1 0;
-  min-width: 210px;
+  min-width: 260px;
   max-width: 460px;
   display: flex;
   flex-direction: column;
@@ -2015,6 +2014,38 @@ body {
   font-size: 13px;
 }
 .od-col-add:hover { background: var(--bg-hover); }
+
+/* 列内 OA|NEXT ミニモニター */
+.od-col-monitors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 6px;
+  background: var(--od-bg);
+  border-bottom: 1px solid var(--od-border);
+  cursor: pointer;
+}
+.od-col-mon-box { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.od-col-mon-label { font-size: 9px; font-weight: 800; letter-spacing: 1px; }
+.od-col-mon-label.oa { color: var(--od-onair); }
+.od-col-mon-label.next { color: var(--od-next); }
+.od-col-mon {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%;
+  background: #000;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--od-border);
+}
+.od-col-mon iframe {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  border: none;
+  pointer-events: none; /* クリックは列フォーカスに使う */
+}
+.od-col-mon .od-col-next { position: absolute; inset: 0; }
+
 .od-col-body { flex: 1; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
 .od-col-footer { border-top: 1px solid var(--od-border); padding: 6px; background: var(--od-bg); }
 .od-col-badges { display: flex; gap: 6px; margin-bottom: 6px; }
@@ -2030,50 +2061,36 @@ body {
 }
 .od-col-badge.next { color: var(--od-next); }
 .od-col-badge.onair.lit { background: var(--od-onair); color: #fff; }
-.od-col-btns { display: flex; gap: 6px; }
+
+/* 列内の送出ボタングリッド (系統コンソール) */
+.od-col-verbs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-bottom: 6px;
+}
+/* 列内の大型TAKE (系統色の枠はJSでinline指定) */
 .od-col-take {
-  flex: 2;
-  padding: 10px;
+  width: 100%;
+  padding: 11px;
   background: linear-gradient(180deg, #34c968, #179242);
-  border: none;
-  border-radius: 8px;
+  border: 2px solid transparent;
+  border-radius: 10px;
   color: #fff;
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 900;
-  letter-spacing: 2px;
+  letter-spacing: 2.5px;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 8px rgba(34, 170, 84, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 3px 12px rgba(34, 170, 84, 0.35);
   transition: transform 0.1s, box-shadow 0.15s, background 0.15s;
 }
 .od-col-take:hover {
   background: linear-gradient(180deg, #3fdb76, #1aa74c);
   transform: translateY(-1px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 4px 14px rgba(34, 170, 84, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 5px 18px rgba(34, 170, 84, 0.5);
 }
-.od-col-take:active { transform: translateY(1px); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2); }
-.od-col-clear {
-  flex: 1;
-  padding: 10px 4px;
-  background: linear-gradient(180deg, #ffffff, #fdf4f3);
-  border: 1px solid #ecc4c0;
-  border-radius: 8px;
-  color: var(--red);
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.1s, box-shadow 0.15s, background 0.15s, border-color 0.15s;
-}
-.od-col-clear:hover {
-  background: var(--red-dim);
-  border-color: var(--red);
-  transform: translateY(-1px);
-  box-shadow: 0 3px 10px rgba(217, 45, 32, 0.18);
-}
-.od-col-clear:active { transform: translateY(1px); box-shadow: none; }
+.od-col-take:active { transform: translateY(1px); box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.2); }
 
-/* 送出ボタン群 */
-.od-buttons-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 /* 送出ボタン: コンソールキー風 (白面カード + 左に機能色バー + 浮き沈み) */
 .od-obtn {
   position: relative;
@@ -2111,27 +2128,10 @@ body {
 .od-obtn-clear:hover { background: linear-gradient(180deg, #ffffff, #fdf1f0); }
 .od-obtn-clear:hover::before { background: var(--red); }
 .od-obtn-update:hover::before { background: var(--yellow); }
-.od-take-btn {
-  width: 100%;
-  padding: 15px;
-  background: linear-gradient(180deg, #34c968, #179242);
-  border: 2px solid transparent;
-  border-radius: 12px;
-  color: #fff;
-  font-size: 20px;
-  font-weight: 900;
-  letter-spacing: 3px;
-  cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 4px 16px rgba(34, 170, 84, 0.4);
-  transition: transform 0.1s, box-shadow 0.15s, background 0.15s;
-}
-.od-take-btn:hover {
-  background: linear-gradient(180deg, #3fdb76, #1aa74c);
-  transform: translateY(-1px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 22px rgba(34, 170, 84, 0.55);
-}
-.od-take-btn:active { transform: translateY(1px); box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.2); }
-.od-take-arrow { font-size: 16px; }
+/* 列内コンソール用の縮小キー */
+.od-obtn--sm { padding: 6px 2px 5px; font-size: 10px; letter-spacing: 1px; border-radius: 6px; }
+.od-obtn--sm .od-obtn-jp { font-size: 8px; }
+.od-take-arrow { font-size: 14px; }
 /* 残尺カウントダウン (プレビュー帯右側・大型表示) */
 .od-countdown {
   font-family: var(--font-mono);
@@ -2147,9 +2147,6 @@ body {
 /* 送出ボタンの日本語補助ラベル */
 .od-obtn-jp { display: block; font-size: 9px; font-weight: 500; opacity: 0.65; letter-spacing: 0; margin-top: 1px; }
 .od-obtn-cb { grid-column: 1 / -1; }
-
-/* 大型TAKEの操作中系統表示 (renderFocusLabelで系統色の枠が付く) */
-.od-take-ch { display: block; font-size: 11px; font-weight: 700; letter-spacing: 1px; opacity: 0.9; margin-top: 2px; }
 
 /* ページ検索 */
 .od-search { width: 170px; }

@@ -127,17 +127,11 @@ const GraphicsUI = {
     });
   },
 
-  /** PGMプレビューの表示範囲: 'all'=合成(全系統) | 'focus'=操作中系統のみ */
-  pgmScope: 'all',
-
   /**
-   * 送出画面のプレビューiframeにローカル出力を表示する。
+   * プレビューの参照先ベースURL。出力サーバが動いていなければ null。
    * 2台運用でこのPCが出力担当でない場合は、担当PC (ホスト) の出力を参照する。
    */
-  applyPreview(status) {
-    const pgm = document.getElementById('od-pgm-iframe');
-    if (!pgm) return;
-
+  previewBase(status) {
     let base = null;
     if (status && status.running) {
       base = `http://127.0.0.1:${status.port}`;
@@ -149,16 +143,19 @@ const GraphicsUI = {
       const port = (status && status.port) || this.collectConfig().port;
       if (hostAddress) base = `http://${hostAddress}:${port}`;
     }
+    return base;
+  },
 
-    // 操作中系統のみモード: フォーカス列の系統URLを表示
-    let path = '/output/jp';
-    if (this.pgmScope === 'focus' && typeof RundownUI !== 'undefined') {
-      const ch = App.channelById(RundownUI.activeChannelId);
-      if (ch) path = `/output/jp/${ch.region}`;
-    }
-
-    const url = base ? `${base}${path}?preview=1` : 'about:blank';
+  /** 上部の合成PGMプレビューと、各TL列のOAモニターを最新のサーバ状態へ向ける */
+  applyPreview(status) {
+    const pgm = document.getElementById('od-pgm-iframe');
+    if (!pgm) return;
+    const base = this.previewBase(status);
+    const url = base ? `${base}/output/jp?preview=1` : 'about:blank';
     if (pgm.src !== url) pgm.src = url;
+    if (typeof RundownUI !== 'undefined' && RundownUI.updateChannelMonitors) {
+      RundownUI.updateChannelMonitors(status);
+    }
   },
 };
 

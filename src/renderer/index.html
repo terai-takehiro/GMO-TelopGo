@@ -147,23 +147,13 @@
         </label>
       </div>
 
-      <!-- プレビュー帯 (TELOP BOX流: オンエアプレビューを主役に) -->
+      <!-- プレビュー帯 (全系統の最終合成を確認する用途。系統別のOA/NEXTは各TL列に表示) -->
       <div class="od-preview-strip od-pvw-m" id="od-preview-strip">
         <div class="od-pvw-block">
           <div class="od-pvw-head">
-            <span class="od-pvw-label od-pvw-pgm">● ON AIR (PGM)</span>
-            <select id="od-pgm-scope" class="input input--small od-pvw-select" title="PGMプレビューに表示する範囲">
-              <option value="all">合成 (全系統)</option>
-              <option value="focus">操作中系統のみ</option>
-            </select>
+            <span class="od-pvw-label od-pvw-pgm">● ON AIR (全系統合成)</span>
           </div>
           <div class="od-preview-frame" id="od-pgm-frame"><iframe id="od-pgm-iframe" src="about:blank" allow="autoplay" sandbox="allow-scripts allow-same-origin"></iframe></div>
-        </div>
-        <div class="od-pvw-block">
-          <div class="od-pvw-head">
-            <span class="od-pvw-label od-pvw-next" id="od-next-label">NEXT</span>
-          </div>
-          <div class="od-preview-frame od-preview-frame--next" id="od-next-frame"><div id="od-next-preview"></div></div>
         </div>
         <div class="od-pvw-tools">
           <label class="od-bar-label">サイズ
@@ -202,6 +192,7 @@
             <button class="btn btn--small od-btn" id="od-import-excel">Excel取込</button>
             <button class="btn btn--small od-btn" id="od-import-pool" title="名前プールをExcelから読込 (ページ編集時の名前補完に使われます)">名前プール読込</button>
             <span class="od-mode-badge" id="od-mode-label" title="コーナーを右クリック→「モード切替」で変更できます"></span>
+            <span class="od-key-target" id="od-key-target" title="キーボード操作 (Space=TAKE / ←→=NEXT移動 など) が効く系統。列をクリックで切替">⌨ -</span>
             <span class="od-spacer"></span>
             <input type="text" id="od-search" class="input input--small od-search" placeholder="🔎 ページ検索" title="番号・タイトル・内容・テンプレ名でこのコーナーのページを絞り込み (Escで解除)">
             <button class="btn btn--small od-btn" id="od-standby-toggle">素材集 (<span id="od-standby-count">0</span>)</button>
@@ -214,17 +205,6 @@
         </div>
         <div class="od-right">
           <div class="od-editor" id="od-editor"></div>
-          <div class="od-focus-label" id="od-focus-label">操作中: -</div>
-          <div class="od-buttons-grid">
-            <button class="od-obtn" id="od-top-btn" title="表示中コーナーの先頭ページをNEXTに">TOP<span class="od-obtn-jp">先頭</span></button>
-            <button class="od-obtn" id="od-back" title="NEXTを1つ戻す">BACK<span class="od-obtn-jp">戻す</span></button>
-            <button class="od-obtn" id="od-skip" title="NEXTを1つ進める">SKIP<span class="od-obtn-jp">送る</span></button>
-            <button class="od-obtn" id="od-stop" title="再生中アニメの一時停止/再開">STOP<span class="od-obtn-jp">停止</span></button>
-            <button class="od-obtn od-obtn-update" id="od-update" title="NEXTをアニメなしで即時差し替え">UPDATE<span class="od-obtn-jp">即差替</span></button>
-            <button class="od-obtn od-obtn-clear" id="od-clear" title="オンエアをOUTアニメで消去 (Ctrl+Backspace)">CLEAR<span class="od-obtn-jp">消去</span></button>
-            <button class="od-obtn od-obtn-clear od-obtn-cb" id="od-clearback" title="オンエアを消して1つ前のページを即表示 (誤送出のリカバリー / Ctrl+Shift+Backspace)">CLEAR&amp;BACK<span class="od-obtn-jp">消して前へ戻る</span></button>
-          </div>
-          <button class="od-take-btn" id="od-take" title="NEXTをINアニメ付きで送出 (Space / Enter)">TAKE <span class="od-take-arrow">⬆</span><span class="od-take-ch" id="od-take-ch"></span></button>
         </div>
       </div>
     </div>
