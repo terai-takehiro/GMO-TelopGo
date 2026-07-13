@@ -28,6 +28,7 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'src', 'renderer', 'index.html'));
   mainWindow.setMenuBarVisibility(false);
+  mainWindow.maximize(); // 運用は全画面(最大化)が基本
 }
 
 app.whenReady().then(() => {

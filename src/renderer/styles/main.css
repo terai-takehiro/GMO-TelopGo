@@ -1,6 +1,15 @@
 /* === Reset & Base === */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* リセットで消えるUAの dialog { margin: auto } を復元 (これが<dialog>中央寄せの正体) */
+dialog { margin: auto; }
+dialog::backdrop { background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(3px); }
+dialog[open] { animation: dlg-in 0.16s ease-out; }
+@keyframes dlg-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 :root {
   --bg-primary: #eef2f7;
   --bg-secondary: #ffffff;
@@ -195,36 +204,45 @@ body {
   gap: 8px;
 }
 
-/* === Buttons === */
+/* === Buttons (放送コンソール風モダン: 微グラデ + 浮き沈み) === */
 .btn {
   padding: 7px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid #d3deea;
   border-radius: var(--radius);
-  background: var(--bg-input);
+  background: linear-gradient(180deg, #ffffff, #f3f7fc);
   color: var(--text-primary);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   font-family: var(--font);
   cursor: pointer;
   box-shadow: var(--shadow-sm);
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.05s;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.1s;
   white-space: nowrap;
 }
 
-.btn:hover { background: var(--bg-hover); border-color: #b9cde4; }
+.btn:hover {
+  background: linear-gradient(180deg, #ffffff, #eaf2fb);
+  border-color: #aec7e2;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(23, 37, 58, 0.12);
+}
 .btn:active { transform: translateY(1px); box-shadow: none; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 .btn:focus-visible { outline: none; box-shadow: var(--ring); }
 
 .btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: linear-gradient(180deg, #1d7ff0, #0c6cd6);
+  border-color: #0a5cb8;
   color: #fff;
-  box-shadow: 0 1px 3px rgba(12, 108, 214, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 6px rgba(12, 108, 214, 0.35);
 }
-.btn--primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn--primary:hover {
+  background: linear-gradient(180deg, #338df5, #1274e0);
+  border-color: #0a5cb8;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 12px rgba(12, 108, 214, 0.45);
+}
 
-.btn--danger { border-color: #f1b8b4; color: var(--red); background: #fff; }
+.btn--danger { border-color: #f1b8b4; color: var(--red); background: linear-gradient(180deg, #ffffff, #fdf4f3); }
 .btn--danger:hover { background: var(--red-dim); border-color: var(--red); }
 
 .btn--small { padding: 5px 10px; font-size: 11px; }
@@ -1638,13 +1656,21 @@ body {
   color: var(--od-text);
   box-shadow: none;
 }
+/* ツールバーの小ボタンはゴースト化 (視覚ノイズを減らす) */
 #tab-onair .od-btn {
-  background: var(--od-bg3);
-  border-color: var(--od-border);
-  color: var(--od-text);
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
   box-shadow: none;
 }
-#tab-onair .od-btn:hover { background: var(--bg-hover); border-color: #c2cfdd; }
+#tab-onair .od-btn:hover {
+  background: var(--bg-hover);
+  border-color: #c2cfdd;
+  color: var(--text-primary);
+  transform: none;
+  box-shadow: none;
+}
+#tab-onair .od-btn:active { transform: translateY(1px); }
 .od-direct { width: 200px; font-family: var(--font-mono); }
 .od-rehearsal-label input { accent-color: var(--yellow); }
 
@@ -2008,63 +2034,103 @@ body {
 .od-col-take {
   flex: 2;
   padding: 10px;
-  background: linear-gradient(180deg, #2fbf5f, #1e9c49);
-  border: 1px solid #43d873;
-  border-radius: 6px;
+  background: linear-gradient(180deg, #34c968, #179242);
+  border: none;
+  border-radius: 8px;
   color: #fff;
   font-size: 15px;
   font-weight: 900;
   letter-spacing: 2px;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 8px rgba(34, 170, 84, 0.3);
+  transition: transform 0.1s, box-shadow 0.15s, background 0.15s;
 }
-.od-col-take:hover { background: linear-gradient(180deg, #38d76c, #23af53); }
-.od-col-take:active { transform: translateY(1px); }
+.od-col-take:hover {
+  background: linear-gradient(180deg, #3fdb76, #1aa74c);
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 4px 14px rgba(34, 170, 84, 0.45);
+}
+.od-col-take:active { transform: translateY(1px); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2); }
 .od-col-clear {
   flex: 1;
   padding: 10px 4px;
-  background: var(--bg-secondary);
-  border: 1px solid #e0a6a2;
-  border-radius: 6px;
+  background: linear-gradient(180deg, #ffffff, #fdf4f3);
+  border: 1px solid #ecc4c0;
+  border-radius: 8px;
   color: var(--red);
   font-size: 12px;
   font-weight: 800;
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.1s, box-shadow 0.15s, background 0.15s, border-color 0.15s;
 }
-.od-col-clear:hover { background: var(--red-dim); }
+.od-col-clear:hover {
+  background: var(--red-dim);
+  border-color: var(--red);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(217, 45, 32, 0.18);
+}
+.od-col-clear:active { transform: translateY(1px); box-shadow: none; }
 
 /* 送出ボタン群 */
 .od-buttons-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+/* 送出ボタン: コンソールキー風 (白面カード + 左に機能色バー + 浮き沈み) */
 .od-obtn {
-  padding: 12px 4px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--od-border);
-  border-radius: 6px;
+  position: relative;
+  padding: 10px 4px 9px;
+  background: linear-gradient(180deg, #ffffff, #f4f8fc);
+  border: 1px solid #d3deea;
+  border-radius: 8px;
   color: var(--od-text);
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: transform 0.1s, box-shadow 0.15s, border-color 0.15s;
 }
-.od-obtn:hover { background: var(--bg-hover); }
-.od-obtn:active { transform: translateY(1px); }
-.od-obtn-update { border-color: #e6c37a; color: var(--yellow); }
-.od-obtn-clear { border-color: #e0a6a2; color: var(--red); }
-.od-obtn-clear:hover { background: var(--red-dim); }
+.od-obtn::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: #c6d3e2;
+}
+.od-obtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(23, 37, 58, 0.14);
+  border-color: #aec7e2;
+}
+.od-obtn:hover::before { background: var(--accent); }
+.od-obtn:active { transform: translateY(1px); box-shadow: none; }
+.od-obtn-update::before { background: #e0a53a; }
+.od-obtn-update { color: var(--yellow); }
+.od-obtn-clear::before { background: #e0736b; }
+.od-obtn-clear { color: var(--red); }
+.od-obtn-clear:hover { background: linear-gradient(180deg, #ffffff, #fdf1f0); }
+.od-obtn-clear:hover::before { background: var(--red); }
+.od-obtn-update:hover::before { background: var(--yellow); }
 .od-take-btn {
   width: 100%;
-  padding: 16px;
-  background: linear-gradient(180deg, #2fbf5f, #1e9c49);
-  border: 1px solid #43d873;
-  border-radius: 8px;
+  padding: 15px;
+  background: linear-gradient(180deg, #34c968, #179242);
+  border: 2px solid transparent;
+  border-radius: 12px;
   color: #fff;
   font-size: 20px;
   font-weight: 900;
   letter-spacing: 3px;
   cursor: pointer;
-  box-shadow: 0 2px 10px rgba(47, 191, 95, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 4px 16px rgba(34, 170, 84, 0.4);
+  transition: transform 0.1s, box-shadow 0.15s, background 0.15s;
 }
-.od-take-btn:hover { background: linear-gradient(180deg, #38d76c, #23af53); }
-.od-take-btn:active { transform: translateY(1px); }
+.od-take-btn:hover {
+  background: linear-gradient(180deg, #3fdb76, #1aa74c);
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 22px rgba(34, 170, 84, 0.55);
+}
+.od-take-btn:active { transform: translateY(1px); box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.2); }
 .od-take-arrow { font-size: 16px; }
 /* 残尺カウントダウン (プレビュー帯右側・大型表示) */
 .od-countdown {
@@ -2107,16 +2173,22 @@ body {
 }
 .od-page:hover .od-page-actions { opacity: 1; }
 .od-page-action {
-  width: 24px; height: 24px;
-  border-radius: 5px;
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 1px solid #d3deea;
+  background: linear-gradient(180deg, #ffffff, #f3f7fc);
   cursor: pointer;
   font-size: 12px;
   line-height: 1;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 6px rgba(23, 37, 58, 0.15);
+  transition: transform 0.1s, box-shadow 0.15s, border-color 0.15s;
 }
-.od-page-action:hover { background: var(--bg-hover); border-color: var(--accent); }
+.od-page-action:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(23, 37, 58, 0.2);
+}
+.od-page-action:active { transform: translateY(1px); }
 
 /* 汎用モーダル */
 .app-modal { width: 420px; max-width: 90vw; }
