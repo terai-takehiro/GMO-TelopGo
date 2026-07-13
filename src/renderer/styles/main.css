@@ -1174,6 +1174,8 @@ body {
   background: var(--accent-soft);
   border-color: var(--accent);
 }
+.de-layer-toggle--off { opacity: 0.3; }
+.de-layer-toggle--off:hover { opacity: 0.9; }
 .de-layer-toggle {
   background: none;
   border: none;
@@ -1759,6 +1761,15 @@ body {
   color: #8a5a00;
   border-color: #e6c37a;
 }
+.od-mode-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 5px;
+  vertical-align: 0;
+}
+.od-mode-badge.telop .od-mode-dot { background: #d99000; }
 /* 電テロ列で画像ファイルをドラッグ中のドロップ受け強調 */
 .od-col-body.od-file-drop {
   outline: 2px dashed #d99000;
@@ -2133,13 +2144,17 @@ body {
 }
 .od-page:hover .od-page-actions { opacity: 1; }
 .od-page-action {
-  width: 26px; height: 26px;
-  border-radius: 50%;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
   border: 1px solid #d3deea;
   background: linear-gradient(180deg, #ffffff, #f3f7fc);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
   line-height: 1;
+  white-space: nowrap;
   box-shadow: 0 2px 6px rgba(23, 37, 58, 0.15);
   transition: transform 0.1s, box-shadow 0.15s, border-color 0.15s;
 }

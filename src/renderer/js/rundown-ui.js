@@ -320,7 +320,7 @@ const RundownUI = {
     const el = document.getElementById('od-mode-label');
     if (!el) return;
     const telop = App.activeMode === 'telop';
-    el.textContent = telop ? '🟧 電テロ送出' : '🟦 リアルタイムCG送出';
+    el.innerHTML = `<span class="od-mode-dot"></span>${telop ? '電テロ送出' : 'リアルタイムCG送出'}`;
     el.title = 'クリックでホームに戻りモードを変更';
     el.classList.toggle('telop', telop);
   },
@@ -344,10 +344,12 @@ const RundownUI = {
       meta.className = 'od-corner-meta';
       meta.dataset.cornerId = corner.id;
       const badges = [];
-      if (corner.locked) badges.push('🔒');
-      if (corner.autoFollow && corner.autoFollow !== 'off') badges.push('⏱');
+      const tips = [];
+      if (corner.locked) { badges.push('🔒'); tips.push('送出ロック中'); }
+      if (corner.autoFollow && corner.autoFollow !== 'off') { badges.push('⏱'); tips.push('オートフォロー有効'); }
       const played = corner.pages.filter((pg) => this._playedPages.has(pg.id)).length;
       meta.textContent = `${badges.join('')} ${played}/${corner.pages.length}`;
+      meta.title = tips.length ? `${tips.join(' / ')} — 送出済み ${played}/${corner.pages.length}ページ` : `送出済み ${played}/${corner.pages.length}ページ`;
 
       li.appendChild(color);
       li.appendChild(name);
@@ -457,6 +459,7 @@ const RundownUI = {
     if (page.locked) {
       const lock = document.createElement('span');
       lock.textContent = '🔒';
+      lock.title = '送出ロック中 (TAKE不可)';
       metaLine.appendChild(lock);
     }
     if (page.note) {
@@ -539,17 +542,17 @@ const RundownUI = {
       b.addEventListener('dblclick', (e) => e.stopPropagation());
       actions.appendChild(b);
     };
-    mkAction(page.locked ? '🔓' : '🔒', page.locked ? 'ロック解除' : '送出ロック (誤TAKE防止)',
+    mkAction(page.locked ? '🔓 解除' : '🔒 ロック', page.locked ? '送出ロックを解除' : '送出ロック (誤TAKE防止)',
       () => this.mutate(() => { page.locked = !page.locked; }));
-    mkAction('⧉', '複製', () => this.mutate(() => {
+    mkAction('⧉ 複製', 'このページを複製', () => this.mutate(() => {
       const copy = JSON.parse(JSON.stringify(page));
       copy.id = this.uid('pg');
       copy.pageNo = this.nextPageNo(corner);
       const list = corner[listName];
       list.splice(list.indexOf(page) + 1, 0, copy);
     }));
-    mkAction(listName === 'pages' ? '⤵' : '⤴',
-      listName === 'pages' ? '素材集へ移動 (予備)' : 'プレイリストへ戻す',
+    mkAction(listName === 'pages' ? '⤵ 素材へ' : '⤴ 戻す',
+      listName === 'pages' ? '素材集へ移動 (放送しない予備ページ)' : 'プレイリストへ戻す',
       () => this.mutate(() => {
         const from = corner[listName];
         from.splice(from.indexOf(page), 1);
@@ -751,10 +754,12 @@ const RundownUI = {
       const corner = App.corners().find((c) => c.id === meta.dataset.cornerId);
       if (!corner) return;
       const badges = [];
-      if (corner.locked) badges.push('🔒');
-      if (corner.autoFollow && corner.autoFollow !== 'off') badges.push('⏱');
+      const tips = [];
+      if (corner.locked) { badges.push('🔒'); tips.push('送出ロック中'); }
+      if (corner.autoFollow && corner.autoFollow !== 'off') { badges.push('⏱'); tips.push('オートフォロー有効'); }
       const played = corner.pages.filter((pg) => this._playedPages.has(pg.id)).length;
       meta.textContent = `${badges.join('')} ${played}/${corner.pages.length}`;
+      meta.title = tips.length ? `${tips.join(' / ')} — 送出済み ${played}/${corner.pages.length}ページ` : `送出済み ${played}/${corner.pages.length}ページ`;
     });
   },
 
@@ -777,7 +782,7 @@ const RundownUI = {
     const el = document.getElementById('od-key-target');
     if (!el) return;
     const ch = App.channelById(this.activeChannelId);
-    el.textContent = `⌨ ${ch ? ch.label : '-'}`;
+    el.textContent = `⌨ キー操作: ${ch ? ch.label : '-'}`;
     el.style.color = ch ? ch.color : '';
     el.style.borderColor = ch ? ch.color : '';
   },

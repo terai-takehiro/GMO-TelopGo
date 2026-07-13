@@ -87,7 +87,7 @@ const LiveDataUI = {
       cell.addEventListener('change', () => { m.cell = cell.value.trim(); });
       const del = document.createElement('button');
       del.className = 'btn btn--small';
-      del.textContent = '✕';
+      del.textContent = '削除';
       del.title = 'この割当を削除';
       del.addEventListener('click', () => {
         this.mappings.splice(i, 1);

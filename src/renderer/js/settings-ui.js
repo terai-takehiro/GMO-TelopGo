@@ -95,13 +95,13 @@ const ChannelsUI = {
       });
       const savePreset = document.createElement('button');
       savePreset.className = 'btn btn--small';
-      savePreset.textContent = '★';
+      savePreset.textContent = '★ プリセット保存';
       savePreset.title = 'この枠の内容 (ラベル/色 + 割当デザイン) を系統プリセットとして保存';
       savePreset.addEventListener('click', () => this.saveSlotAsPreset(ch));
 
       const del = document.createElement('button');
       del.className = 'btn btn--small';
-      del.textContent = '✕';
+      del.textContent = '削除';
       del.title = 'チャンネルを削除 (このチャンネルのテンプレート/ページは送出できなくなります)';
       del.addEventListener('click', async () => {
         if (this.rows.length <= 1) {
@@ -182,7 +182,7 @@ const OutputGroupsUI = {
       });
       const del = document.createElement('button');
       del.className = 'btn btn--small';
-      del.textContent = '✕';
+      del.textContent = '削除';
       del.title = 'グループを削除';
       del.addEventListener('click', () => { this.rows.splice(i, 1); this.render(); });
       head.appendChild(label);
@@ -215,7 +215,7 @@ const OutputGroupsUI = {
           const up = document.createElement('button');
           up.className = 'og-chip-btn';
           up.textContent = '↑';
-          up.title = '背面へ';
+          up.title = '重なりを1つ背面へ (上=奥)';
           up.addEventListener('click', () => {
             const idx = selected.indexOf(region);
             if (idx > 0) { [selected[idx - 1], selected[idx]] = [selected[idx], selected[idx - 1]]; this.render(); }
@@ -223,7 +223,7 @@ const OutputGroupsUI = {
           const down = document.createElement('button');
           down.className = 'og-chip-btn';
           down.textContent = '↓';
-          down.title = '前面へ';
+          down.title = '重なりを1つ前面へ (下=手前)';
           down.addEventListener('click', () => {
             const idx = selected.indexOf(region);
             if (idx < selected.length - 1) { [selected[idx + 1], selected[idx]] = [selected[idx], selected[idx + 1]]; this.render(); }
@@ -231,7 +231,7 @@ const OutputGroupsUI = {
           const rm = document.createElement('button');
           rm.className = 'og-chip-btn';
           rm.textContent = '×';
-          rm.title = '外す';
+          rm.title = 'このグループから外す';
           rm.addEventListener('click', () => { g.channels = selected.filter((r) => r !== region); this.render(); });
           chip.appendChild(up);
           chip.appendChild(down);
@@ -240,7 +240,7 @@ const OutputGroupsUI = {
           const add = document.createElement('button');
           add.className = 'og-chip-btn';
           add.textContent = '＋';
-          add.title = '含める';
+          add.title = 'このグループに含める';
           add.addEventListener('click', () => { selected.push(region); this.render(); });
           chip.appendChild(add);
         }
@@ -305,7 +305,7 @@ const TelopPresetsUI = {
       meta.textContent = `デザイン${(p.templateKeys || []).length}件`;
       const del = document.createElement('button');
       del.className = 'btn btn--small';
-      del.textContent = '✕';
+      del.textContent = '削除';
       del.title = 'プリセットを削除';
       del.addEventListener('click', () => { this.rows.splice(i, 1); this.render(); });
       row.appendChild(dot);

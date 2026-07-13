@@ -337,10 +337,16 @@
     return edgeOffsets(strokes).map((o) => `${o.x}px ${o.y}px 0 ${o.color}`);
   }
 
+  /** 字詰め (tracking) の既定パラメータ */
+  const TRACK_MAX_DEFAULT = 0.35; // 短文時に広げる字間の上限 (em, 最終値)
+  const TRACK_MIN_DEFAULT = -0.08; // 長文時に詰める字間の下限 (em, 最終値)
+
   /**
    * テキストの自動調整
    *   shrink:   枠に収まるまでフォントサイズを縮小
    *   condense: 長体 (横方向のみ圧縮 — 放送テロップの定番)
+   *   tracking: 字詰め — 短文は字間を広げ (上限あり・均等割付とは異なり端まで強制しない)、
+   *             長文は字間を詰めてから長体で収める
    */
   function fitText(el, layer) {
     const inner = el.querySelector('.tl-text-inner');
@@ -351,24 +357,54 @@
     const sx = font.scaleX !== undefined ? font.scaleX : 1;
     const sy = font.scaleY !== undefined ? font.scaleY : 1;
     const vertical = !!layer.vertical;
+    const baseLs = font.letterSpacing || 0;
 
-    // 変体率のみの状態にリセットしてから計測
+    // 変体率のみ・基準字間の状態にリセットしてから計測
     inner.style.transform = innerBaseTransform(layer);
     el.style.fontSize = `${font.size || 30}px`;
-    const main = vertical ? inner.scrollHeight : inner.scrollWidth; // 文字の進行方向のサイズ
+    el.style.letterSpacing = baseLs ? `${baseLs}em` : '';
+    const measure = () => (vertical ? inner.scrollHeight : inner.scrollWidth);
+    const main = measure(); // 文字の進行方向のサイズ
     const avail = vertical ? el.clientHeight : el.clientWidth;
     if (!main || !avail) return;
-    const visualMain = main * (vertical ? sy : sx); // 変体率を掛けた見た目サイズ
+    const mainScale = vertical ? sy : sx; // 進行方向に効く変体率
+    const visualMain = main * mainScale;
+
+    const applyCondense = (m) => {
+      const ratio = avail / (m * mainScale);
+      if (ratio >= 1) return;
+      inner.style.transformOrigin = transformOrigin(layer);
+      const skew = font.skewX ? `skewX(${-font.skewX}deg) ` : '';
+      const csx = vertical ? sx : sx * ratio;
+      const csy = vertical ? sy * ratio : sy;
+      inner.style.transform = `${skew}scale(${csx}, ${csy})`;
+    };
+
+    if (layer.autoFit === 'tracking') {
+      const size = font.size || 30;
+      const n = Math.max(1, inner.textContent.length);
+      const trackMax = font.trackMax !== undefined ? font.trackMax : TRACK_MAX_DEFAULT;
+      const trackMin = font.trackMin !== undefined ? font.trackMin : TRACK_MIN_DEFAULT;
+      const availUnscaled = avail / mainScale; // 変体率を除いた実測系での枠サイズ
+      // letter-spacingは末尾文字の後ろにも付くため n で割る (端まで届かない=均等割付と異なる意図)
+      const gapEm = (availUnscaled - main) / n / size;
+      if (gapEm > 0) {
+        // 短文: 上限つきで字間を広げる
+        const ls = Math.min(baseLs + gapEm, Math.max(baseLs, trackMax));
+        if (ls > baseLs) el.style.letterSpacing = `${ls.toFixed(4)}em`;
+        return;
+      }
+      // 長文: まず字間を下限まで詰める
+      const ls = Math.max(trackMin, baseLs + gapEm);
+      if (ls < baseLs) el.style.letterSpacing = `${ls.toFixed(4)}em`;
+      const m2 = measure();
+      // それでも収まらなければ長体 (横幅圧縮) で収める
+      applyCondense(m2);
+      return;
+    }
 
     if (layer.autoFit === 'condense') {
-      const ratio = avail / visualMain;
-      if (ratio < 1) {
-        inner.style.transformOrigin = transformOrigin(layer);
-        const skew = font.skewX ? `skewX(${-font.skewX}deg) ` : '';
-        const csx = vertical ? sx : sx * ratio;
-        const csy = vertical ? sy * ratio : sy;
-        inner.style.transform = `${skew}scale(${csx}, ${csy})`;
-      }
+      applyCondense(main);
       return;
     }
 

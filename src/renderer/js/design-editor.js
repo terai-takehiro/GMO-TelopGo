@@ -683,7 +683,7 @@ const DesignEditor = {
     const weight = font.weight || 700;
     const italic = font.italic ? 'italic ' : '';
     const lineHFactor = font.lineHeight || 1.25;
-    const ls = font.letterSpacing || 0;
+    let ls = font.letterSpacing || 0;
     const mSx = font.scaleX !== undefined ? font.scaleX : 1;
     const mSy = font.scaleY !== undefined ? font.scaleY : 1;
     const skewTan = font.skewX ? Math.tan((font.skewX * Math.PI) / 180) : 0;
@@ -706,9 +706,26 @@ const DesignEditor = {
     let lineH = size * lineHFactor;
     let blockH = lines.length * lineH;
 
-    // 自動調整 (DOM版fitTextと同等: condense=長体 / shrink=縮小。変体率込みで判定)
+    // 自動調整 (DOM版fitTextと同等: tracking=字詰め / condense=長体 / shrink=縮小。変体率込みで判定)
     let sxScale = 1;
-    if (!justify && layer.autoFit === 'condense' && blockW * mSx > layer.w) {
+    if (!justify && layer.autoFit === 'tracking') {
+      const trackMax = font.trackMax !== undefined ? font.trackMax : 0.35;
+      const trackMin = font.trackMin !== undefined ? font.trackMin : -0.08;
+      const idx = widths.indexOf(Math.max(...widths));
+      const n = Math.max(1, [...(lines[idx] || '')].length);
+      const availUn = layer.w / mSx;
+      const gapEm = (availUn - blockW) / n / size; // 末尾にも字間が付く前提で n で割る
+      const eff = gapEm > 0
+        ? Math.min(ls + gapEm, Math.max(ls, trackMax)) // 短文: 上限つきで広げる
+        : Math.max(trackMin, ls + gapEm); // 長文: 下限まで詰める
+      if (eff !== ls) {
+        ls = eff;
+        setFont(size);
+        widths = lines.map((l) => ctx.measureText(l).width);
+        blockW = Math.max(1, ...widths);
+      }
+      if (blockW * mSx > layer.w) sxScale = layer.w / (blockW * mSx); // まだ溢れたら長体
+    } else if (!justify && layer.autoFit === 'condense' && blockW * mSx > layer.w) {
       sxScale = layer.w / (blockW * mSx);
     } else if (!justify && layer.autoFit === 'shrink') {
       const ratio = Math.min(1, layer.w / (blockW * mSx), layer.h / (blockH * mSy));
@@ -849,7 +866,7 @@ const DesignEditor = {
     const weight = font.weight || 700;
     const italic = font.italic ? 'italic ' : '';
     const lineHFactor = font.lineHeight || 1.25;
-    const ls = font.letterSpacing || 0;
+    let ls = font.letterSpacing || 0;
     const mSx = font.scaleX !== undefined ? font.scaleX : 1;
     const mSy = font.scaleY !== undefined ? font.scaleY : 1;
     const value = layer.binding
@@ -880,7 +897,22 @@ const DesignEditor = {
 
     // 自動調整 (縦書きは縦方向が進行方向)
     let syScale = 1;
-    if (layer.autoFit === 'condense' && blockH * mSy > layer.h) {
+    if (layer.autoFit === 'tracking') {
+      const trackMax = font.trackMax !== undefined ? font.trackMax : 0.35;
+      const trackMin = font.trackMin !== undefined ? font.trackMin : -0.08;
+      const n = Math.max(1, ...cols.map((c) => c.length));
+      const availUn = layer.h / mSy;
+      const gapEm = (availUn - blockH) / n / size;
+      const eff = gapEm > 0
+        ? Math.min(ls + gapEm, Math.max(ls, trackMax)) // 短文: 上限つきで広げる
+        : Math.max(trackMin, ls + gapEm); // 長文: 下限まで詰める
+      if (eff !== ls) {
+        ls = eff;
+        advance = size * (1 + ls);
+        blockH = Math.max(1, ...cols.map((c) => c.length)) * advance;
+      }
+      if (blockH * mSy > layer.h) syScale = layer.h / (blockH * mSy); // まだ溢れたら長体(縦)
+    } else if (layer.autoFit === 'condense' && blockH * mSy > layer.h) {
       syScale = layer.h / (blockH * mSy);
     } else if (layer.autoFit === 'shrink') {
       const ratio = Math.min(1, layer.h / (blockH * mSy), layer.w / (blockW * mSx));
@@ -1341,7 +1373,7 @@ const DesignEditor = {
       const visBtn = document.createElement('button');
       visBtn.className = 'de-layer-toggle';
       visBtn.textContent = layer.visible === false ? '‐' : '👁';
-      visBtn.title = '表示/非表示';
+      visBtn.title = layer.visible === false ? '非表示中 — クリックで表示' : '表示中 — クリックで非表示';
       visBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.beginChange();
@@ -1356,11 +1388,12 @@ const DesignEditor = {
       const typeBadge = document.createElement('span');
       typeBadge.className = 'de-layer-type';
       typeBadge.textContent = { text: 'T', rect: '■', image: '🖼' }[layer.type] || '?';
+      typeBadge.title = { text: 'テキストレイヤー', rect: '図形レイヤー', image: '画像レイヤー' }[layer.type] || 'レイヤー';
 
       const lockBtn = document.createElement('button');
-      lockBtn.className = 'de-layer-toggle';
-      lockBtn.textContent = layer.locked ? '🔒' : '　';
-      lockBtn.title = 'ロック';
+      lockBtn.className = `de-layer-toggle${layer.locked ? '' : ' de-layer-toggle--off'}`;
+      lockBtn.textContent = layer.locked ? '🔒' : '🔓';
+      lockBtn.title = layer.locked ? 'ロック中 — クリックで解除' : 'クリックでロック (編集不可にする)';
       lockBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.beginChange();
@@ -1395,6 +1428,7 @@ const DesignEditor = {
         binding: '', text: 'テキスト', sample: '',
         x: 760, y: 490, w: 400, h: 100,
         align: 'center', vAlign: 'middle',
+        autoFit: 'tracking', // 既定で字詰め (短文=字間広げ / 長文=詰め+長体)
         font: { family: '"Yu Gothic UI", sans-serif', size: 40, weight: 700, color: '#ffffff', letterSpacing: 0, lineHeight: 1.25 },
         shadow: null, visible: true, locked: false, opacity: 1,
       };
@@ -1908,8 +1942,18 @@ const DesignEditor = {
         select([['left', '左'], ['center', '中央'], ['right', '右'], ['justify', '均等割付']], () => layer.align || 'left', (v) => { layer.align = v; }),
         select([['top', '上'], ['middle', '中央'], ['bottom', '下']], () => layer.vAlign || 'middle', (v) => { layer.vAlign = v; }));
       row('自動調整', select(
-        [['none', 'なし'], ['condense', '長体 (横に圧縮して収める)'], ['shrink', '縮小 (フォントを小さくして収める)']],
-        () => layer.autoFit || 'none', (v) => { layer.autoFit = v; }));
+        [['none', 'なし'],
+          ['tracking', '字詰め (短文=字間広げ / 長文=詰め+長体)'],
+          ['condense', '長体 (横に圧縮して収める)'],
+          ['shrink', '縮小 (フォントを小さくして収める)']],
+        () => layer.autoFit || 'none', (v) => { layer.autoFit = v; this.renderProps(); }));
+      if (layer.autoFit === 'tracking') {
+        row('最大/最小字間(em)',
+          num(() => (layer.font.trackMax !== undefined ? layer.font.trackMax : 0.35),
+            (v) => { layer.font.trackMax = Math.max(0, Math.min(2, v)); }, { step: '0.05' }),
+          num(() => (layer.font.trackMin !== undefined ? layer.font.trackMin : -0.08),
+            (v) => { layer.font.trackMin = Math.max(-0.4, Math.min(0, v)); }, { step: '0.01' }));
+      }
 
       // --- 塗り (単色 / グラデーション) ---
       section('塗り');

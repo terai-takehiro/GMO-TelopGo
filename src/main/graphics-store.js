@@ -304,6 +304,7 @@ function textLayer(opts) {
     x: opts.x, y: opts.y, w: opts.w, h: opts.h,
     align: opts.align || 'left',
     vAlign: opts.vAlign || 'middle',
+    autoFit: opts.autoFit,
     font: {
       // 既定はLINE Seed JP (起動時に自動取得。取得前は游ゴシックにフォールバック)
       family: opts.family || '"LINE Seed JP", "Yu Gothic UI", "Noto Sans JP", sans-serif',
@@ -359,7 +360,7 @@ function namePersonLayers(pi, lang, box, opts) {
       size: opts.titleSize, weight: 700, align: 'left', vAlign: 'middle',
       lineHeight: 1.35,
     });
-    title.autoFit = 'condense'; // 長い肩書は長体で自動調整
+    title.autoFit = 'tracking'; // 短い肩書は字間を広げ、長い肩書は詰め+長体
     layers.push(title);
   }
 
@@ -374,7 +375,7 @@ function namePersonLayers(pi, lang, box, opts) {
     size: opts.nameSize, weight: 800,
     align: opts.nameOnly ? 'center' : 'right', vAlign: 'middle',
   });
-  name.autoFit = 'condense'; // 長い名前は長体で自動調整
+  name.autoFit = 'tracking'; // 短い名前は字間を広げ、長い名前は詰め+長体
   layers.push(name);
 
   return layers;
@@ -417,6 +418,8 @@ function buildSideVariant(lang) {
         x: 140, y: 48, w: 1400, h: 80,
         size: 54, weight: 800, align: 'left', vAlign: 'middle',
         letterSpacing: 0.02,
+        autoFit: 'tracking', // 短文は字間を広げ、長文は詰め+長体
+
         shadow: { x: 0, y: 3, blur: 10, color: 'rgba(0,20,60,0.65)' },
       }),
     ],
