@@ -604,6 +604,126 @@ function buildSportsBaseballVariant() {
   };
 }
 
+// ===== 野球コンソール用オンエアウィンドウ (各1region、layout変換で任意配置) =====
+// 各テンプレは全画面1920×1080に要素を既定アンカー配置。console(sports-ui)が
+// binding値を流し込み、コンポーザーが region ごとに位置・サイズを変える。
+
+/** スコアボード = イニング別得点表 (左上) */
+function buildBbScoreboardVariant() {
+  const px = 48; const py = 44; const nameW = 120; const cellW = 50; const rW = 70;
+  const innings = 9;
+  const innX = px + nameW; const rX = innX + cellW * innings;
+  const w = nameW + cellW * innings + rW; const h = 124;
+  const layers = [
+    spRect({ id: 'panel', x: px, y: py, w, h, radii: [12, 12, 12, 12],
+      fill: spGrad(SP.navyFrom, SP.navyTo), boxShadow: { x: 0, y: 6, blur: 22, color: 'rgba(0,0,0,0.5)' } }),
+    spRect({ id: 'panelHi', x: px + 12, y: py + 4, w: w - 24, h: 3, radii: [3, 3, 3, 3],
+      fill: spGrad('rgba(255,255,255,0.3)', 'rgba(255,255,255,0)'), opacity: 0.85 }),
+    // ステータス (回・表裏) を上に小さく
+    spText({ id: 'status', name: 'ステータス', binding: 'status', sample: '9回ウラ',
+      x: px + 6, y: py - 30, w: 180, h: 26, size: 20, weight: 900, color: SP.gold, align: 'left' }),
+  ];
+  // ヘッダ行 (イニング番号 + R)
+  for (let i = 0; i < innings; i++) {
+    layers.push(spText({ id: `hd${i + 1}`, text: String(i + 1), x: innX + cellW * i, y: py + 6, w: cellW, h: 26, size: 17, weight: 700, color: SP.dim }));
+  }
+  layers.push(spText({ id: 'hdR', text: 'R', x: rX, y: py + 6, w: rW, h: 26, size: 18, weight: 900, color: SP.gold }));
+  // 2チーム行
+  const row = (side, ry, sample) => {
+    layers.push(spText({ id: `${side}Short`, binding: `${side}Short`, sample, x: px + 8, y: ry, w: nameW - 12, h: 34, size: 24, weight: 800, align: 'left', fit: 'shrink' }));
+    for (let i = 0; i < innings; i++) {
+      layers.push(spText({ id: `${side}${i + 1}`, binding: `${side}${i + 1}`, sample: '', x: innX + cellW * i, y: ry, w: cellW, h: 34, size: 22, weight: 700, color: '#e8eef7' }));
+    }
+    layers.push(spText({ id: `${side}R`, binding: `${side}R`, sample: '0', x: rX, y: ry - 2, w: rW, h: 38, size: 30, weight: 900, color: SP.gold }));
+  };
+  row('away', py + 38, 'A');
+  // 区切り線
+  layers.push(spRect({ id: 'rowDiv', x: px + 8, y: py + 76, w: w - 16, h: 2, fill: { type: 'solid', color: 'rgba(255,255,255,0.12)' } }));
+  row('home', py + 80, 'H');
+  return { layers, animation: { in: { preset: 'slide', direction: 'left', distance: 40, duration: 400, easing: 'ease-out' }, out: { preset: 'fade', duration: 250 } } };
+}
+
+/** BSO カウント (色分け) */
+function buildBbBsoVariant() {
+  const px = 60; const py = 320; const w = 300; const h = 120;
+  return {
+    layers: [
+      spRect({ id: 'panel', x: px, y: py, w, h, radii: [12, 12, 12, 12], fill: spGrad(SP.navyFrom, SP.navyTo), boxShadow: { x: 0, y: 6, blur: 20, color: 'rgba(0,0,0,0.5)' } }),
+      spText({ id: 'bLabel', text: 'B', x: px + 20, y: py + 12, w: 34, h: 30, size: 24, weight: 900, color: '#7fe6a6', align: 'left' }),
+      spText({ id: 'balls', binding: 'balls', sample: '○○○', x: px + 60, y: py + 12, w: 90, h: 30, size: 26, weight: 800, color: '#7fe6a6', align: 'left', ls: 0.06 }),
+      spText({ id: 'sLabel', text: 'S', x: px + 20, y: py + 46, w: 34, h: 30, size: 24, weight: 900, color: SP.gold, align: 'left' }),
+      spText({ id: 'strikes', binding: 'strikes', sample: '○○', x: px + 60, y: py + 46, w: 90, h: 30, size: 26, weight: 800, color: SP.gold, align: 'left', ls: 0.06 }),
+      spText({ id: 'oLabel', text: 'O', x: px + 20, y: py + 80, w: 34, h: 30, size: 24, weight: 900, color: '#ff7a6b', align: 'left' }),
+      spText({ id: 'outs', binding: 'outs', sample: '○○', x: px + 60, y: py + 80, w: 90, h: 30, size: 26, weight: 800, color: '#ff7a6b', align: 'left', ls: 0.06 }),
+    ],
+    animation: { in: { preset: 'fade', duration: 250 }, out: { preset: 'fade', duration: 200 } },
+  };
+}
+
+/** 走者ダイヤ (base1/base2/base3 = ◆/◇) */
+function buildBbRunnersVariant() {
+  const cx = 200; const cy = 520; const d = 46; const gap = 62;
+  const base = (id, bx, by) => spText({ id, binding: id, sample: '◇', x: bx, y: by, w: d, h: d, size: 40, weight: 700, color: SP.gold });
+  return {
+    layers: [
+      spRect({ id: 'panel', x: cx - 96, y: cy - 96, w: 192, h: 192, radii: [12, 12, 12, 12], fill: spGrad(SP.navyFrom, SP.navyTo), boxShadow: { x: 0, y: 6, blur: 20, color: 'rgba(0,0,0,0.5)' }, opacity: 0.9 }),
+      base('base2', cx - d / 2, cy - gap - d / 2), // 2塁 (上)
+      base('base1', cx + gap - d / 2, cy - d / 2), // 1塁 (右)
+      base('base3', cx - gap - d / 2, cy - d / 2), // 3塁 (左)
+    ],
+    animation: { in: { preset: 'fade', duration: 250 }, out: { preset: 'fade', duration: 200 } },
+  };
+}
+
+/** 得点(大) — 中央下の大きな現在得点 */
+function buildBbScoreBigVariant() {
+  const y = 840; const h = 140; const cx = 960;
+  return {
+    layers: [
+      spRect({ id: 'bar', x: cx - 340, y, w: 680, h, radii: [16, 16, 16, 16], fill: spGrad(SP.navyFrom, SP.navyTo), boxShadow: { x: 0, y: 8, blur: 28, color: 'rgba(0,0,0,0.55)' } }),
+      spRect({ id: 'homeBlock', x: cx - 340, y, w: 210, h, radii: [16, 0, 0, 16], fill: spGrad(SP.home.from, SP.home.to) }),
+      spRect({ id: 'awayBlock', x: cx + 130, y, w: 210, h, radii: [0, 16, 16, 0], fill: spGrad(SP.away.from, SP.away.to) }),
+      spText({ id: 'homeShort', binding: 'homeShort', sample: 'H', x: cx - 330, y: y + 12, w: 190, h: 44, size: 34, weight: 900, fit: 'tracking', trackMax: 0.12, strokes: [{ width: 3, color: 'rgba(0,0,0,0.35)' }] }),
+      spText({ id: 'awayShort', binding: 'awayShort', sample: 'A', x: cx + 140, y: y + 12, w: 190, h: 44, size: 34, weight: 900, fit: 'tracking', trackMax: 0.12, strokes: [{ width: 3, color: 'rgba(0,0,0,0.35)' }] }),
+      spText({ id: 'homeScore', binding: 'homeScore', sample: '0', x: cx - 330, y: y + 46, w: 190, h: 86, size: 84, weight: 900, fill: SCORE_FILL, strokes: SCORE_STROKE, shadow: SCORE_SHADOW }),
+      spText({ id: 'awayScore', binding: 'awayScore', sample: '0', x: cx + 140, y: y + 46, w: 190, h: 86, size: 84, weight: 900, fill: SCORE_FILL, strokes: SCORE_STROKE, shadow: SCORE_SHADOW }),
+      spText({ id: 'status', binding: 'status', sample: '9回ウラ', x: cx - 130, y: y + 20, w: 260, h: 44, size: 30, weight: 800, color: SP.dim }),
+      spText({ id: 'title', binding: 'title', sample: '', x: cx - 130, y: y + 74, w: 260, h: 52, size: 30, weight: 900, color: '#fff', fit: 'shrink' }),
+    ],
+    animation: { in: { preset: 'slide', direction: 'up', distance: 40, duration: 420, easing: 'ease-out' }, out: { preset: 'fade', duration: 250 } },
+  };
+}
+
+/** タイトル (大) + サブ */
+function buildBbTitleVariant() {
+  const cx = 960; const y = 820; const w = 900; const h = 130;
+  return {
+    layers: [
+      spRect({ id: 'board', x: cx - w / 2, y, w, h, radii: [14, 14, 14, 14], fill: spGrad('#12294d', '#070f20'), boxShadow: { x: 0, y: 8, blur: 26, color: 'rgba(0,0,0,0.55)' }, opacity: 0.96 }),
+      spRect({ id: 'accent', x: cx - w / 2, y, w: 10, h, radii: [14, 0, 0, 14], fill: spGrad(SP.gold, '#d9a520') }),
+      spText({ id: 'title', binding: 'title', sample: 'タイトル', x: cx - w / 2 + 30, y: y + 14, w: w - 60, h: 64, size: 54, weight: 900, align: 'left', fit: 'shrink', strokes: [{ width: 2, color: 'rgba(0,0,0,0.4)' }], shadow: { x: 0, y: 3, blur: 8, color: 'rgba(0,0,0,0.5)' } }),
+      spText({ id: 'sub', binding: 'sub', sample: '', x: cx - w / 2 + 30, y: y + 82, w: w - 60, h: 36, size: 26, weight: 700, align: 'left', color: SP.dim, fit: 'shrink' }),
+    ],
+    animation: { in: { preset: 'wipe', direction: 'right', duration: 500, easing: 'ease-out' }, out: { preset: 'fade', duration: 250 } },
+  };
+}
+
+/** 選手紹介 (下部テロップ: 打順/守備/背番号/名前) */
+function buildBbPlayerVariant() {
+  const x = 120; const y = 884; const h = 116;
+  return {
+    layers: [
+      spRect({ id: 'board', x, y, w: 760, h, radii: [12, 12, 12, 12], fill: spGrad('#12294d', '#070f20'), boxShadow: { x: 0, y: 8, blur: 26, color: 'rgba(0,0,0,0.55)' } }),
+      spRect({ id: 'numBox', x, y, w: 150, h, radii: [12, 0, 0, 12], fill: spGrad(SP.home.from, SP.home.to) }),
+      spText({ id: 'pOrder', binding: 'pOrder', sample: '3番', x: x + 12, y: y + 12, w: 126, h: 40, size: 28, weight: 800, color: '#fff', strokes: [{ width: 2, color: 'rgba(0,0,0,0.3)' }] }),
+      spText({ id: 'pPos', binding: 'pPos', sample: '遊撃', x: x + 12, y: y + 60, w: 126, h: 42, size: 30, weight: 900, color: '#fff', strokes: [{ width: 2, color: 'rgba(0,0,0,0.3)' }] }),
+      spText({ id: 'pNo', binding: 'pNo', sample: '6', x: x + 640, y: y + 10, w: 100, h: 42, size: 34, weight: 900, color: SP.gold, align: 'right' }),
+      spText({ id: 'pName', binding: 'pName', sample: '山田 太郎', x: x + 172, y: y + 20, w: 460, h: 76, size: 52, weight: 900, align: 'left', fit: 'tracking', trackMax: 0.1, strokes: [{ width: 3, color: SP.ink }], shadow: SCORE_SHADOW }),
+    ],
+    animation: { in: { preset: 'slide', direction: 'up', distance: 50, duration: 450, easing: 'ease-out' }, out: { preset: 'fade', duration: 250 } },
+  };
+}
+
 function buildDefaultProject() {
   const templates = {};
   Object.keys(NAME_LAYOUTS).forEach((shotType) => {
@@ -631,6 +751,19 @@ function buildDefaultProject() {
     region: 'tl1',
     variants: { jp: buildSportsBaseballVariant(), en: buildSportsBaseballVariant() },
   };
+  // 野球コンソール用オンエアウィンドウ (各1region、コンポーザーで任意配置)
+  const bb = {
+    'bb-scoreboard': ['sb', buildBbScoreboardVariant],
+    'bb-bso': ['bso', buildBbBsoVariant],
+    'bb-runners': ['runners', buildBbRunnersVariant],
+    'bb-score-big': ['score-big', buildBbScoreBigVariant],
+    'bb-title': ['title', buildBbTitleVariant],
+    'bb-player': ['player', buildBbPlayerVariant],
+  };
+  Object.keys(bb).forEach((key) => {
+    const [region, build] = bb[key];
+    templates[key] = { region, variants: { jp: build(), en: build() } };
+  });
 
   return {
     version: 1,

@@ -179,6 +179,32 @@ function registerIpcHandlers() {
     }
   });
 
+  // --- 明示リージョン指定の送出 (スポーツ: 1テンプレを任意ウィンドウ=regionへ) ---
+  ipcMain.handle('graphics-take-to', async (_event, region, templateKey, values, animate, logDetail) => {
+    try {
+      if (!graphicsServer.isRunning()) {
+        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
+      }
+      if (!region) return { ok: false, error: '出力先リージョンが指定されていません。' };
+      graphicsServer.take(region, templateKey, values || {}, animate !== false);
+      appendOnairLog(animate !== false ? 'TAKE' : 'UPDATE', logDetail || `${region} ${templateKey}`);
+      return { ok: true, region };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // --- レイアウト (ウィンドウの位置・サイズをコンポーザーから設定) ---
+  ipcMain.handle('graphics-set-layout', async (_event, region, x, y, scale) => {
+    try {
+      if (!graphicsServer.isRunning()) return { ok: false };
+      graphicsServer.setLayout(region, x, y, scale);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   // --- 静的送出 (電テロ: 静止画/作画をテンプレート非依存で送出) ---
   ipcMain.handle('graphics-take-static', async (_event, payload, animate, logDetail) => {
     try {

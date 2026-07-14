@@ -51,19 +51,51 @@ const App = {
   match() {
     const bc = this.activeBroadcast();
     if (!bc) return null;
-    if (!bc.match) {
-      bc.match = {
-        sport: 'generic',
-        templateKey: 'sports-score',
-        channelId: (this.channels[0] && this.channels[0].id) || 'tl1',
-        home: { name: 'HOME', color: '#d92d20', score: 0, sets: 0 },
-        away: { name: 'AWAY', color: '#1d7ff0', score: 0, sets: 0 },
-        period: 1,
-        clock: { mode: 'up', durationSec: 2400, baseMs: 0, running: false, startedAt: 0 },
-        bb: { balls: 0, strikes: 0, outs: 0, inning: 1, top: true, bases: [false, false, false] },
-      };
-    }
-    return bc.match;
+    if (!bc.match) bc.match = {};
+    return this.normalizeMatch(bc.match);
+  },
+
+  /** 試合状態の既定値補完 (旧v2.8 matchの移行も兼ねる) */
+  normalizeMatch(m) {
+    if (!m.sport) m.sport = 'generic';
+    if (!m.templateKey) m.templateKey = 'sports-score';
+    if (!m.channelId) m.channelId = (this.channels[0] && this.channels[0].id) || 'tl1';
+    const team = (t, defName, defColor) => {
+      m[t] = m[t] || {};
+      const o = m[t];
+      if (o.name === undefined) o.name = defName;
+      if (o.short === undefined) o.short = defName[0] || defName;
+      if (o.color === undefined) o.color = defColor;
+      if (typeof o.score !== 'number') o.score = 0;
+      if (typeof o.sets !== 'number') o.sets = 0;
+      if (!Array.isArray(o.roster)) o.roster = [];
+      if (typeof o.atBat !== 'number') o.atBat = 0;
+    };
+    team('home', 'HOME', '#d92d20');
+    team('away', 'AWAY', '#1d7ff0');
+    if (typeof m.period !== 'number') m.period = 1;
+    if (!m.clock) m.clock = { mode: 'up', durationSec: 2400, baseMs: 0, running: false, startedAt: 0 };
+    if (!m.bb) m.bb = { balls: 0, strikes: 0, outs: 0, inning: 1, top: true, bases: [false, false, false] };
+    if (!m.meta) m.meta = { tournament: '', game: '', place: '', date: '', time: '' };
+    if (!m.linescore) m.linescore = { home: [], away: [], inningsShown: 9 };
+    if (!m.title) m.title = { text: '', sub: '', bold: true, edge: false, bg: true };
+    if (!Array.isArray(m.widgets)) m.widgets = this.defaultWidgets();
+    return m;
+  },
+
+  /** 野球の既定オンエアウィンドウ一式 (各1region、既定は無変換=テンプレの定位置) */
+  defaultWidgets() {
+    const w = (id, key, label, templateKey, region) => ({
+      id, key, label, templateKey, region, x: 0, y: 0, scale: 1, onAir: false, opts: {},
+    });
+    return [
+      w('wsb', 'scoreboard', 'スコアボード', 'bb-scoreboard', 'sb'),
+      w('wbso', 'bso', 'BSO', 'bb-bso', 'bso'),
+      w('wrun', 'runners', '走者', 'bb-runners', 'runners'),
+      w('wbig', 'scoreBig', '得点(大)', 'bb-score-big', 'score-big'),
+      w('wttl', 'title', 'タイトル', 'bb-title', 'title'),
+      w('wply', 'player', '選手紹介', 'bb-player', 'player'),
+    ];
   },
 
   // ===== ランダウンアクセサ (現在モードツリー起点) =====

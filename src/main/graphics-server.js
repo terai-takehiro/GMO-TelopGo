@@ -50,7 +50,7 @@ let getProject = () => null;
 const state = {};
 
 function regionState(region) {
-  if (!state[region]) state[region] = { onAir: false, templateKey: null, values: {}, static: null };
+  if (!state[region]) state[region] = { onAir: false, templateKey: null, values: {}, static: null, layout: null };
   return state[region];
 }
 
@@ -253,6 +253,17 @@ function updateValues(region, values) {
   return true;
 }
 
+/**
+ * レイアウト: リージョン(=オンエアウィンドウ)全体を出力上で移動/拡縮する。
+ * コンテナへCSS transformを掛けるだけなので、take/clear/update やアニメと直交。
+ * スポーツシーン・コンポーザー用 (各ウィンドウを任意位置に配置)。
+ */
+function setLayout(region, x, y, scale) {
+  const st = regionState(region);
+  st.layout = { x: x || 0, y: y || 0, scale: scale === undefined ? 1 : scale };
+  broadcast({ type: 'layout', region, x: st.layout.x, y: st.layout.y, scale: st.layout.scale });
+}
+
 /** CLEAR: OUTアニメーションで消去 */
 function clear(region) {
   const st = regionState(region);
@@ -275,5 +286,5 @@ function refreshProject() {
 
 module.exports = {
   events, configure, start, stop, isRunning, getStatus,
-  take, takeStatic, change, updateValues, clear, stopAnim, refreshProject,
+  take, takeStatic, change, updateValues, setLayout, clear, stopAnim, refreshProject,
 };

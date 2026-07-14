@@ -29,6 +29,9 @@
   const canvas = document.getElementById('canvas');
 
   function handlesRegion(region) {
+    // 合成URL (/output/jp) は設定チャンネルに無いウィンドウregion (スポーツの
+    // スコアボード/BSO等) も含め、送出された全リージョンを重畳する。
+    if (target.type === 'all') return true;
     return orderedRegions.includes(region);
   }
 
@@ -162,6 +165,18 @@
     });
   }
 
+  /**
+   * LAYOUT: リージョン(=オンエアウィンドウ)全体を移動/拡縮する。
+   * コンテナへCSS transformを掛けるだけ。子レイヤーのアニメ(transform)とは独立。
+   */
+  function applyLayout(region, layout) {
+    if (!handlesRegion(region)) return;
+    const container = containerFor(region);
+    if (!layout) { container.style.transform = ''; return; }
+    const s = layout.scale === undefined ? 1 : layout.scale;
+    container.style.transform = `translate(${layout.x || 0}px, ${layout.y || 0}px) scale(${s})`;
+  }
+
   /** STOP: 再生中アニメーションの一時停止/再開トグル */
   function toggleStop(region) {
     if (!handlesRegion(region)) return;
@@ -181,6 +196,7 @@
       if (!handlesRegion(region)) return;
       const s = state[region];
       const container = containerFor(region);
+      applyLayout(region, s && s.layout); // 位置・サイズを復元 (再接続/リロード時)
       if (s && s.onAir && (s.templateKey || s.static)) {
         show(region, s.static ? { static: s.static } : { templateKey: s.templateKey, values: s.values }, false);
       } else {
@@ -217,6 +233,9 @@
           break;
         case 'update':
           updateInPlace(msg.region, msg.values || {});
+          break;
+        case 'layout':
+          applyLayout(msg.region, { x: msg.x, y: msg.y, scale: msg.scale });
           break;
         case 'clear':
           hide(msg.region);

@@ -2575,3 +2575,71 @@ body {
 .sp-take { font-size: 20px; padding: 14px; }
 .sp-clear { padding: 10px; }
 .sp-hint { font-size: 11px; color: var(--od-text-dim); text-align: center; line-height: 1.6; }
+
+/* ===== スポーツシーン・コンポーザー (v2.9 野球コンソール) ===== */
+.sp-meta { width: 150px; }
+.sp-meta--s { width: 96px; }
+.sp-generic-send { display: flex; gap: 10px; align-items: center; padding: 12px; }
+.sp-generic-send .od-col-take { width: 240px; }
+
+.sp-baseball { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 10px 14px; overflow-y: auto; }
+
+/* イニング別得点表 */
+.sp-bb-top { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.bb-ls { border-collapse: collapse; font-size: 15px; }
+.bb-ls th, .bb-ls td { border: 1px solid var(--od-border); width: 34px; height: 30px; text-align: center; }
+.bb-ls th { background: var(--od-bg3); color: var(--od-text-dim); font-weight: 700; font-size: 12px; }
+.bb-ls .bb-ls-team { width: 64px; font-weight: 800; color: var(--od-text); }
+.bb-ls .bb-ls-r { width: 44px; font-weight: 900; color: #b8860b; background: var(--yellow-dim); }
+.bb-ls-cell { cursor: pointer; font-weight: 700; }
+.bb-ls-cell:hover { background: var(--accent-soft); }
+.sp-bb-status { display: flex; align-items: center; gap: 8px; }
+.sp-bb-status-label { font-size: 22px; font-weight: 900; color: #b8860b; min-width: 90px; }
+
+/* 3カラム (ホーム / 中央 / アウェイ) */
+.sp-bb-main { display: grid; grid-template-columns: 1fr 320px 1fr; gap: 14px; align-items: start; }
+.sp-bb-team { background: var(--bg-panel); border: 1px solid var(--od-border); border-radius: 12px; padding: 10px; box-shadow: var(--shadow-sm); }
+.sp-bb-team-head { font-size: 13px; font-weight: 800; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.sp-short { width: 90px; }
+.bb-roster { width: 100%; border-collapse: collapse; font-size: 13px; }
+.bb-roster th { color: var(--od-text-dim); font-weight: 700; font-size: 11px; padding: 2px; border-bottom: 1px solid var(--od-border); }
+.bb-roster td { padding: 3px 4px; border-bottom: 1px solid var(--border-subtle, #eef2f7); }
+.bb-roster tr.atbat { background: var(--yellow-dim); }
+.bb-roster .bb-r-name { min-width: 110px; font-weight: 700; cursor: text; }
+.bb-roster .bb-r-no { width: 34px; text-align: center; cursor: text; }
+.bb-roster .bb-r-pos { width: 30px; text-align: center; cursor: pointer; color: var(--accent); font-weight: 800; }
+.bb-roster .bb-r-pos:hover { background: var(--accent-soft); border-radius: 4px; }
+.bb-r-send { padding: 2px 8px; }
+
+/* 中央: ダイヤ / BSO / 得点 */
+.sp-bb-center { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.sp-bb-diamond { position: relative; width: 200px; height: 150px; }
+.sp-bb-diamond .sp-base { position: absolute; }
+.sp-bb-diamond .sp-base[data-base="1"] { left: 83px; top: 0; }     /* 2塁=上 */
+.sp-bb-diamond .sp-base[data-base="0"] { left: 150px; top: 58px; } /* 1塁=右 */
+.sp-bb-diamond .sp-base[data-base="2"] { left: 16px; top: 58px; }  /* 3塁=左 */
+.sp-diamond-clear { position: absolute; left: 40px; bottom: 0; }
+.sp-bb-count { display: flex; gap: 8px; }
+.sp-bb-count-actions { display: flex; gap: 6px; }
+.sp-bb-run { display: flex; align-items: center; gap: 8px; }
+.sp-bb-run-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+
+/* オンエアウィンドウ・レール */
+.sp-bb-windows { border-top: 1px solid var(--od-border); padding-top: 10px; }
+.sp-windows-title { font-size: 12px; font-weight: 700; color: var(--od-text-dim); margin-bottom: 8px; }
+.sp-windows-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.sp-win-row { display: flex; align-items: center; gap: 8px; background: var(--bg-panel); border: 1px solid var(--od-border); border-radius: 10px; padding: 6px 10px; box-shadow: var(--shadow-sm); }
+.sp-win-row.on { border-color: var(--od-onair); }
+.sp-win-label { font-size: 13px; font-weight: 800; min-width: 96px; }
+.sp-win-onair { font-size: 11px; font-weight: 900; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--od-border); background: var(--od-bg3); color: var(--od-text-dim); cursor: pointer; }
+.sp-win-onair.lit { background: var(--od-onair); color: #fff; border-color: var(--od-onair); }
+
+/* ドラッグ配置コンポーザー */
+.sp-composer { position: absolute; inset: 0; background: rgba(10,18,30,0.82); backdrop-filter: blur(3px); z-index: 50; display: flex; flex-direction: column; padding: 16px; gap: 12px; }
+.sp-composer-bar { display: flex; align-items: center; gap: 10px; color: #fff; font-weight: 800; }
+.sp-c-num { width: 72px; }
+.sp-composer-stage { position: relative; flex: 1; max-width: calc((100vh - 160px) * 1.7778); margin: 0 auto; width: 100%; background: #000; border-radius: 8px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+.sp-composer-stage::before { content: ''; display: block; padding-bottom: 56.25%; }
+.sp-composer-stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+.sp-composer-box { position: absolute; border: 2px solid var(--accent); background: rgba(29,127,240,0.14); color: #fff; font-size: 13px; font-weight: 800; cursor: move; box-sizing: border-box; display: flex; align-items: flex-start; justify-content: flex-start; padding: 4px; }
+.sp-composer-handle { position: absolute; right: -7px; bottom: -7px; width: 16px; height: 16px; background: var(--accent); border: 2px solid #fff; border-radius: 3px; cursor: nwse-resize; }
