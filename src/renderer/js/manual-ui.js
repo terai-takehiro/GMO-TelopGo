@@ -25,7 +25,8 @@ const ManualUI = {
         <h2 class="manual-h2">タブ構成</h2>
         <ul class="manual-list">
           <li><b>ホーム</b> — 送出モードの選択 (リアルタイムCG / 電テロ) と各機能への入口・サーバ状況</li>
-          <li><b>送出</b> — 本番のランダウン操作画面。モード選択後に<b>番組→放送(日付)を選んで</b>入る。上部バナーに現在のモードを表示 (クリックでホームに戻ってモード変更)</li>
+          <li><b>送出</b> — 本番のランダウン操作画面 (リアルタイムCG / 電テロ)。モード選択後に<b>番組→放送(日付)を選んで</b>入る</li>
+          <li><b>スポーツ</b> — スポーツコーダー操作盤。スコア・時計・野球カウントをライブ操作</li>
           <li><b>デザイン</b> — テロップのテンプレート作画</li>
           <li><b>マニュアル</b> — このページ</li>
           <li><b>設定</b> — 出力チャンネル・出力グループ・サーバ・GPIO・連携</li>
@@ -63,6 +64,35 @@ const ManualUI = {
         </ol>
         <div class="manual-tip">💡「デザインから」追加した作画は<b>固定コピー</b>されます。以後テンプレートを編集しても、送出リスト上の絵柄は変わりません。</div>
         <div class="manual-tip">🖼 静止画の<b>表示方法</b>は右ペインで選べます: 全体表示(contain) / 画面いっぱい(cover) / 引き伸ばし(fill)。対応形式: PNG / JPG / WebP / GIF / SVG。</div>`,
+    },
+    {
+      id: 'sports', title: 'スポーツ送出', html: `
+        <h2 class="manual-h2">スポーツコーダーとは</h2>
+        <p class="manual-p">試合中のスコア・ピリオド・試合時計・野球カウントを専用の操作盤で操作し、ON AIR中のスコアバグ (得点表示) へ<b>再テイクなし・アニメなしで即時反映</b>し続ける機能です。値の更新は画面を作り直さず文字だけを差し替えるため、毎秒動く時計でもちらつきません。</p>
+        <ol class="manual-steps">
+          <li>ホームで<b>「🏆 スポーツ送出」</b>を選び、番組 → 試合(放送) を選択</li>
+          <li>競技 (汎用 / セット制 / 野球) とスコアバグのテンプレートを選ぶ</li>
+          <li>チーム名・カラーを設定し、<b>TAKE</b> でスコアバグを送出</li>
+          <li>以後、<b>+1/+2/+3/−1</b>・ピリオド・時計・BSOの操作がそのままON AIRに反映されます</li>
+        </ol>
+        <h2 class="manual-h2">操作盤</h2>
+        <ul class="manual-list">
+          <li><b>スコア盤</b>: チームごとの +1/+2/+3/−1。セット制では「セット取得」で両得点を0に戻してセット+1</li>
+          <li><b>試合時計</b>: 開始/停止/リセット、カウントアップ/ダウン切替、試合時間、±1分/±1秒の補正</li>
+          <li><b>野球盤</b>: BALL/STRIKE/OUT のクリックで自動巡回 (四球・三振でカウントリセット、スリーアウトでチェンジ)、イニング進行、塁の走者トグル</li>
+        </ul>
+        <h2 class="manual-h2">独自スコアバグの作り方 (binding規約)</h2>
+        <p class="manual-p">デザインタブでテキストレイヤーのbindingに以下の名前を付ければ、自作デザインを操作盤から使えます (使う項目だけでOK):</p>
+        <table class="manual-kbd">
+          <tr><th>binding</th><th>入る値</th></tr>
+          <tr><td>homeName / awayName</td><td>チーム名</td></tr>
+          <tr><td>homeScore / awayScore</td><td>得点</td></tr>
+          <tr><td>period</td><td>「第2ピリオド」「第3セット」</td></tr>
+          <tr><td>clock</td><td>「12:34」(試合時計)</td></tr>
+          <tr><td>homeSets / awaySets</td><td>セット数 (セット制のみ)</td></tr>
+          <tr><td>inning / bso / bases</td><td>「5回表」/「B●●○ S●○ O○○」/「◇◆◇」(野球)</td></tr>
+        </table>
+        <div class="manual-tip">💡 2台運用時: 試合状態は両PCに同期されますが、スポーツの操作は<b>出力担当PC上で</b>行ってください (コマンド委譲は今後対応)。</div>`,
     },
     {
       id: 'design', title: 'デザインエディタ', html: `

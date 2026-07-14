@@ -199,6 +199,19 @@ function registerIpcHandlers() {
     }
   });
 
+  // インプレース更新: onAir中のテンプレの値だけ差し替え (再テイクなし。スポーツコーダー等)
+  ipcMain.handle('graphics-update-values', async (_event, region, values) => {
+    try {
+      if (!graphicsServer.isRunning()) {
+        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
+      }
+      const ok = graphicsServer.updateValues(region, values || {});
+      return { ok };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('graphics-clear', async (_event, region, logDetail) => {
     try {
       if (!graphicsServer.isRunning()) {

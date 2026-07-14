@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('api', {
   graphicsTake: (templateKey, values, animate, logDetail) => ipcRenderer.invoke('graphics-take', templateKey, values, animate, logDetail),
   // 静的送出 (電テロ: 静止画/作画をテンプレート非依存で送出) payload={region, kind, still?|variant?}
   graphicsTakeStatic: (payload, animate, logDetail) => ipcRenderer.invoke('graphics-take-static', payload, animate, logDetail),
+  graphicsUpdateValues: (region, values) => ipcRenderer.invoke('graphics-update-values', region, values),
   graphicsClear: (region, logDetail) => ipcRenderer.invoke('graphics-clear', region, logDetail),
   graphicsStop: (region) => ipcRenderer.invoke('graphics-stop', region),
   openOnairLogs: () => ipcRenderer.invoke('open-onair-logs'),

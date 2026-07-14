@@ -26,7 +26,7 @@ const App = {
 
   // ===== モード (リアルタイムCG / 電テロ) =====
 
-  /** 現在の送出モード ('cg' | 'telop') */
+  /** 現在の送出モード ('cg' | 'telop' | 'sports') */
   get activeMode() {
     return (this.rundown && this.rundown.activeMode) || 'cg';
   },
@@ -39,9 +39,31 @@ const App = {
 
   /** 送出モードを切り替える */
   setMode(mode) {
-    if (!this.rundown || (mode !== 'cg' && mode !== 'telop')) return;
+    if (!this.rundown || (mode !== 'cg' && mode !== 'telop' && mode !== 'sports')) return;
     this.rundown.activeMode = mode;
     this.saveRundown();
+  },
+
+  /**
+   * スポーツモード: アクティブ放送(=試合)の試合状態。無ければ既定値で生成する。
+   * rundown内に保存するため、永続化と2台運用の状態同期に自動で乗る。
+   */
+  match() {
+    const bc = this.activeBroadcast();
+    if (!bc) return null;
+    if (!bc.match) {
+      bc.match = {
+        sport: 'generic',
+        templateKey: 'sports-score',
+        channelId: (this.channels[0] && this.channels[0].id) || 'tl1',
+        home: { name: 'HOME', color: '#d92d20', score: 0, sets: 0 },
+        away: { name: 'AWAY', color: '#1d7ff0', score: 0, sets: 0 },
+        period: 1,
+        clock: { mode: 'up', durationSec: 2400, baseMs: 0, running: false, startedAt: 0 },
+        bb: { balls: 0, strikes: 0, outs: 0, inning: 1, top: true, bases: [false, false, false] },
+      };
+    }
+    return bc.match;
   },
 
   // ===== ランダウンアクセサ (現在モードツリー起点) =====

@@ -26,6 +26,7 @@
   <nav class="tab-bar">
     <button class="tab-btn active" data-tab="home">ホーム</button>
     <button class="tab-btn" data-tab="onair">送出</button>
+    <button class="tab-btn" data-tab="sports">スポーツ</button>
     <button class="tab-btn" data-tab="design">デザイン</button>
     <button class="tab-btn" data-tab="manual">マニュアル</button>
     <button class="tab-btn tab-btn--settings" data-tab="settings">設定</button>
@@ -58,6 +59,11 @@
           <span class="home-mode-icon">🖼</span>
           <span class="home-mode-title">電テロ送出</span>
           <span class="home-mode-desc">作画した1枚絵や静止画ファイルを並べて静的に送出。ドラッグ&amp;ドロップで流し込み。</span>
+        </button>
+        <button class="home-mode home-mode--sports" data-mode="sports">
+          <span class="home-mode-icon">🏆</span>
+          <span class="home-mode-title">スポーツ送出</span>
+          <span class="home-mode-desc">スコア・ピリオド・試合時計・野球カウントを操作盤でライブ操作し、スコアバグへ即時反映。</span>
         </button>
       </div>
 
@@ -189,6 +195,135 @@
       </div>
     </div>
     <datalist id="od-namepool"></datalist>
+  </div>
+
+  <!-- ===== スポーツタブ (スポーツコーダー操作盤) ===== -->
+  <div class="tab-content" id="tab-sports">
+    <div class="sp-layout">
+      <div class="sp-topbar">
+        <span class="sp-context" id="sp-context">-</span>
+        <button class="btn btn--small od-btn" id="sp-reselect" title="番組/試合の選択画面に戻る">☰ 選び直す</button>
+        <span class="od-sep"></span>
+        <label class="od-bar-label">競技
+          <select id="sp-sport" class="input input--small od-select"></select>
+        </label>
+        <label class="od-bar-label">スコアバグ
+          <select id="sp-template" class="input input--small od-select" title="使用するテンプレート (binding規約を満たせば自作テンプレも可)"></select>
+        </label>
+        <span class="sp-channel" id="sp-channel" title="出力先の系統 (テンプレートの系統設定に従います)">-</span>
+        <span class="od-spacer"></span>
+        <span class="sp-onair-pill" id="sp-onair-state">OFF AIR</span>
+      </div>
+
+      <div class="sp-main">
+        <div class="sp-console">
+          <!-- スコア盤 -->
+          <div class="sp-teams">
+            <div class="sp-team-card" id="sp-home-card">
+              <div class="sp-team-head">
+                <input type="text" id="sp-home-name" class="input sp-team-name" title="ホームチーム名">
+                <input type="color" id="sp-home-color" class="sp-team-color" title="チームカラー">
+              </div>
+              <div class="sp-score" id="sp-home-score">0</div>
+              <div class="sp-sets hidden">セット <span id="sp-home-sets">0</span>
+                <button class="btn btn--small" data-team="home" data-sets-delta="1" title="セット数+1">+</button>
+                <button class="btn btn--small" data-team="home" data-sets-delta="-1" title="セット数-1">−</button>
+                <button class="btn btn--small" id="sp-set-win-home" title="このセットを取得 (セット+1して両チームの得点を0に)">セット取得</button>
+              </div>
+              <div class="sp-score-keys">
+                <button class="sp-key sp-key--big" data-team="home" data-score-delta="1">+1</button>
+                <button class="sp-key" data-team="home" data-score-delta="2">+2</button>
+                <button class="sp-key" data-team="home" data-score-delta="3">+3</button>
+                <button class="sp-key sp-key--minus" data-team="home" data-score-delta="-1">−1</button>
+              </div>
+            </div>
+
+            <div class="sp-center">
+              <div class="sp-period-label" id="sp-period-label">第1ピリオド</div>
+              <div class="sp-period-keys">
+                <button class="btn" id="sp-period-up" title="ピリオド/セットを進める">▲ 進める</button>
+                <button class="btn" id="sp-period-down" title="ピリオド/セットを戻す">▼ 戻す</button>
+              </div>
+              <div class="sp-sets hidden" style="text-align:center">
+                <button class="btn btn--small" id="sp-set-win-away" title="アウェイがこのセットを取得">セット取得 (アウェイ)</button>
+              </div>
+            </div>
+
+            <div class="sp-team-card" id="sp-away-card">
+              <div class="sp-team-head">
+                <input type="text" id="sp-away-name" class="input sp-team-name" title="アウェイチーム名">
+                <input type="color" id="sp-away-color" class="sp-team-color" title="チームカラー">
+              </div>
+              <div class="sp-score" id="sp-away-score">0</div>
+              <div class="sp-sets hidden">セット <span id="sp-away-sets">0</span>
+                <button class="btn btn--small" data-team="away" data-sets-delta="1" title="セット数+1">+</button>
+                <button class="btn btn--small" data-team="away" data-sets-delta="-1" title="セット数-1">−</button>
+              </div>
+              <div class="sp-score-keys">
+                <button class="sp-key sp-key--big" data-team="away" data-score-delta="1">+1</button>
+                <button class="sp-key" data-team="away" data-score-delta="2">+2</button>
+                <button class="sp-key" data-team="away" data-score-delta="3">+3</button>
+                <button class="sp-key sp-key--minus" data-team="away" data-score-delta="-1">−1</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- クロック盤 -->
+          <div class="sp-panel" id="sp-clock-panel">
+            <div class="sp-panel-title">試合時計</div>
+            <div class="sp-clock-row">
+              <div class="sp-clock-display" id="sp-clock-display">00:00</div>
+              <button class="sp-key sp-key--big" id="sp-clock-toggle">▶ 開始</button>
+              <button class="btn" id="sp-clock-reset" title="時計をリセット">リセット</button>
+              <label class="od-bar-label">方式
+                <select id="sp-clock-mode" class="input input--small">
+                  <option value="up">カウントアップ</option>
+                  <option value="down">カウントダウン</option>
+                </select>
+              </label>
+              <label class="od-bar-label">試合時間(分)
+                <input type="number" id="sp-clock-duration" class="input input--small sp-num" min="1" max="200">
+              </label>
+              <span class="sp-adjust">
+                <button class="btn btn--small" data-clock-adjust="60" title="+1分">+1分</button>
+                <button class="btn btn--small" data-clock-adjust="-60" title="-1分">−1分</button>
+                <button class="btn btn--small" data-clock-adjust="1" title="+1秒">+1秒</button>
+                <button class="btn btn--small" data-clock-adjust="-1" title="-1秒">−1秒</button>
+              </span>
+            </div>
+          </div>
+
+          <!-- 野球盤 -->
+          <div class="sp-panel hidden" id="sp-bb-panel">
+            <div class="sp-panel-title">野球カウント</div>
+            <div class="sp-bb-row">
+              <button class="sp-key" id="sp-bb-ball" title="ボール+1 (4つ目でカウントリセット)">BALL <span class="sp-bb-dots" id="sp-bb-balls">○○○</span></button>
+              <button class="sp-key" id="sp-bb-strike" title="ストライク+1 (3つ目でカウントリセット)">STRIKE <span class="sp-bb-dots" id="sp-bb-strikes">○○</span></button>
+              <button class="sp-key" id="sp-bb-out" title="アウト+1 (3つ目でチェンジ)">OUT <span class="sp-bb-dots" id="sp-bb-outs">○○</span></button>
+              <button class="btn" id="sp-bb-count-reset" title="B/Sカウントをリセット">カウントリセット</button>
+              <span class="od-sep"></span>
+              <span class="sp-bb-inning" id="sp-bb-inning">1回表</span>
+              <button class="btn btn--small" id="sp-bb-inning-up" title="イニングを進める (表→裏→次の回)">▲ 進める</button>
+              <button class="btn btn--small" id="sp-bb-inning-down" title="イニングを戻す">▼ 戻す</button>
+              <span class="od-sep"></span>
+              <span class="sp-bb-bases-label">塁</span>
+              <button class="sp-base" data-base="0" title="一塁走者">1</button>
+              <button class="sp-base" data-base="1" title="二塁走者">2</button>
+              <button class="sp-base" data-base="2" title="三塁走者">3</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右: OAモニター + 送出 -->
+        <div class="sp-side">
+          <div class="od-col-mon-label oa">OA</div>
+          <div class="od-col-mon sp-oa-mon bg-checker"><iframe id="sp-oa-iframe" src="about:blank" sandbox="allow-scripts allow-same-origin" allow="autoplay"></iframe></div>
+          <button class="od-col-take sp-take" id="sp-take" title="スコアバグをINアニメ付きで送出。以後の操作は即時反映されます">TAKE <span class="od-take-arrow">⬆</span></button>
+          <button class="od-obtn od-obtn-clear sp-clear" id="sp-clear" title="スコアバグを消去">CLEAR<span class="od-obtn-jp">消去</span></button>
+          <p class="sp-hint">TAKE後はスコア・時計の操作が<br>ON AIRへ即時反映されます (再テイク不要)</p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- テンプレート追加ダイアログ -->
@@ -629,6 +764,7 @@
   <script src="js/home-ui.js"></script>
   <script src="js/manual-ui.js"></script>
   <script src="js/start-wizard.js"></script>
+  <script src="js/sports-ui.js"></script>
   <script src="js/tab-controller.js"></script>
   <script src="js/drag-drop.js"></script>
   <script src="js/broadcast.js"></script>

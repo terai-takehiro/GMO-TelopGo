@@ -126,11 +126,26 @@
     generation[region]++;
     TelopRenderer.renderVariant(container, variant, values);
     container.classList.add('on-air');
-    container._variant = variant; // OUTアニメ用に保持 (静的送出はtemplateKeyを持たない)
+    container._variant = variant; // OUTアニメ/インプレース更新用に保持
+    container._values = values;
 
     if (animate) {
       TelopAnimator.play(container, variant, 'in');
     }
+  }
+
+  /**
+   * UPDATE (インプレース): onAir中の領域の値だけを差し替える。
+   * DOMを保持したまま変更bindingのテキストレイヤーのみ再描画するため、
+   * 時計/スコアの連続更新でもちらつかない (スポーツコーダー用)。
+   */
+  function updateInPlace(region, values) {
+    if (!handlesRegion(region)) return;
+    const container = containerFor(region);
+    if (!container.classList.contains('on-air') || !container._variant) return;
+    const merged = Object.assign({}, container._values || {}, values);
+    container._values = merged;
+    TelopRenderer.patchValues(container, container._variant, merged, null, Object.keys(values));
   }
 
   function hide(region) {
@@ -199,6 +214,9 @@
             msg.static ? { static: msg.static } : { templateKey: msg.templateKey, values: msg.values },
             msg.animate !== false,
           );
+          break;
+        case 'update':
+          updateInPlace(msg.region, msg.values || {});
           break;
         case 'clear':
           hide(msg.region);

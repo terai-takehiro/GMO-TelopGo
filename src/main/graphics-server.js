@@ -240,6 +240,19 @@ function change(region, templateKey, values) {
   take(region, templateKey, values, false);
 }
 
+/**
+ * UPDATE (インプレース): onAir中のテンプレートの値だけを差し替える。
+ * 出力側はDOMを保持したまま変更されたbindingのレイヤーのみ描き直すため、
+ * 時計やスコアの連続更新でもちらつかない (スポーツコーダー用)。
+ */
+function updateValues(region, values) {
+  const st = regionState(region);
+  if (!st.onAir || !st.templateKey) return false;
+  st.values = Object.assign({}, st.values, values);
+  broadcast({ type: 'update', region, values });
+  return true;
+}
+
 /** CLEAR: OUTアニメーションで消去 */
 function clear(region) {
   const st = regionState(region);
@@ -262,5 +275,5 @@ function refreshProject() {
 
 module.exports = {
   events, configure, start, stop, isRunning, getStatus,
-  take, takeStatic, change, clear, stopAnim, refreshProject,
+  take, takeStatic, change, updateValues, clear, stopAnim, refreshProject,
 };

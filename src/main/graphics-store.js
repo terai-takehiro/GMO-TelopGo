@@ -430,6 +430,96 @@ function buildSideVariant(lang) {
   };
 }
 
+/**
+ * スポーツ汎用スコアバグ (画面上部センターのバー)
+ * binding規約: homeName/homeScore/awayName/awayScore/period/clock/homeSets/awaySets
+ * (スポーツコーダーの操作盤がこれらのbinding名へ値を流し込む)
+ */
+function buildSportsScoreVariant() {
+  const y = 40; const h = 88;
+  const txt = (opts) => {
+    const l = textLayer(opts);
+    l.autoFit = 'tracking';
+    return l;
+  };
+  return {
+    layers: [
+      // ベースバー
+      { id: 'bar', name: 'バー', type: 'rect', x: 500, y, w: 920, h,
+        fill: { type: 'gradient', from: '#10233f', to: '#081527', angle: 180 },
+        border: { width: 0, color: '#ffffff' }, radius: 10, visible: true, locked: false, opacity: 0.94 },
+      // チームカラー帯
+      { id: 'homeBand', name: 'ホーム帯', type: 'rect', x: 500, y, w: 12, h,
+        fill: { type: 'solid', color: '#d92d20' }, border: { width: 0, color: '#fff' }, radius: 4, visible: true, locked: false, opacity: 1 },
+      { id: 'awayBand', name: 'アウェイ帯', type: 'rect', x: 1408, y, w: 12, h,
+        fill: { type: 'solid', color: '#1d7ff0' }, border: { width: 0, color: '#fff' }, radius: 4, visible: true, locked: false, opacity: 1 },
+      txt({ id: 'homeName', name: 'ホーム名', binding: 'homeName', sample: 'HOME',
+        x: 524, y: y + 8, w: 260, h: h - 16, size: 38, weight: 800, align: 'left', vAlign: 'middle' }),
+      txt({ id: 'homeSets', name: 'ホームセット', binding: 'homeSets', sample: '',
+        x: 784, y: y + 26, w: 56, h: h - 52, size: 26, weight: 800, color: '#ffd54a', align: 'center', vAlign: 'middle' }),
+      txt({ id: 'homeScore', name: 'ホーム得点', binding: 'homeScore', sample: '0',
+        x: 840, y: y + 4, w: 110, h: h - 8, size: 60, weight: 900, align: 'center', vAlign: 'middle' }),
+      Object.assign(txt({ id: 'sep', name: '区切り', sample: '-',
+        x: 950, y: y + 4, w: 20, h: h - 8, size: 40, weight: 800, color: '#8aa4c4', align: 'center', vAlign: 'middle' }), { binding: undefined, text: '-' }),
+      txt({ id: 'awayScore', name: 'アウェイ得点', binding: 'awayScore', sample: '0',
+        x: 970, y: y + 4, w: 110, h: h - 8, size: 60, weight: 900, align: 'center', vAlign: 'middle' }),
+      txt({ id: 'awaySets', name: 'アウェイセット', binding: 'awaySets', sample: '',
+        x: 1080, y: y + 26, w: 56, h: h - 52, size: 26, weight: 800, color: '#ffd54a', align: 'center', vAlign: 'middle' }),
+      txt({ id: 'awayName', name: 'アウェイ名', binding: 'awayName', sample: 'AWAY',
+        x: 1136, y: y + 8, w: 260, h: h - 16, size: 38, weight: 800, align: 'right', vAlign: 'middle' }),
+      // ピリオド/時計 (バー下の小箱)
+      { id: 'subBar', name: 'サブバー', type: 'rect', x: 810, y: y + h + 4, w: 300, h: 40,
+        fill: { type: 'solid', color: '#081527' }, border: { width: 0, color: '#fff' }, radius: 8, visible: true, locked: false, opacity: 0.9 },
+      txt({ id: 'period', name: 'ピリオド', binding: 'period', sample: '第1ピリオド',
+        x: 818, y: y + h + 6, w: 150, h: 36, size: 22, weight: 700, color: '#cfe0f4', align: 'center', vAlign: 'middle' }),
+      txt({ id: 'clock', name: '時計', binding: 'clock', sample: '00:00',
+        x: 968, y: y + h + 6, w: 134, h: 36, size: 26, weight: 800, color: '#ffd54a', align: 'center', vAlign: 'middle' }),
+    ],
+    animation: {
+      in: { preset: 'slide', direction: 'down', distance: 40, duration: 400, easing: 'ease-out' },
+      out: { preset: 'fade', duration: 250, easing: 'ease-in' },
+    },
+  };
+}
+
+/**
+ * 野球スコアバグ (イニング/BSO/塁)
+ * binding規約: homeName/homeScore/awayName/awayScore/inning/bso/bases
+ */
+function buildSportsBaseballVariant() {
+  const x = 60; const y = 60;
+  const txt = (opts) => {
+    const l = textLayer(opts);
+    l.autoFit = 'tracking';
+    return l;
+  };
+  return {
+    layers: [
+      { id: 'panel', name: 'パネル', type: 'rect', x, y, w: 320, h: 190,
+        fill: { type: 'gradient', from: '#10233f', to: '#081527', angle: 180 },
+        border: { width: 0, color: '#ffffff' }, radius: 10, visible: true, locked: false, opacity: 0.94 },
+      txt({ id: 'awayName', name: 'アウェイ名', binding: 'awayName', sample: 'AWAY',
+        x: x + 16, y: y + 10, w: 170, h: 40, size: 26, weight: 800, align: 'left', vAlign: 'middle' }),
+      txt({ id: 'awayScore', name: 'アウェイ得点', binding: 'awayScore', sample: '0',
+        x: x + 190, y: y + 8, w: 60, h: 44, size: 34, weight: 900, align: 'center', vAlign: 'middle' }),
+      txt({ id: 'homeName', name: 'ホーム名', binding: 'homeName', sample: 'HOME',
+        x: x + 16, y: y + 52, w: 170, h: 40, size: 26, weight: 800, align: 'left', vAlign: 'middle' }),
+      txt({ id: 'homeScore', name: 'ホーム得点', binding: 'homeScore', sample: '0',
+        x: x + 190, y: y + 50, w: 60, h: 44, size: 34, weight: 900, align: 'center', vAlign: 'middle' }),
+      txt({ id: 'bases', name: '塁', binding: 'bases', sample: '◇◇◇',
+        x: x + 250, y: y + 12, w: 60, h: 80, size: 26, weight: 700, color: '#ffd54a', align: 'center', vAlign: 'middle' }),
+      txt({ id: 'inning', name: 'イニング', binding: 'inning', sample: '1回表',
+        x: x + 16, y: y + 100, w: 130, h: 38, size: 24, weight: 800, color: '#cfe0f4', align: 'left', vAlign: 'middle' }),
+      txt({ id: 'bso', name: 'BSO', binding: 'bso', sample: 'B○○○ S○○ O○○',
+        x: x + 16, y: y + 140, w: 290, h: 38, size: 22, weight: 700, color: '#e8eef7', align: 'left', vAlign: 'middle' }),
+    ],
+    animation: {
+      in: { preset: 'fade', duration: 300, easing: 'ease-out' },
+      out: { preset: 'fade', duration: 250, easing: 'ease-in' },
+    },
+  };
+}
+
 function buildDefaultProject() {
   const templates = {};
   Object.keys(NAME_LAYOUTS).forEach((shotType) => {
@@ -447,6 +537,15 @@ function buildDefaultProject() {
       jp: buildSideVariant('Jp'),
       en: buildSideVariant('En'),
     },
+  };
+  // スポーツコーダー用スコアバグ (binding規約は各build関数のコメント参照)
+  templates['sports-score'] = {
+    region: 'tl1',
+    variants: { jp: buildSportsScoreVariant(), en: buildSportsScoreVariant() },
+  };
+  templates['sports-baseball'] = {
+    region: 'tl1',
+    variants: { jp: buildSportsBaseballVariant(), en: buildSportsBaseballVariant() },
   };
 
   return {

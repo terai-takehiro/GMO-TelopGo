@@ -24,6 +24,10 @@
       if (target === 'home' && typeof HomeUI !== 'undefined') {
         HomeUI.refresh();
       }
+      if (target === 'sports' && typeof SportsUI !== 'undefined' && typeof App !== 'undefined' && App.rundown) {
+        if (App.activeMode !== 'sports') App.setMode('sports');
+        SportsUI.renderAll();
+      }
       if (target === 'manual' && typeof ManualUI !== 'undefined') {
         ManualUI.onShow();
       }

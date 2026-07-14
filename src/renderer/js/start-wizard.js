@@ -96,7 +96,8 @@ const StartWizard = {
     list.innerHTML = '';
 
     if (st.step === 'program') {
-      title.textContent = `番組を選択 — ${st.mode === 'telop' ? '電テロ送出' : 'リアルタイムCG送出'}`;
+      const modeLabel = st.mode === 'telop' ? '電テロ送出' : st.mode === 'sports' ? 'スポーツ送出' : 'リアルタイムCG送出';
+      title.textContent = `番組を選択 — ${modeLabel}`;
       // 0件なら既定を自動生成 (空リストにしない)
       if (tree.programs.length === 0) {
         tree.programs.push(this._defaultProgram());
@@ -124,7 +125,7 @@ const StartWizard = {
       });
       list.appendChild(this._new('＋ 新規放送(日付)', () => this.promptCreateBroadcast()));
       back.classList.remove('hidden');
-      next.textContent = '送出へ ▶';
+      next.textContent = st.mode === 'sports' ? '操作盤へ ▶' : '送出へ ▶';
     }
   },
 
@@ -177,7 +178,8 @@ const StartWizard = {
       RundownUI.renderAll();
     }
     this.close();
-    if (typeof HomeUI !== 'undefined') HomeUI.goTab('onair');
+    if (typeof HomeUI !== 'undefined') HomeUI.goTab(st.mode === 'sports' ? 'sports' : 'onair');
+    if (st.mode === 'sports' && typeof SportsUI !== 'undefined') SportsUI.renderAll();
   },
 };
 
