@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.7.2] - 2026-07-14
+
+### Added
+- **macOS版の配布を開始** — dmg / ZIP を Apple Silicon (arm64) と Intel (x64) の
+  両アーキテクチャで提供 (`.github/workflows/build-macos.yml` 新設、`npm run build:mac`)。
+  未署名のため初回起動は Gatekeeper 解除が必要 → docs/install-macos.md
+- 注意: GPIO物理ボタン (CONTEC DIO) はWindows専用。Macでは2台運用のクライアントとして併用可
+
+### Docs
+- README を Windows/macOS 両対応の記述に更新、docs/install-macos.md を追加
+
 ## [2.7.1] - 2026-07-14
 
 ### Docs

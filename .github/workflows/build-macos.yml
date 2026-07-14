@@ -1,0 +1,79 @@
+# macOS用アプリ (dmg / zip) のビルド
+#
+# 実行タイミング:
+#   - vX.Y.Z タグのプッシュ → ビルドして GitHub Release に添付
+#   - 手動実行 (workflow_dispatch) → Artifacts に保存。release=true なら
+#     package.json のバージョンのタグ/Release に添付 (既存Releaseがあれば追記)
+#
+# 備考:
+#   - macOSランナーはコストが高いため、ブランチプッシュでは実行しない
+#   - コード署名なし (CSC_IDENTITY_AUTO_DISCOVERY=false で ad-hoc 署名に
+#     フォールバック)。初回起動の Gatekeeper 解除は docs/install-macos.md 参照
+name: Build macOS app
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'GitHub Releaseに添付する (タグ vX.Y.Z が無ければ自動作成)'
+        type: boolean
+        default: false
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    env:
+      # Apple Developer証明書を探しに行かず、ad-hoc署名で未署名配布する
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (electron-builder, arm64 + x64)
+        # --publish never: electron-builderの自動公開を無効化 (Release添付は下のステップで行う)
+        run: npx electron-builder --mac --publish never
+
+      # タグビルドはRelease添付が配布経路のためArtifactは省略
+      - name: Upload dmg artifact
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: GMO-TelopGo-macos
+          path: |
+            dist/*.dmg
+            dist/*-mac.zip
+          if-no-files-found: error
+          retention-days: 3
+
+      # package.json のバージョンを取得 (手動Release用のタグ名に使用)
+      - name: Read version
+        id: ver
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # vX.Y.Z タグのプッシュ時、または手動実行で release=true の場合に
+      # GitHub Release へ dmg / zip を添付 (同じタグのReleaseが既にあれば追記)
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.ver.outputs.version) }}
+          target_commitish: ${{ github.sha }}
+          files: |
+            dist/*.dmg
+            dist/*-mac.zip
+          generate_release_notes: true

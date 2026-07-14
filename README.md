@@ -4,7 +4,7 @@
 
 透過 1920×1080 の出力ページをローカルHTTPサーバで配信し、**vMix 等のブラウザ入力で取り込んで**テロップをリアルタイムに送出します。テンプレートの作画から本番の送出オペレーションまで、このアプリ1本で完結します。
 
-- 対応OS: Windows 10/11 (開発は macOS/Linux でも可)
+- 対応OS: Windows 10/11 / macOS (Apple Silicon・Intel)
 - 技術: Electron 28 / ローカルHTTP+WebSocketサーバ / HTML5レンダリング
 - 最新の変更点は [CHANGELOG.md](CHANGELOG.md) を参照
 
@@ -49,23 +49,35 @@
 - 日本語/英語の2言語URLを別々に出力
 
 ### 外部連携
-- **GPIO 物理ボタン**: CONTEC DIO デバイスの接点入力を系統ごとの TAKE/CLEAR 等に割り当て
+- **GPIO 物理ボタン**: CONTEC DIO デバイスの接点入力を系統ごとの TAKE/CLEAR 等に割り当て (Windows専用)
 - **2台運用**: LAN上の2台を WebSocket で同期 (ホスト/クライアント、コマンド委譲と状態同期) → [docs/remote-operation.md](docs/remote-operation.md)
 - **ライブデータ連携**: CSV/Excel ファイルを監視し、セルの値をテロップのフィールドへ自動反映
 - **Excel一括取込**: テンプレートの列順で1行=1ページを一括作成 (見本テンプレDLあり)
 
 ---
 
-## 導入 (Windows)
+## 導入
 
-GitHub Actions のビルド成果物 (Artifacts) または Releases からダウンロードします。
+GitHub の Releases (または Actions の Artifacts) からダウンロードします。コード署名をしていないため、初回実行時に OS のブロック (SmartScreen / Gatekeeper) 解除が必要です。
+
+### Windows
 
 | 配布物 | ファイル | 用途 |
 |---|---|---|
 | インストーラ版 | `GMO-TelopGo-Setup-X.Y.Z.exe` | 通常のインストール (スタートメニュー登録あり) |
 | ポータブル版 | `GMO-TelopGo-X.Y.Z-portable-win.zip` | インストール不要。展開して `GMO TelopGo.exe` を実行 |
 
-コード署名をしていないため、初回実行時に SmartScreen 等のブロックが働きます。解除手順・トラブルシュートは **[docs/install-windows.md](docs/install-windows.md)** を参照してください。
+SmartScreen の解除手順・トラブルシュートは **[docs/install-windows.md](docs/install-windows.md)** を参照。
+
+### macOS
+
+| 配布物 | ファイル | 対象 |
+|---|---|---|
+| dmg (推奨) | `GMO-TelopGo-X.Y.Z-arm64.dmg` / `-x64.dmg` | Apple Silicon / Intel |
+| ZIP版 | `GMO-TelopGo-X.Y.Z-arm64-mac.zip` / `-x64-mac.zip` | 展開してそのまま実行 |
+
+Gatekeeper の解除手順 (右クリック→開く / `xattr -cr`) は **[docs/install-macos.md](docs/install-macos.md)** を参照。
+※ GPIO物理ボタン (CONTEC DIO) はWindows専用です。Macでは2台運用のクライアントとして併用できます。
 
 ## クイックスタート (運用の流れ)
 
@@ -115,9 +127,10 @@ GitHub Actions のビルド成果物 (Artifacts) または Releases からダウ
 ## 開発者向け
 
 ```bash
-npm install       # 依存関係 (Node 20)
-npm start         # 開発起動 (Electron)
-npm run build     # Windows向けビルド (electron-builder)
+npm install         # 依存関係 (Node 20)
+npm start           # 開発起動 (Electron)
+npm run build       # Windows向けビルド (electron-builder)
+npm run build:mac   # macOS向けビルド (dmg/zip, arm64+x64 — macOS上で実行)
 ```
 
 ### リポジトリ構成
@@ -140,13 +153,15 @@ docs/                       詳細ドキュメント
 
 ### リリース (CI)
 
-`.github/workflows/build-windows.yml` が Windows インストーラ/ポータブル版をビルドします。
+- `.github/workflows/build-windows.yml` — Windows インストーラ/ポータブル版
+- `.github/workflows/build-macos.yml` — macOS dmg/zip (arm64 + x64)
 
+共通の挙動:
 - `v*` タグの push → ビルドして GitHub Release に添付
-- 手動実行 (workflow_dispatch) → Artifacts に保存。**release=true** にすると package.json のバージョンで `vX.Y.Z` タグを自動作成し Release を発行
-- `claude/**` ブランチへの push → 動作確認用ビルド (Artifacts)
+- 手動実行 (workflow_dispatch) → Artifacts に保存。**release=true** にすると package.json のバージョンで `vX.Y.Z` タグ/Release に添付 (既存Releaseには追記)
+- `claude/**` ブランチへの push → Windows のみ動作確認用ビルド (macはコスト節約のため手動/タグ時のみ)
 
-リリース手順: `CHANGELOG.md` 追記 → `package.json` / `package-lock.json` のバージョン更新 → push → workflow_dispatch (release=true)。
+リリース手順: `CHANGELOG.md` 追記 → `package.json` / `package-lock.json` のバージョン更新 → push → **build-windows を release=true で実行** (タグ/Release作成) → **build-macos を release=true で実行** (同じReleaseにmac版を追記)。
 
 ## ドキュメント
 
@@ -154,12 +169,14 @@ docs/                       詳細ドキュメント
 |---|---|
 | アプリ内「マニュアル」タブ | 画面の見方・操作ガイド・ショートカット (常に最新) |
 | [docs/install-windows.md](docs/install-windows.md) | Windows 11 への導入と SmartScreen 解除 |
+| [docs/install-macos.md](docs/install-macos.md) | macOS への導入と Gatekeeper 解除 |
 | [docs/remote-operation.md](docs/remote-operation.md) | 2台運用 (リモート連携) の設計・運用 |
 | [docs/local-graphics-design.md](docs/local-graphics-design.md) | ローカルグラフィックスエンジンの設計書 |
 | [CHANGELOG.md](CHANGELOG.md) | 全バージョンの変更履歴 |
 
 ## 更新履歴 (直近ハイライト)
 
+- **v2.7.2** macOS版 (dmg/zip, Apple Silicon・Intel) の配布を開始
 - **v2.7.0** 自動字詰め (短文=字間広げ/長文=詰め+長体) を追加、記号だけのボタンを日本語ラベル併記に統一
 - **v2.6.x** TL系統ごとに OA/NEXT モニターと送出ボタン一式を配置 (列=コンソール化)
 - **v2.5.x** プレビュー主役の再設計・CLEAR&BACK・ページ検索・ダイアログ/ボタンの刷新・起動時最大化
