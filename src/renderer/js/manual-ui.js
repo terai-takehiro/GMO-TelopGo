@@ -90,7 +90,9 @@ const ManualUI = {
           <tr><td>period</td><td>「第2ピリオド」「第3セット」</td></tr>
           <tr><td>clock</td><td>「12:34」(試合時計)</td></tr>
           <tr><td>homeSets / awaySets</td><td>セット数 (セット制のみ)</td></tr>
-          <tr><td>inning / bso / bases</td><td>「5回表」/「B●●○ S●○ O○○」/「◇◆◇」(野球)</td></tr>
+          <tr><td>inning / bases</td><td>「5回表」/「◇◆◇」(野球。◆=走者あり)</td></tr>
+          <tr><td>balls / strikes / outs</td><td>「●●○」等 (B/S/Oを個別に色分け表示したいとき)</td></tr>
+          <tr><td>bso</td><td>「B●●○ S●○ O○○」(B/S/Oを1つにまとめた文字列)</td></tr>
         </table>
         <div class="manual-tip">💡 2台運用時: 試合状態は両PCに同期されますが、スポーツの操作は<b>出力担当PC上で</b>行ってください (コマンド委譲は今後対応)。</div>`,
     },

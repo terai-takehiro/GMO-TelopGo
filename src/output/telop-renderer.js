@@ -96,12 +96,24 @@
     if (layer.border && layer.border.width) {
       el.style.border = `${layer.border.width}px solid ${layer.border.color || '#ffffff'}`;
     }
-    if (layer.radius) el.style.borderRadius = `${layer.radius}px`;
+    // 角丸: radii=[tl,tr,br,bl] の個別指定、または radius の一律指定
+    if (Array.isArray(layer.radii)) {
+      el.style.borderRadius = layer.radii.map((r) => `${r}px`).join(' ');
+    } else if (layer.radius) {
+      el.style.borderRadius = `${layer.radius}px`;
+    }
+
+    const isPoly = layer.shape === 'polygon' || layer.shape === 'star' || layer.shape === 'polycustom';
+    // ドロップシャドウ (矩形/楕円のみ。polygonはborder-boxに出て崩れるため除外)
+    if (layer.boxShadow && !isPoly) {
+      const s = layer.boxShadow;
+      el.style.boxShadow = `${s.x || 0}px ${s.y || 0}px ${s.blur || 0}px ${s.spread || 0}px ${s.color || 'rgba(0,0,0,0.5)'}`;
+    }
 
     // 図形の種類 (rect以外はclip-path/角丸で切り抜く)
     if (layer.shape === 'ellipse') {
       el.style.borderRadius = '50%';
-    } else if (layer.shape === 'polygon' || layer.shape === 'star') {
+    } else if (isPoly) {
       const pts = shapePoints(layer)
         .map(([x, y]) => `${(x * 100).toFixed(2)}% ${(y * 100).toFixed(2)}%`);
       el.style.clipPath = `polygon(${pts.join(', ')})`;
@@ -113,6 +125,10 @@
    * layer.sides=頂点数(3..24), layer.starInset=星の谷の深さ(0.2..0.9, 既定0.5)
    */
   function shapePoints(layer) {
+    // 任意の頂点 (0..1正規化) を直接指定 — 斜めカット/平行四辺形などの自由形状
+    if (layer.shape === 'polycustom' && Array.isArray(layer.points) && layer.points.length >= 3) {
+      return layer.points;
+    }
     const n = Math.max(3, Math.min(24, layer.sides || 5));
     const pts = [];
     if (layer.shape === 'star') {

@@ -611,10 +611,11 @@ const DesignEditor = {
 
   drawRectLayer(ctx, layer) {
     const fill = layer.fill || {};
+    const isPoly = layer.shape === 'polygon' || layer.shape === 'star' || layer.shape === 'polycustom';
     ctx.beginPath();
     if (layer.shape === 'ellipse') {
       ctx.ellipse(layer.x + layer.w / 2, layer.y + layer.h / 2, layer.w / 2, layer.h / 2, 0, 0, Math.PI * 2);
-    } else if (layer.shape === 'polygon' || layer.shape === 'star') {
+    } else if (isPoly) {
       TelopRenderer.shapePoints(layer).forEach(([px, py], i) => {
         const x = layer.x + px * layer.w;
         const y = layer.y + py * layer.h;
@@ -622,12 +623,23 @@ const DesignEditor = {
       });
       ctx.closePath();
     } else {
-      ctx.roundRect(layer.x, layer.y, layer.w, layer.h, layer.radius || 0);
+      const r = Array.isArray(layer.radii) ? layer.radii : (layer.radius || 0);
+      ctx.roundRect(layer.x, layer.y, layer.w, layer.h, r);
+    }
+    // 塗り (ドロップシャドウは矩形/楕円のみ。パスは保持されるので枠線は影なしで描く)
+    ctx.save();
+    if (layer.boxShadow && !isPoly) {
+      const s = layer.boxShadow;
+      ctx.shadowColor = s.color || 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = s.blur || 0;
+      ctx.shadowOffsetX = s.x || 0;
+      ctx.shadowOffsetY = s.y || 0;
     }
     ctx.fillStyle = fill.type === 'gradient'
       ? this.canvasGradient(ctx, fill, layer.x, layer.y, layer.w, layer.h)
       : (fill.color || '#000000');
     ctx.fill();
+    ctx.restore();
     if (layer.border && layer.border.width) {
       ctx.lineWidth = layer.border.width;
       ctx.strokeStyle = layer.border.color || '#ffffff';

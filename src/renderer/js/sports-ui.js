@@ -229,6 +229,10 @@ const SportsUI = {
       homeSets: m.sport === 'set' ? String(m.home.sets || 0) : '',
       awaySets: m.sport === 'set' ? String(m.away.sets || 0) : '',
       inning: `${m.bb.inning}回${m.bb.top ? '表' : '裏'}`,
+      // B/S/O は個別binding (テンプレで色分け) + 結合文字列 bso (自作テンプレ互換)
+      balls: dots(m.bb.balls, 3),
+      strikes: dots(m.bb.strikes, 2),
+      outs: dots(m.bb.outs, 2),
       bso: `B${dots(m.bb.balls, 3)} S${dots(m.bb.strikes, 2)} O${dots(m.bb.outs, 2)}`,
       bases: m.bb.bases.map((b) => (b ? '◆' : '◇')).join(''),
     };
