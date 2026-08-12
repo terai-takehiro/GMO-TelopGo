@@ -1,0 +1,65 @@
+/* 出力ページ: 透過背景・1920x1080キャンバスをウィンドウにフィット */
+html, body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+#stage {
+  position: absolute;
+  inset: 0;
+}
+
+#canvas {
+  position: absolute;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: top left;
+}
+
+.region {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: top left; /* レイアウト変換 (位置・サイズ) の基準 */
+}
+
+.region.on-air {
+  opacity: 1;
+}
+
+.tl-layer {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.tl-text {
+  display: flex;
+  white-space: pre-line;
+  overflow: hidden;
+}
+
+.tl-text-inner {
+  display: inline-block;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* グラデーション文字 × 縁取り併用時の二層構造
+   下層(.tl-txt-under)が縁取り/影を担当し、上層(.tl-txt-fill)が
+   グラデーション文字を重ねる (透明文字にシャドウが透けるのを防ぐ) */
+.tl-txt-fill {
+  position: absolute;
+  inset: 0;
+  padding: inherit;
+  box-sizing: border-box;
+}
+
+/* 縦中横 (縦書き内の数字横組み) */
+.tl-tcy { text-combine-upright: all; }
+/* ルビ */
+.tl-text rt { font-size: 0.4em; font-weight: 500; letter-spacing: 0; }

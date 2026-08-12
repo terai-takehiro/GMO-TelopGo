@@ -1,6 +1,9 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const { registerIpcHandlers } = require('./src/main/ipc-handlers');
+const gpioDio = require('./src/main/gpio-dio');
+const remoteLink = require('./src/main/remote-link');
+const graphicsServer = require('./src/main/graphics-server');
 
 // GPU アクセラレーション最適化
 app.commandLine.appendSwitch('enable-gpu-rasterization');
@@ -25,6 +28,7 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'src', 'renderer', 'index.html'));
   mainWindow.setMenuBarVisibility(false);
+  mainWindow.maximize(); // 運用は全画面(最大化)が基本
 }
 
 app.whenReady().then(() => {
@@ -34,4 +38,10 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   app.quit();
+});
+
+app.on('will-quit', () => {
+  gpioDio.disconnect();
+  remoteLink.stop();
+  graphicsServer.stop();
 });

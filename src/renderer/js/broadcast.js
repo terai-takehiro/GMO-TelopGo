@@ -1,379 +1,316 @@
 /**
- * 送出制御 - スケジュールモード / かるたモード
+ * 送出エンジン (v2.0 ページベース)
+ *
+ * チャンネルごとに ON AIR / NEXT のページポインタを持ち、
+ * TELOP BOX流の動詞で操作する:
+ *   TAKE   = NEXTをINアニメ付きで送出し、同コーナー内の次ページへNEXTを進める
+ *   UPDATE = NEXTをアニメなしで即時差し替え (旧CHANGE)
+ *   CLEAR  = OUTアニメで消去
+ *   STOP   = 再生中アニメの一時停止/再開
+ *   SKIP / BACK / TOP = NEXTポインタの移動
+ *
+ * 2台運用時は出力担当でないPCから操作するとコマンドが担当PCへ委譲される。
+ * リハーサルモード中は出力サーバへ送らない (UI上の状態遷移のみ)。
  */
 const Broadcast = {
-  init() {
-    this.bindControls('name');
-    this.bindControls('side');
-  },
-
-  bindControls(type) {
-    const state = App.broadcast[type];
-
-    // モード切替
-    document.querySelectorAll(`input[name="${type}-mode"]`).forEach((radio) => {
-      radio.addEventListener('change', () => {
-        state.mode = radio.value;
-        this.updateModeVisibility(type);
-        this.reset(type);
-      });
-    });
-
-    // 送出ボタン
-    document.getElementById(`${type}-change`).addEventListener('click', () => this.doChange(type));
-    document.getElementById(`${type}-take`).addEventListener('click', () => this.doTake(type));
-    document.getElementById(`${type}-clear`).addEventListener('click', () => this.doClear(type));
-  },
-
-  getData(type) {
-    return type === 'name' ? App.nameData : App.sideData;
-  },
-
-  getTelopModule(type) {
-    return type === 'name' ? NameTelop : SideTelop;
+  /** ページの内容要約 (ログ・表示用)。タイトルがあれば優先 */
+  summarize(page) {
+    if (page.title) return page.title;
+    if (page.kind === 'still') return (page.still && page.still.file) || '(静止画)';
+    if (page.kind === 'design') return '(作画)';
+    const values = page.values || {};
+    const texts = Object.entries(values)
+      .filter(([k, v]) => v && /Jp$/i.test(k))
+      .map(([, v]) => v);
+    const joined = (texts.length ? texts : Object.values(values).filter(Boolean)).join(' / ');
+    return joined.replace(/\n/g, ' ').slice(0, 60);
   },
 
   /**
-   * 現在選択されている項目のインデックスを取得
+   * ページの送出内容を出力サーバへ送る (種別で分岐)。
+   *   cg              → graphicsTake(templateKey, values)  (リアルタイムCG)
+   *   still / design  → graphicsTakeStatic({region, kind, still|variant})  (電テロ静的送出)
+   * @returns {Promise<{ok, error?}>}
    */
-  getActiveIndex(type) {
-    const state = App.broadcast[type];
-    return state.currentIndex;
+  async sendPage(page, animate, detail) {
+    if (page.kind === 'still' || page.kind === 'design') {
+      const channel = App.channelById(App.channelOfPage(page));
+      if (!channel) return { ok: false, error: '出力先の系統が見つかりません' };
+      const payload = { region: channel.region, kind: page.kind };
+      if (page.kind === 'still') payload.still = page.still;
+      else payload.variant = (page.design && page.design.variant) || null;
+      return window.api.graphicsTakeStatic(payload, animate, detail);
+    }
+    return window.api.graphicsTake(page.templateKey, page.values, animate, detail);
   },
 
-  /**
-   * リスト行クリックで項目を選択 (スケジュール/かるた共通)
-   */
-  selectItem(type, index) {
-    const state = App.broadcast[type];
-    state.currentIndex = index;
-
-    // かるたリストのハイライト更新
-    if (state.mode === 'karuta') {
-      const list = document.getElementById(`${type}-karuta-list`);
-      list.querySelectorAll('.karuta-item').forEach((el) => el.classList.remove('selected'));
-      const item = list.querySelector(`[data-index="${index}"]`);
-      if (item) item.classList.add('selected');
-    }
-
-    // テーブル行のハイライト (NEXT=緑)
-    this.highlightRows(type);
-    this.updateInfo(type);
-    this.updateButtons(type);
+  /** コーナー内で同チャンネルのページ一覧 (プレイリストのみ) */
+  channelPagesInCorner(corner, channelId) {
+    return (corner.pages || []).filter((pg) => App.channelOfPage(pg) === channelId);
   },
 
-  /**
-   * 行のハイライト更新: ON AIR=赤, NEXT=緑
-   */
-  highlightRows(type) {
-    const state = App.broadcast[type];
-    const module = this.getTelopModule(type);
-    const tbody = module.tbody;
-    if (!tbody) return;
-
-    const rows = tbody.querySelectorAll('tr');
-    rows.forEach((r) => r.classList.remove('selected', 'on-air'));
-
-    // ON AIR行: 赤
-    if (state.isOnAir && state.onAirIndex >= 0 && state.onAirIndex < rows.length) {
-      rows[state.onAirIndex].classList.add('on-air');
-    }
-
-    // NEXT行: 緑 (ON AIRと同じ行でなければ)
-    const activeIdx = this.getActiveIndex(type);
-    if (activeIdx >= 0 && activeIdx < rows.length && activeIdx !== state.onAirIndex) {
-      rows[activeIdx].classList.add('selected');
-    }
+  /** NEXTをページIDで設定 */
+  setNext(pageId) {
+    const found = App.findPage(pageId);
+    if (!found) return;
+    const channelId = App.channelOfPage(found.page);
+    if (!channelId) return;
+    App.chState(channelId).nextPageId = pageId;
+    this.notifyChanged();
   },
 
-  /**
-   * モード切替時のUI表示更新
-   */
-  updateModeVisibility(type) {
-    const state = App.broadcast[type];
-    const karutaList = document.getElementById(`${type}-karuta-list`);
-
-    if (state.mode === 'schedule') {
-      karutaList.classList.add('hidden');
-    } else {
-      karutaList.classList.remove('hidden');
-      this.renderKarutaList(type);
-    }
+  clearNext(channelId) {
+    App.chState(channelId).nextPageId = null;
+    this.notifyChanged();
   },
 
-  /**
-   * かるたリスト描画
-   */
-  renderKarutaList(type) {
-    const list = document.getElementById(`${type}-karuta-list`);
-    const data = this.getData(type);
-    list.innerHTML = '';
-
-    data.forEach((item, i) => {
-      const div = document.createElement('div');
-      div.className = 'karuta-item';
-      div.dataset.index = i;
-
-      if (type === 'name') {
-        const shotDef = SHOT_TYPES[item.shotType] || { label: item.shotType };
-        const names = (item.persons || []).map(p => p.nameJp || '').filter(Boolean).join(' / ');
-        div.textContent = `${i + 1}. [${shotDef.label}] ${names}`;
-      } else {
-        div.textContent = `${i + 1}. ${item.textJp || ''}`;
-      }
-
-      div.addEventListener('click', () => this.selectItem(type, i));
-      list.appendChild(div);
-    });
+  /** NEXT対象ページ (無ければnull) */
+  nextPage(channelId) {
+    const st = App.chState(channelId);
+    if (!st.nextPageId) return null;
+    const found = App.findPage(st.nextPageId);
+    return found ? found : null;
   },
 
-  /**
-   * 情報表示を更新 (ON AIR / NEXT の2段表示)
-   */
-  updateInfo(type) {
-    const state = App.broadcast[type];
-    const data = this.getData(type);
+  // ===== 動詞 =====
 
-    const onairEl = document.getElementById(`${type}-onair`);
-    const nextEl = document.getElementById(`${type}-next`);
-
-    // ON AIR表示
-    if (state.isOnAir && state.onAirIndex >= 0 && state.onAirIndex < data.length) {
-      onairEl.innerHTML = this.formatItemHtml(type, data[state.onAirIndex]);
-    } else {
-      onairEl.innerHTML = '<span class="info-empty">---</span>';
+  async doTake(channelId) {
+    if (typeof RemoteSync !== 'undefined' && RemoteSync.shouldDelegate()) {
+      return RemoteSync.sendCommand('take', channelId);
+    }
+    const found = this.nextPage(channelId);
+    if (!found) {
+      App.setStatus('NEXTが未設定です (行をクリックで選択)', 'error');
+      return;
+    }
+    const { page, corner } = found;
+    if (page.locked || corner.locked) {
+      App.setStatus(`ページ${page.pageNo} はロック中のため送出できません`, 'error');
+      return;
     }
 
-    // NEXT表示
-    const activeIdx = this.getActiveIndex(type);
-    if (activeIdx >= 0 && activeIdx < data.length) {
-      nextEl.innerHTML = this.formatItemHtml(type, data[activeIdx]);
-    } else {
-      nextEl.innerHTML = '<span class="info-empty">---</span>';
-    }
-
-  },
-
-  /**
-   * 項目をHTML形式でフォーマット
-   * name: ショットタイプ + 人名一覧 (例: "2S / 寺井 / 佐藤")
-   * side: テキスト表示
-   */
-  formatItemHtml(type, item) {
-    if (type === 'name') {
-      const shotDef = SHOT_TYPES[item.shotType] || { label: item.shotType };
-      const persons = item.persons || [];
-      if (persons.length === 0) return '<span class="info-empty">(空)</span>';
-
-      let html = `<span class="info-shot-label">${this.esc(shotDef.label)}</span>`;
-      persons.forEach((p) => {
-        const name = p.nameJp || '';
-        const title = p.titleJp || '';
-        if (name) {
-          html += `<span class="info-person">${this.esc(name)}`;
-          if (title) html += ` <small>(${this.esc(title)})</small>`;
-          html += '</span>';
-        }
-      });
-      return html || '<span class="info-empty">(空)</span>';
-    }
-    // サイドテロップ
-    if (item.textJp) {
-      return `<div class="info-field"><span class="info-field-label">テキスト</span><span class="info-field-value">${this.esc(item.textJp)}</span></div>`;
-    }
-    return '<span class="info-empty">(空)</span>';
-  },
-
-  esc(str) {
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  },
-
-  /**
-   * ボタンの有効/無効を更新
-   */
-  updateButtons(type) {
-    const state = App.broadcast[type];
-    const data = this.getData(type);
-    const activeIdx = this.getActiveIndex(type);
-    const hasSelection = activeIdx >= 0 && activeIdx < data.length;
-
-    document.getElementById(`${type}-change`).disabled = !hasSelection;
-    document.getElementById(`${type}-take`).disabled = !hasSelection;
-    document.getElementById(`${type}-clear`).disabled = !state.isOnAir;
-  },
-
-  /**
-   * 状態リセット
-   */
-  reset(type) {
-    const state = App.broadcast[type];
-    state.currentIndex = -1;
-    state.isOnAir = false;
-    state.onAirIndex = -1;
-    if (type === 'name') {
-      state.onAirShotType = null;
-    }
-    this.updateInfo(type);
-    this.updateButtons(type);
-    this.highlightRows(type);
-    if (state.mode === 'karuta') {
-      this.renderKarutaList(type);
-    }
-  },
-
-  // --- API呼び出し ---
-
-  async doChange(type) {
-    const state = App.broadcast[type];
-    const data = this.getData(type);
-    const idx = this.getActiveIndex(type);
-    if (idx < 0 || idx >= data.length) return;
-
-    App.setStatus('CHANGE 送信中...');
-    const result = await window.api.singularChange(type, data[idx]);
-    if (result.ok) {
-      // NEXTをON AIRに繰り上げ
-      state.isOnAir = true;
-      state.onAirIndex = idx;
-      if (type === 'name') {
-        state.onAirShotType = data[idx].shotType;
-      }
-
-      // スケジュールモード: 次の項目があれば進む、なければNEXTを空に
-      if (state.mode === 'schedule') {
-        if (state.currentIndex < data.length - 1) {
-          state.currentIndex++;
-        } else {
-          state.currentIndex = -1;
-        }
-      }
-
-      this.highlightRows(type);
-      this.updateInfo(type);
-      this.updateButtons(type);
-      App.setStatus('CHANGE 完了', 'success');
-    } else {
-      App.setStatus(`CHANGE エラー: ${result.error || result.status}`, 'error');
-    }
-    return result;
-  },
-
-  async doTake(type) {
-    const state = App.broadcast[type];
-    const data = this.getData(type);
-    const idx = this.getActiveIndex(type);
-    if (idx < 0 || idx >= data.length) return;
-
-    const item = data[idx];
-
-    if (type === 'name') {
-      const newShotType = item.shotType;
-      const oldShotType = state.onAirShotType;
-
-      // 1. CHANGE: 新しいデータを送信
-      App.setStatus('CHANGE + TAKE 送信中...');
-      const changeResult = await window.api.singularChange(type, item);
-      if (!changeResult.ok) {
-        App.setStatus(`CHANGE エラー: ${changeResult.error || changeResult.status}`, 'error');
+    const detail = `P${page.pageNo} ${this.summarize(page)}`;
+    if (!App.rehearsal) {
+      const result = await this.sendPage(page, true, detail);
+      if (!result.ok) {
+        App.setStatus(`TAKE エラー: ${result.error}`, 'error');
         return;
       }
+    }
 
-      // 2. ショットタイプが変わる場合、旧サブコンポジションをCLEAR
-      if (state.isOnAir && oldShotType && oldShotType !== newShotType) {
-        const clearResult = await window.api.singularClear(type, oldShotType);
-        if (!clearResult.ok) {
-          App.setStatus(`旧CLEAR エラー: ${clearResult.error || clearResult.status}`, 'error');
+    const st = App.chState(channelId);
+    st.onAirPageId = page.id;
+    st.onAirSummary = detail;
+    st.onAirAt = performance.now();
+
+    // NEXTを同コーナー内・同チャンネルの次ページへ
+    const siblings = this.channelPagesInCorner(corner, channelId);
+    const idx = siblings.findIndex((pg) => pg.id === page.id);
+    st.nextPageId = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1].id : null;
+
+    App.setStatus(`${App.rehearsal ? '[リハーサル] ' : ''}TAKE 完了 — P${page.pageNo} ON AIR`, 'success');
+    this.notifyChanged();
+  },
+
+  /** UPDATE: NEXTをアニメなしで即時差し替え (旧CHANGE) */
+  async doUpdate(channelId) {
+    if (typeof RemoteSync !== 'undefined' && RemoteSync.shouldDelegate()) {
+      return RemoteSync.sendCommand('update', channelId);
+    }
+    const found = this.nextPage(channelId);
+    if (!found) {
+      App.setStatus('NEXTが未設定です (行をクリックで選択)', 'error');
+      return;
+    }
+    const { page, corner } = found;
+    if (page.locked || corner.locked) {
+      App.setStatus(`ページ${page.pageNo} はロック中のため送出できません`, 'error');
+      return;
+    }
+
+    const detail = `P${page.pageNo} ${this.summarize(page)}`;
+    if (!App.rehearsal) {
+      const result = await this.sendPage(page, false, detail);
+      if (!result.ok) {
+        App.setStatus(`UPDATE エラー: ${result.error}`, 'error');
+        return;
+      }
+    }
+
+    const st = App.chState(channelId);
+    st.onAirPageId = page.id;
+    st.onAirSummary = detail;
+    st.onAirAt = performance.now();
+    const siblings = this.channelPagesInCorner(corner, channelId);
+    const idx = siblings.findIndex((pg) => pg.id === page.id);
+    st.nextPageId = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1].id : null;
+
+    App.setStatus(`${App.rehearsal ? '[リハーサル] ' : ''}UPDATE 完了 — P${page.pageNo}`, 'success');
+    this.notifyChanged();
+  },
+
+  /** オンエア中ページの現在の編集内容を出力へ反映 (オンエア差し替え) */
+  async applyOnAirEdit(channelId) {
+    if (typeof RemoteSync !== 'undefined' && RemoteSync.shouldDelegate()) {
+      return RemoteSync.sendCommand('apply-edit', channelId);
+    }
+    const st = App.chState(channelId);
+    if (!st.onAirPageId) return;
+    const found = App.findPage(st.onAirPageId);
+    if (!found) return;
+    const detail = `P${found.page.pageNo} ${this.summarize(found.page)} (訂正)`;
+    if (!App.rehearsal) {
+      const result = await this.sendPage(found.page, false, detail);
+      if (!result.ok) {
+        App.setStatus(`反映エラー: ${result.error}`, 'error');
+        return;
+      }
+    }
+    st.onAirSummary = detail;
+    App.setStatus('オンエア中のテロップへ反映しました', 'success');
+    this.notifyChanged();
+  },
+
+  async doClear(channelId) {
+    if (typeof RemoteSync !== 'undefined' && RemoteSync.shouldDelegate()) {
+      return RemoteSync.sendCommand('clear', channelId);
+    }
+    const channel = App.channelById(channelId);
+    if (!channel) return;
+
+    if (!App.rehearsal) {
+      const result = await window.api.graphicsClear(channel.region, `${channel.label}`);
+      if (!result.ok) {
+        App.setStatus(`CLEAR エラー: ${result.error}`, 'error');
+        return;
+      }
+    }
+    const st = App.chState(channelId);
+    st.onAirPageId = null;
+    st.onAirSummary = '';
+    st.onAirAt = 0;
+    App.setStatus(`${App.rehearsal ? '[リハーサル] ' : ''}CLEAR 完了 (${channel.label})`, 'success');
+    this.notifyChanged();
+  },
+
+  /**
+   * CLEAR&BACK: オンエア中を消して1つ前のページを即表示する (誤送出のリカバリー)。
+   * 前のページが無い場合は通常のCLEARになる。NEXTは消したページへ戻す。
+   */
+  async doClearBack(channelId) {
+    if (typeof RemoteSync !== 'undefined' && RemoteSync.shouldDelegate()) {
+      return RemoteSync.sendCommand('clearback', channelId);
+    }
+    const channel = App.channelById(channelId);
+    if (!channel) return;
+    const st = App.chState(channelId);
+    const curId = st.onAirPageId;
+
+    // オンエア中ページの1つ前 (同コーナー・同系統) を探す
+    let prev = null;
+    const found = curId ? App.findPage(curId) : null;
+    if (found && found.list === 'pages') {
+      const siblings = this.channelPagesInCorner(found.corner, channelId);
+      const idx = siblings.findIndex((pg) => pg.id === curId);
+      if (idx > 0) prev = siblings[idx - 1];
+    }
+
+    if (prev) {
+      const detail = `P${prev.pageNo} ${this.summarize(prev)} (C&B)`;
+      if (!App.rehearsal) {
+        const result = await this.sendPage(prev, false, detail);
+        if (!result.ok) {
+          App.setStatus(`CLEAR&BACK エラー: ${result.error}`, 'error');
           return;
         }
       }
-
-      // 3. 新サブコンポジションをTAKE
-      const takeResult = await window.api.singularTake(type, newShotType);
-      if (takeResult.ok) {
-        state.isOnAir = true;
-        state.onAirIndex = idx;
-        state.onAirShotType = newShotType;
-        this.highlightRows(type);
-        this.updateInfo(type);
-        this.updateButtons(type);
-
-        // スケジュールモード: 次へ進む
-        if (state.mode === 'schedule') {
-          if (state.currentIndex < data.length - 1) {
-            state.currentIndex++;
-          } else {
-            state.currentIndex = -1;
-          }
-          this.highlightRows(type);
-          this.updateInfo(type);
-        }
-
-        App.setStatus('TAKE 完了 - ON AIR', 'success');
-      } else {
-        App.setStatus(`TAKE エラー: ${takeResult.error || takeResult.status}`, 'error');
-      }
+      st.onAirPageId = prev.id;
+      st.onAirSummary = detail;
+      st.onAirAt = performance.now();
+      st.nextPageId = curId; // 消したページをNEXTへ戻す (やり直しできる)
+      App.setStatus(`${App.rehearsal ? '[リハーサル] ' : ''}CLEAR&BACK — P${prev.pageNo} に戻しました`, 'success');
+      this.notifyChanged();
     } else {
-      // サイドテロップ: 従来通り
-      App.setStatus('CHANGE + TAKE 送信中...');
-      const changeResult = await window.api.singularChange(type, item);
-      if (!changeResult.ok) {
-        App.setStatus(`CHANGE エラー: ${changeResult.error || changeResult.status}`, 'error');
-        return;
-      }
-
-      const result = await window.api.singularTake(type);
-      if (result.ok) {
-        state.isOnAir = true;
-        state.onAirIndex = idx;
-        this.highlightRows(type);
-        this.updateInfo(type);
-        this.updateButtons(type);
-
-        if (state.mode === 'schedule') {
-          if (state.currentIndex < data.length - 1) {
-            state.currentIndex++;
-          } else {
-            state.currentIndex = -1;
-          }
-          this.highlightRows(type);
-          this.updateInfo(type);
-        }
-
-        App.setStatus('TAKE 完了 - ON AIR', 'success');
-      } else {
-        App.setStatus(`TAKE エラー: ${result.error || result.status}`, 'error');
-      }
+      // 前のページが無い → 通常CLEAR
+      await this.doClear(channelId);
     }
   },
 
-  async doClear(type) {
-    const state = App.broadcast[type];
-
-    App.setStatus('CLEAR 送信中...');
-
-    let result;
-    if (type === 'name' && state.onAirShotType) {
-      // 名前テロップ: ON AIR中のショットタイプのサブコンポジションをCLEAR
-      result = await window.api.singularClear(type, state.onAirShotType);
-    } else {
-      result = await window.api.singularClear(type);
+  async doStop(channelId) {
+    if (typeof RemoteSync !== 'undefined' && RemoteSync.shouldDelegate()) {
+      return RemoteSync.sendCommand('stop', channelId);
     }
-
-    if (result.ok) {
-      state.isOnAir = false;
-      state.onAirIndex = -1;
-      if (type === 'name') {
-        state.onAirShotType = null;
-      }
-      this.highlightRows(type);
-      this.updateInfo(type);
-      this.updateButtons(type);
-      App.setStatus('CLEAR 完了', 'success');
-    } else {
-      App.setStatus(`CLEAR エラー: ${result.error || result.status}`, 'error');
-    }
+    const channel = App.channelById(channelId);
+    if (!channel || App.rehearsal) return;
+    await window.api.graphicsStop(channel.region);
+    App.setStatus(`STOP (${channel.label}) — アニメーションを一時停止/再開`);
   },
 
+  // ===== NEXTポインタ移動 (SKIP / BACK / TOP) =====
+
+  /** 現在の基準ページ (NEXT優先、無ければON AIR) の同チャンネル兄弟リストと位置 */
+  _cursor(channelId) {
+    const st = App.chState(channelId);
+    const baseId = st.nextPageId || st.onAirPageId;
+    if (baseId) {
+      const found = App.findPage(baseId);
+      if (found && found.list === 'pages') {
+        const siblings = this.channelPagesInCorner(found.corner, channelId);
+        return { siblings, idx: siblings.findIndex((pg) => pg.id === baseId), corner: found.corner };
+      }
+    }
+    // 基準なし: 表示中コーナー (RundownUI) の先頭
+    const corner = (typeof RundownUI !== 'undefined' && RundownUI.currentCorner()) || App.corners()[0];
+    if (!corner) return { siblings: [], idx: -1, corner: null };
+    return { siblings: this.channelPagesInCorner(corner, channelId), idx: -1, corner };
+  },
+
+  moveNext(channelId, delta) {
+    const { siblings, idx } = this._cursor(channelId);
+    if (siblings.length === 0) return;
+    let to;
+    if (idx < 0) {
+      to = delta > 0 ? 0 : siblings.length - 1;
+    } else {
+      to = Math.max(0, Math.min(siblings.length - 1, idx + delta));
+    }
+    App.chState(channelId).nextPageId = siblings[to].id;
+    App.setStatus(`NEXT: P${siblings[to].pageNo}`);
+    this.notifyChanged();
+  },
+
+  /** 表示中コーナーの先頭ページをNEXTに */
+  goTop(channelId) {
+    const corner = (typeof RundownUI !== 'undefined' && RundownUI.currentCorner()) || App.corners()[0];
+    if (!corner) return;
+    const siblings = this.channelPagesInCorner(corner, channelId);
+    if (siblings.length === 0) return;
+    App.chState(channelId).nextPageId = siblings[0].id;
+    App.setStatus(`NEXT: P${siblings[0].pageNo} (先頭)`);
+    this.notifyChanged();
+  },
+
+  // ===== UI通知 =====
+
+  notifyChanged() {
+    if (typeof RundownUI !== 'undefined') RundownUI.renderBroadcastState();
+    this.updateGlobalOnAir();
+  },
+
+  /** ステータスバーの送出状態表示 (全タブから見える) */
+  updateGlobalOnAir() {
+    const el = document.getElementById('status-onair');
+    if (!el) return;
+    const parts = [];
+    App.channels.forEach((ch) => {
+      const st = App.broadcast[ch.id];
+      if (st && st.onAirPageId) {
+        const found = App.findPage(st.onAirPageId);
+        parts.push(found ? `${ch.label} P${found.page.pageNo}` : ch.label);
+      }
+    });
+    el.textContent = parts.length ? `ON AIR: ${parts.join(' + ')}` : 'ON AIR: なし';
+    el.style.color = parts.length ? 'var(--red)' : '';
+    el.style.fontWeight = parts.length ? '700' : '';
+  },
 };
-
-document.addEventListener('DOMContentLoaded', () => Broadcast.init());

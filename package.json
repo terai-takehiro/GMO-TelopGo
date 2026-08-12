@@ -1,15 +1,18 @@
 {
   "name": "gmo-telopgo",
-  "version": "1.1.0",
-  "description": "GMO TelopGo - Singular Live テロップ送出アプリ",
+  "version": "2.9.0",
+  "description": "GMO TelopGo - HTML5テロップ送出アプリ",
   "main": "main.js",
   "author": "GMOインターネットグループ株式会社",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win"
+    "build": "electron-builder --win",
+    "build:mac": "electron-builder --mac"
   },
   "dependencies": {
     "electron-store": "^8.1.0",
+    "koffi": "^3.1.0",
+    "ws": "^8.21.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -21,15 +24,38 @@
     "productName": "GMO TelopGo",
     "win": {
       "target": [
-        { "target": "dir" },
-        { "target": "nsis" }
+        {
+          "target": "dir"
+        },
+        {
+          "target": "nsis"
+        }
       ],
       "icon": "assets/icon.png",
       "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "GMO-TelopGo-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64", "x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["arm64", "x64"]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.video",
+      "artifactName": "GMO-TelopGo-${version}-${arch}-mac.${ext}"
+    },
+    "dmg": {
+      "artifactName": "GMO-TelopGo-${version}-${arch}.${ext}"
     }
   }
 }

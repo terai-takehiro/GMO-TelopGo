@@ -1,14 +1,153 @@
-const { ipcMain, dialog } = require('electron');
+const { ipcMain, dialog, BrowserWindow, app, shell } = require('electron');
+const { execFile } = require('child_process');
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const XLSX = require('xlsx');
 const { readExcel } = require('./excel-reader');
-const singularApi = require('./singular-api');
-const { getSettings, saveSettings, getTelopConfig, getNameShotConfig } = require('./settings-store');
+const gpioDio = require('./gpio-dio');
+const remoteLink = require('./remote-link');
+const graphicsStore = require('./graphics-store');
+const graphicsServer = require('./graphics-server');
+const liveData = require('./live-data');
+const googleFonts = require('./google-fonts');
+const { getSettings, saveSettings, getGpioConfig, getGraphicsConfig, getChannels, getOutputGroups } = require('./settings-store');
+const rundownStore = require('./rundown-store');
 
-/** ショットタイプのフィールドプレフィックス */
-const PERSON_PREFIXES = ['', '2nd', '3rd', '4th'];
+/** テンプレートのbindingフィールド一覧 (レイヤー順・重複なし) */
+function templateBindings(templateKey) {
+  const project = graphicsStore.getProject();
+  const template = project && project.templates && project.templates[templateKey];
+  if (!template) return [];
+  const bindings = [];
+  ['jp', 'en'].forEach((lang) => {
+    const variant = template.variants && template.variants[lang];
+    ((variant && variant.layers) || []).forEach((layer) => {
+      if (layer.type === 'text' && layer.binding && !bindings.includes(layer.binding)) {
+        bindings.push(layer.binding);
+      }
+    });
+  });
+  return bindings;
+}
+
+/** テンプレートの出力リージョン(チャンネル)を解決 */
+function templateRegion(templateKey) {
+  const project = graphicsStore.getProject();
+  const template = project && project.templates && project.templates[templateKey];
+  if (!template || !template.region) {
+    throw new Error(`テンプレートが見つかりません: ${templateKey}`);
+  }
+  return template.region;
+}
+
+// ===== オンエア操作ログ =====
+let logsDirPath = '';
+function appendOnairLog(action, detail) {
+  if (!logsDirPath) return;
+  try {
+    fs.mkdirSync(logsDirPath, { recursive: true });
+    const now = new Date();
+    const day = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const time = now.toTimeString().slice(0, 8);
+    fs.appendFileSync(
+      path.join(logsDirPath, `onair-${day}.log`),
+      `${time}\t${action}\t${detail || ''}\n`, 'utf-8');
+  } catch (_) { /* ログ失敗は送出を妨げない */ }
+}
+
+/** インストール済みフォントのファミリー名一覧 (初回のみ取得しキャッシュ) */
+let systemFontsCache = null;
+
+function listSystemFonts() {
+  if (systemFontsCache) return Promise.resolve(systemFontsCache);
+
+  return new Promise((resolve) => {
+    const finish = (names) => {
+      const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'ja'));
+      systemFontsCache = unique;
+      resolve(unique);
+    };
+
+    if (process.platform === 'win32') {
+      // System.Drawing でインストール済みフォントファミリーを列挙 (追加依存なし)
+      const script = '[void][Reflection.Assembly]::LoadWithPartialName("System.Drawing");'
+        + '(New-Object System.Drawing.Text.InstalledFontCollection).Families | ForEach-Object { $_.Name }';
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script],
+        { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+          finish(err ? [] : stdout.split(/\r?\n/));
+        });
+      return;
+    }
+
+    // Linux/macOS (開発環境用): fontconfig があれば使用
+    execFile('fc-list', [':', 'family'], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      if (err) {
+        finish([]);
+        return;
+      }
+      // "FamilyA,FamilyB" 形式は先頭を採用、エスケープ文字を除去
+      finish(stdout.split(/\r?\n/).map((line) => line.split(',')[0].replace(/\\/g, '')));
+    });
+  });
+}
+
+/** 既定フォント (LINE Seed JP) が未取得なら起動時にバックグラウンドで自動取得する */
+const DEFAULT_WEB_FONT = { family: 'LINE Seed JP', weights: [400, 700, 800] };
+
+async function ensureDefaultWebFont() {
+  try {
+    const project = graphicsStore.getProject();
+    const fonts = (project.assets && project.assets.fonts) || [];
+    if (fonts.some((f) => f.family === DEFAULT_WEB_FONT.family)) return;
+
+    const result = await require('./google-fonts').fetchFamily(
+      DEFAULT_WEB_FONT.family, DEFAULT_WEB_FONT.weights, graphicsStore.getAssetsDir());
+
+    // 取得中にプロジェクトが更新されている可能性があるため取り直す
+    const latest = graphicsStore.getProject();
+    latest.assets = latest.assets || { images: [], fonts: [] };
+    latest.assets.fonts = latest.assets.fonts || [];
+    if (!latest.assets.fonts.some((f) => f.family === result.family)) {
+      latest.assets.fonts.push({ family: result.family, cssFile: result.cssFile, files: result.files });
+      graphicsStore.setProject(latest);
+      graphicsServer.refreshProject();
+    }
+  } catch (_) {
+    // オフライン等で取得できない場合は次回起動時に再試行 (既定テンプレートは游ゴシックへフォールバック)
+  }
+}
+
+/** LAN内のIPv4アドレス一覧 */
+function lanAddresses() {
+  const addrs = [];
+  Object.values(os.networkInterfaces()).forEach((ifaces) => {
+    (ifaces || []).forEach((iface) => {
+      if (iface.family === 'IPv4' && !iface.internal) addrs.push(iface.address);
+    });
+  });
+  return addrs;
+}
 
 function registerIpcHandlers() {
+  // --- グラフィックスエンジン初期化 ---
+  graphicsStore.init(app.getPath('userData'));
+  rundownStore.init(app.getPath('userData'));
+  logsDirPath = path.join(app.getPath('userData'), 'logs');
+  graphicsServer.configure({
+    staticDir: path.join(__dirname, '..', 'output'),
+    assetsDir: graphicsStore.getAssetsDir(),
+    getProject: graphicsStore.getProject,
+    getChannels,
+    getGroups: getOutputGroups,
+  });
+  const graphicsConfig = getGraphicsConfig();
+  if (graphicsConfig.autoStart) {
+    graphicsServer.start(graphicsConfig.port).catch(() => { /* 状態はgetStatusで通知 */ });
+  }
+  ensureDefaultWebFont();
+
   // --- Excel ---
   ipcMain.handle('open-excel-file', async (_event, telopType) => {
     const result = await dialog.showOpenDialog({
@@ -25,81 +164,425 @@ function registerIpcHandlers() {
     }
   });
 
-  // --- Singular API ---
-  ipcMain.handle('singular-change', async (_event, telopType, rowData) => {
-    if (telopType === 'name') {
-      return handleNameChange(rowData);
-    }
-    // side telop
-    const config = getTelopConfig('side');
-    if (!config.appToken || !config.subCompositionName) {
-      return { ok: false, error: '設定が未入力です。設定タブでApp TokenとSub-Composition名を入力してください。' };
-    }
-    const fieldData = {};
-    if (rowData.textJp !== undefined) fieldData[config.fields.textJp] = rowData.textJp;
-    if (rowData.textEn !== undefined) fieldData[config.fields.textEn] = rowData.textEn;
+  // --- グラフィックス送出 (ページ = テンプレート + 値 を直接送出) ---
+  ipcMain.handle('graphics-take', async (_event, templateKey, values, animate, logDetail) => {
     try {
-      return await singularApi.change(config.appToken, config.subCompositionName, fieldData);
+      if (!graphicsServer.isRunning()) {
+        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
+      }
+      const region = templateRegion(templateKey);
+      graphicsServer.take(region, templateKey, values || {}, animate !== false);
+      appendOnairLog(animate !== false ? 'TAKE' : 'UPDATE', logDetail || `${region} ${templateKey}`);
+      return { ok: true, region };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
 
-  ipcMain.handle('singular-take', async (_event, telopType, shotType) => {
-    if (telopType === 'name') {
-      const config = getNameShotConfig(shotType);
-      if (!config.appToken || !config.subCompositionName) {
-        return { ok: false, error: `${shotType}の設定が未入力です。` };
-      }
-      try {
-        return await singularApi.take(config.appToken, config.subCompositionName);
-      } catch (err) {
-        return { ok: false, error: err.message };
-      }
-    }
-    // side telop
-    const config = getTelopConfig('side');
-    if (!config.appToken || !config.subCompositionName) {
-      return { ok: false, error: '設定が未入力です。' };
-    }
+  // --- 明示リージョン指定の送出 (スポーツ: 1テンプレを任意ウィンドウ=regionへ) ---
+  ipcMain.handle('graphics-take-to', async (_event, region, templateKey, values, animate, logDetail) => {
     try {
-      return await singularApi.take(config.appToken, config.subCompositionName);
+      if (!graphicsServer.isRunning()) {
+        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
+      }
+      if (!region) return { ok: false, error: '出力先リージョンが指定されていません。' };
+      graphicsServer.take(region, templateKey, values || {}, animate !== false);
+      appendOnairLog(animate !== false ? 'TAKE' : 'UPDATE', logDetail || `${region} ${templateKey}`);
+      return { ok: true, region };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
 
-  ipcMain.handle('singular-clear', async (_event, telopType, shotType) => {
-    if (telopType === 'name') {
-      const config = getNameShotConfig(shotType);
-      if (!config.appToken || !config.subCompositionName) {
-        return { ok: false, error: `${shotType}の設定が未入力です。` };
-      }
-      try {
-        return await singularApi.clear(config.appToken, config.subCompositionName);
-      } catch (err) {
-        return { ok: false, error: err.message };
-      }
-    }
-    // side telop
-    const config = getTelopConfig('side');
-    if (!config.appToken || !config.subCompositionName) {
-      return { ok: false, error: '設定が未入力です。' };
-    }
+  // --- レイアウト (ウィンドウの位置・サイズをコンポーザーから設定) ---
+  ipcMain.handle('graphics-set-layout', async (_event, region, x, y, scale) => {
     try {
-      return await singularApi.clear(config.appToken, config.subCompositionName);
+      if (!graphicsServer.isRunning()) return { ok: false };
+      graphicsServer.setLayout(region, x, y, scale);
+      return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
 
-  ipcMain.handle('singular-test-connection', async (_event, telopType) => {
-    const config = telopType === 'name' ? getTelopConfig('name') : getTelopConfig('side');
-    if (!config.appToken) {
-      return { ok: false, error: 'App Tokenが未入力です。' };
-    }
+  // --- 静的送出 (電テロ: 静止画/作画をテンプレート非依存で送出) ---
+  ipcMain.handle('graphics-take-static', async (_event, payload, animate, logDetail) => {
     try {
-      return await singularApi.testConnection(config.appToken);
+      if (!graphicsServer.isRunning()) {
+        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
+      }
+      if (!payload || !payload.region) {
+        return { ok: false, error: '出力先の系統が指定されていません。' };
+      }
+      const content = { kind: payload.kind };
+      if (payload.kind === 'still') content.still = payload.still;
+      else content.variant = payload.variant;
+      graphicsServer.takeStatic(payload.region, content, animate !== false);
+      appendOnairLog(animate !== false ? 'TAKE' : 'UPDATE', logDetail || `${payload.region} ${payload.kind}`);
+      return { ok: true, region: payload.region };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // インプレース更新: onAir中のテンプレの値だけ差し替え (再テイクなし。スポーツコーダー等)
+  ipcMain.handle('graphics-update-values', async (_event, region, values) => {
+    try {
+      if (!graphicsServer.isRunning()) {
+        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
+      }
+      const ok = graphicsServer.updateValues(region, values || {});
+      return { ok };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-clear', async (_event, region, logDetail) => {
+    try {
+      if (!graphicsServer.isRunning()) {
+        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
+      }
+      graphicsServer.clear(region);
+      appendOnairLog('CLEAR', logDetail || region);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-stop', async (_event, region) => {
+    try {
+      if (!graphicsServer.isRunning()) {
+        return { ok: false, error: '出力サーバが停止しています。設定タブで起動してください。' };
+      }
+      graphicsServer.stopAnim(region);
+      appendOnairLog('STOP', region);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('app-version', () => app.getVersion());
+
+  ipcMain.handle('open-onair-logs', async () => {
+    fs.mkdirSync(logsDirPath, { recursive: true });
+    await shell.openPath(logsDirPath);
+    return { ok: true };
+  });
+
+  // --- ランダウン (番組>放送>コーナー>ページ) の永続化 ---
+  ipcMain.handle('rundown-get', async () => {
+    return rundownStore.get();
+  });
+
+  ipcMain.handle('rundown-set', async (_event, data) => {
+    try {
+      rundownStore.set(data);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // --- テンプレート情報 (ページエディタ用) ---
+  ipcMain.handle('template-bindings', async (_event, templateKey) => {
+    return { bindings: templateBindings(templateKey), region: (() => {
+      try { return templateRegion(templateKey); } catch (_) { return null; }
+    })() };
+  });
+
+  // --- Excel取込 (ページ一括: テンプレートのbinding列順) ---
+  ipcMain.handle('excel-import-pages', async (_event, templateKey) => {
+    const bindings = templateBindings(templateKey);
+    if (bindings.length === 0) {
+      return { success: false, error: 'このテンプレートには文字フィールドがありません。' };
+    }
+    const result = await dialog.showOpenDialog({
+      title: 'Excelファイルを選択',
+      filters: [{ name: 'Excel', extensions: ['xlsx', 'xls', 'csv'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    try {
+      const workbook = XLSX.readFile(result.filePaths[0]);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      const dataRows = rows.slice(1).filter((row) => row.some((cell) => String(cell).trim() !== ''));
+      const pages = dataRows.map((row) => {
+        const values = {};
+        bindings.forEach((b, i) => { values[b] = String(row[i] !== undefined ? row[i] : ''); });
+        return values;
+      });
+      return { success: true, pages, filePath: result.filePaths[0] };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // --- 出力サーバ管理 ---
+  ipcMain.handle('graphics-server-start', async (_event, port) => {
+    try {
+      const p = Math.max(1, Math.min(65535, parseInt(port, 10) || 8790));
+      await graphicsServer.start(p);
+      return { ok: true, status: graphicsServer.getStatus() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-server-stop', async () => {
+    graphicsServer.stop();
+    return { ok: true };
+  });
+
+  ipcMain.handle('graphics-server-status', async () => {
+    return { ...graphicsServer.getStatus(), lanAddresses: lanAddresses() };
+  });
+
+  // --- デザインエディタ ---
+  ipcMain.handle('graphics-get-project', async () => {
+    return graphicsStore.getProject();
+  });
+
+  ipcMain.handle('graphics-save-project', async (_event, project) => {
+    try {
+      if (!project || !project.templates) {
+        return { ok: false, error: 'プロジェクトデータが不正です。' };
+      }
+      graphicsStore.setProject(project);
+      graphicsServer.refreshProject();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // source 無し → OSダイアログ / 文字列 → そのパスをコピー / {name,data} → バッファを書き出し
+  //   (ドラッグ&ドロップ取込では file.path 文字列またはバイト列が渡される)
+  ipcMain.handle('graphics-import-asset', async (_event, source) => {
+    try {
+      const assetsDir = graphicsStore.getAssetsDir();
+      // バイト列で受け取った場合 (file.path が使えない環境のフォールバック)
+      if (source && typeof source === 'object' && source.data) {
+        const safe = path.basename(source.name || 'image').replace(/[\\/:*?"<>|\s]/g, '_') || 'image';
+        const file = `${Date.now()}_${safe}`;
+        fs.writeFileSync(path.join(assetsDir, file), Buffer.from(source.data));
+        return { ok: true, file };
+      }
+      let src = typeof source === 'string' && source ? source : null;
+      if (!src) {
+        const result = await dialog.showOpenDialog({
+          title: '画像を選択',
+          filters: [{ name: '画像', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'] }],
+          properties: ['openFile'],
+        });
+        if (result.canceled || result.filePaths.length === 0) return null;
+        src = result.filePaths[0];
+      }
+      const safe = path.basename(src).replace(/[\\/:*?"<>|\s]/g, '_');
+      const file = `${Date.now()}_${safe}`;
+      fs.copyFileSync(src, path.join(assetsDir, file));
+      return { ok: true, file };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('system-fonts', async () => {
+    return listSystemFonts();
+  });
+
+  // --- デザインセット管理 ---
+  ipcMain.handle('graphics-list-sets', async () => {
+    return graphicsStore.listSets();
+  });
+
+  ipcMain.handle('graphics-create-set', async (_event, name, fromCurrent) => {
+    try {
+      const id = graphicsStore.createSet(String(name || '').trim() || '新しいデザイン', !!fromCurrent);
+      graphicsServer.refreshProject();
+      return { ok: true, id, ...graphicsStore.listSets() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-switch-set', async (_event, id) => {
+    try {
+      graphicsStore.switchSet(id);
+      graphicsServer.refreshProject();
+      return { ok: true, ...graphicsStore.listSets() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-rename-set', async (_event, id, name) => {
+    try {
+      graphicsStore.renameSet(id, String(name || '').trim() || '新しいデザイン');
+      return { ok: true, ...graphicsStore.listSets() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-delete-set', async (_event, id) => {
+    try {
+      graphicsStore.deleteSet(id);
+      return { ok: true, ...graphicsStore.listSets() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-save-set-thumb', async (_event, dataUrl) => {
+    try {
+      return { ok: graphicsStore.saveSetThumb(dataUrl) };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-set-thumbs', async () => {
+    try {
+      return graphicsStore.getSetThumbs();
+    } catch (_) {
+      return {};
+    }
+  });
+
+  // --- スタイルパレット (全セット共通) ---
+  ipcMain.handle('graphics-style-presets', async () => {
+    return graphicsStore.listStylePresets();
+  });
+
+  ipcMain.handle('graphics-style-preset-add', async (_event, name, style) => {
+    try {
+      return { ok: true, preset: graphicsStore.addStylePreset(name, style) };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-style-preset-delete', async (_event, id) => {
+    try {
+      return { ok: true, presets: graphicsStore.deleteStylePreset(id) };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // --- バックアップ / PNG書き出し ---
+  ipcMain.handle('graphics-open-backups', async () => {
+    await shell.openPath(graphicsStore.getBackupsDir());
+    return { ok: true };
+  });
+
+  ipcMain.handle('graphics-export-png', async (_event, dataUrl, suggestedName) => {
+    const m = /^data:image\/png;base64,(.+)$/.exec(dataUrl || '');
+    if (!m) return { ok: false, error: '画像データが不正です。' };
+    const result = await dialog.showSaveDialog({
+      title: 'PNGとして保存',
+      defaultPath: String(suggestedName || 'telop.png').replace(/[\\/:*?"<>|]/g, '_'),
+      filters: [{ name: 'PNG画像', extensions: ['png'] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    try {
+      fs.writeFileSync(result.filePath, Buffer.from(m[1], 'base64'));
+      return { ok: true, filePath: result.filePath };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-fetch-gfont', async (_event, family, weights) => {
+    try {
+      const result = await googleFonts.fetchFamily(family, weights, graphicsStore.getAssetsDir());
+      return { ok: true, ...result };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-import-font', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'フォントファイルを選択',
+      filters: [{ name: 'フォント', extensions: ['ttf', 'otf', 'woff', 'woff2'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    try {
+      const src = result.filePaths[0];
+      const base = path.basename(src);
+      const safe = base.replace(/[\\/:*?"<>|\s]/g, '_');
+      const file = `${Date.now()}_${safe}`;
+      fs.copyFileSync(src, path.join(graphicsStore.getAssetsDir(), file));
+      // ファミリー名の初期値は拡張子を除いたファイル名
+      const family = base.replace(/\.(ttf|otf|woff2?|TTF|OTF)$/, '');
+      return { ok: true, file, family };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // --- デザイン一式のエクスポート/インポート (テンプレート+素材をJSONに同梱) ---
+  ipcMain.handle('graphics-export-design', async () => {
+    const result = await dialog.showSaveDialog({
+      title: 'デザインをエクスポート',
+      defaultPath: 'telop-design.tgdesign',
+      filters: [{ name: 'Telop Design', extensions: ['tgdesign'] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    try {
+      const project = graphicsStore.getProject();
+      const files = {};
+      graphicsStore.referencedAssetFiles(project).forEach((file) => {
+        const p = path.join(graphicsStore.getAssetsDir(), path.basename(file));
+        if (fs.existsSync(p)) files[file] = fs.readFileSync(p).toString('base64');
+      });
+      const data = { format: 'gmo-telopgo-design', version: 1, exportedAt: new Date().toISOString(), project, files };
+      fs.writeFileSync(result.filePath, JSON.stringify(data), 'utf-8');
+      return { ok: true, filePath: result.filePath };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-import-design', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'デザインをインポート',
+      filters: [{ name: 'Telop Design', extensions: ['tgdesign', 'json'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    try {
+      const data = JSON.parse(fs.readFileSync(result.filePaths[0], 'utf-8'));
+      if (data.format !== 'gmo-telopgo-design' || !data.project || !data.project.templates) {
+        return { ok: false, error: 'デザインファイルの形式が不正です。' };
+      }
+      Object.entries(data.files || {}).forEach(([file, base64]) => {
+        fs.writeFileSync(path.join(graphicsStore.getAssetsDir(), path.basename(file)), Buffer.from(base64, 'base64'));
+      });
+      graphicsStore.setProject(data.project);
+      graphicsServer.refreshProject();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphics-open-project-file', async () => {
+    await shell.openPath(graphicsStore.getProjectPath());
+    return { ok: true, path: graphicsStore.getProjectPath() };
+  });
+
+  ipcMain.handle('graphics-reload-project', async () => {
+    try {
+      graphicsStore.reload();
+      graphicsServer.refreshProject();
+      return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
     }
@@ -112,23 +595,27 @@ function registerIpcHandlers() {
 
   ipcMain.handle('save-settings', async (_event, settings) => {
     saveSettings(settings);
+    // チャンネル/出力グループの変更を出力ページへ即時反映
+    if (graphicsServer.isRunning() && (settings.channels || settings.outputGroups)) {
+      graphicsServer.refreshProject();
+    }
     return { success: true };
   });
 
   // --- Project Save/Load ---
-  ipcMain.handle('save-project', async (_event, projectData) => {
+  ipcMain.handle('save-project', async () => {
     const result = await dialog.showSaveDialog({
-      title: 'プロジェクトを保存',
-      defaultPath: 'telop-project.json',
-      filters: [{ name: 'Telop Project', extensions: ['json'] }],
+      title: 'ランダウンを書き出し',
+      defaultPath: 'telop-rundown.json',
+      filters: [{ name: 'Telop Rundown/Project', extensions: ['json'] }],
     });
     if (result.canceled || !result.filePath) return { success: false };
     try {
       const data = {
-        version: 2,
+        version: 3,
         savedAt: new Date().toISOString(),
         settings: getSettings(),
-        ...projectData,
+        rundown: rundownStore.get(),
       };
       fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2), 'utf-8');
       return { success: true, filePath: result.filePath };
@@ -139,8 +626,8 @@ function registerIpcHandlers() {
 
   ipcMain.handle('load-project', async () => {
     const result = await dialog.showOpenDialog({
-      title: 'プロジェクトを読込',
-      filters: [{ name: 'Telop Project', extensions: ['json'] }],
+      title: 'ランダウンを読込 (旧プロジェクト形式も自動変換)',
+      filters: [{ name: 'Telop Rundown/Project', extensions: ['json'] }],
       properties: ['openFile'],
     });
     if (result.canceled || result.filePaths.length === 0) return null;
@@ -148,29 +635,32 @@ function registerIpcHandlers() {
       const raw = fs.readFileSync(result.filePaths[0], 'utf-8');
       const data = JSON.parse(raw);
 
-      // v1 → v2 マイグレーション
-      if (data.version === 1) {
-        if (data.nameData) {
-          data.nameData = data.nameData.map(item => ({
+      let rundown;
+      if (data.version === 3 && data.rundown) {
+        rundown = data.rundown;
+      } else if (data.version === 1 || data.version === 2 || data.nameData || data.sideData) {
+        // 旧形式 (name/side行データ) → ランダウンへ自動移行
+        if (data.version === 1 && data.nameData) {
+          data.nameData = data.nameData.map((item) => ({
             shotType: '1S',
             persons: [{ titleJp: item.titleJp || '', nameJp: item.nameJp || '', titleEn: item.titleEn || '', nameEn: item.nameEn || '' }],
           }));
         }
-        if (!data.namePool) data.namePool = [];
-        data.version = 2;
-      }
-
-      if (data.version !== 2) {
+        rundown = rundownStore.migrateLegacy(data);
+      } else {
         return { success: false, error: 'サポートされていないプロジェクトバージョンです。' };
       }
+
+      rundownStore.set(rundown);
       if (data.settings) {
         saveSettings(data.settings);
       }
-      return { success: true, data };
+      return { success: true, rundown, migrated: data.version !== 3 };
     } catch (err) {
       return { success: false, error: err.message };
     }
   });
+
   // --- Template Download ---
   ipcMain.handle('download-template', async (_event, telopType) => {
     const wb = XLSX.utils.book_new();
@@ -180,15 +670,21 @@ function registerIpcHandlers() {
     if (telopType === 'name') {
       wsData = [
         ['肩書(JP)', '名前(JP)', '肩書(EN)', '名前(EN)'],
-        ['代表取締役', '山田太郎', 'CEO', 'Taro Yamada'],
+        ['代表取締役', '見本 太郎', 'CEO', 'Taro Mihon'],
       ];
       defaultFilename = 'name-telop-template.xlsx';
-    } else {
+    } else if (telopType === 'side') {
       wsData = [
         ['テキスト(JP)', 'テキスト(EN)'],
         ['サンプルテキスト', 'Sample text'],
       ];
       defaultFilename = 'side-telop-template.xlsx';
+    } else {
+      // 任意テンプレート: bindingフィールドをそのまま列ヘッダに
+      const bindings = templateBindings(telopType);
+      if (bindings.length === 0) return { success: false, error: 'テンプレートに文字フィールドがありません。' };
+      wsData = [bindings];
+      defaultFilename = `${String(telopType).replace(/[^\w-]/g, '_')}-template.xlsx`;
     }
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -210,47 +706,122 @@ function registerIpcHandlers() {
       return { success: false, error: err.message };
     }
   });
-}
 
-/** 名前テロップ CHANGE処理 */
-function handleNameChange(rowData) {
-  const shotType = rowData.shotType;
-  const persons = rowData.persons;
-  if (!shotType || !persons) {
-    return { ok: false, error: 'ショットタイプまたは出演者データが不正です。' };
-  }
-
-  const config = getNameShotConfig(shotType);
-  if (!config.appToken || !config.subCompositionName) {
-    return { ok: false, error: `${shotType}の設定が未入力です。設定タブで設定してください。` };
-  }
-
-  const fieldData = {};
-  const fields = config.fields;
-
-  persons.forEach((person, i) => {
-    const prefix = PERSON_PREFIXES[i];
-    if (shotType === 'nameOnly' && i === 0) {
-      // 名前のみ: titleフィールドなし
-      if (fields.nameJp) fieldData[fields.nameJp] = person.nameJp || '';
-      if (fields.nameEn) fieldData[fields.nameEn] = person.nameEn || '';
-    } else {
-      const tJp = prefix ? `${prefix}TitleJp` : 'titleJp';
-      const nJp = prefix ? `${prefix}NameJp` : 'nameJp';
-      const tEn = prefix ? `${prefix}TitleEn` : 'titleEn';
-      const nEn = prefix ? `${prefix}NameEn` : 'nameEn';
-      if (fields[tJp]) fieldData[fields[tJp]] = person.titleJp || '';
-      if (fields[nJp]) fieldData[fields[nJp]] = person.nameJp || '';
-      if (fields[tEn]) fieldData[fields[tEn]] = person.titleEn || '';
-      if (fields[nEn]) fieldData[fields[nEn]] = person.nameEn || '';
+  // --- GPIOリモートボタン (CONTEC DIO) ---
+  ipcMain.handle('gpio-connect', async (_event, options) => {
+    const cfg = getGpioConfig();
+    try {
+      gpioDio.connect({
+        deviceName: (options && options.deviceName) || cfg.deviceName,
+        pressLevel: (options && options.pressLevel) || cfg.pressLevel,
+      });
+      return { ok: true, status: gpioDio.getStatus() };
+    } catch (err) {
+      return { ok: false, error: err.message };
     }
   });
 
-  try {
-    return singularApi.change(config.appToken, config.subCompositionName, fieldData);
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
+  ipcMain.handle('gpio-disconnect', async () => {
+    gpioDio.disconnect();
+    return { ok: true };
+  });
+
+  ipcMain.handle('gpio-status', async () => {
+    return gpioDio.getStatus();
+  });
+
+  ipcMain.handle('gpio-list-devices', async () => {
+    try {
+      return { ok: true, devices: gpioDio.listDevices() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // DIO/リンク/出力サーバのイベントを全ウィンドウへ転送
+  const broadcastToWindows = (channel, payload) => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send(channel, payload);
+    });
+  };
+
+  // --- ライブデータ連携 (CSV/Excel監視 → 送出中テロップへ自動反映) ---
+  ipcMain.handle('live-data-choose-file', async () => {
+    const result = await dialog.showOpenDialog({
+      title: '監視するCSV/Excelファイルを選択',
+      filters: [{ name: 'CSV / Excel', extensions: ['csv', 'xlsx', 'xlsm', 'xls'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return { ok: true, file: result.filePaths[0] };
+  });
+
+  ipcMain.handle('live-data-start', async (_event, cfg) => {
+    try {
+      const st = liveData.start(cfg, (values) => {
+        // 対象リージョンが送出中なら即CHANGEで差し替える (アニメなし)
+        const state = graphicsServer.getStatus().state[cfg.region];
+        if (state && state.onAir && (!cfg.templateKey || state.templateKey === cfg.templateKey)) {
+          graphicsServer.change(cfg.region, state.templateKey, Object.assign({}, state.values, values));
+        }
+        broadcastToWindows('live-data-update', liveData.getStatus());
+      });
+      broadcastToWindows('live-data-update', st);
+      return { ok: true, ...st };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('live-data-stop', async () => {
+    const st = liveData.stop();
+    broadcastToWindows('live-data-update', st);
+    return { ok: true, ...st };
+  });
+
+  ipcMain.handle('live-data-status', async () => {
+    return liveData.getStatus();
+  });
+  gpioDio.events.on('button', (bit) => broadcastToWindows('gpio-button', bit));
+  gpioDio.events.on('state', (state) => broadcastToWindows('gpio-state', state));
+  gpioDio.events.on('error', (message) => broadcastToWindows('gpio-error', message));
+  graphicsServer.events.on('status', () => broadcastToWindows('graphics-status-changed', graphicsServer.getStatus()));
+
+  // --- リモート連携 (2台運用) ---
+  ipcMain.handle('remote-start', async (_event, options) => {
+    try {
+      const port = Math.max(1, Math.min(65535, parseInt(options.port, 10) || 8765));
+      if (options.mode === 'host') {
+        remoteLink.startHost(port);
+      } else if (options.mode === 'client') {
+        if (!options.hostAddress) {
+          return { ok: false, error: '接続先ホストのIPアドレスを入力してください。' };
+        }
+        remoteLink.connectClient(options.hostAddress, port);
+      } else {
+        remoteLink.stop();
+      }
+      return { ok: true, status: remoteLink.getStatus() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('remote-stop', async () => {
+    remoteLink.stop();
+    return { ok: true };
+  });
+
+  ipcMain.handle('remote-status', async () => {
+    return remoteLink.getStatus();
+  });
+
+  ipcMain.handle('remote-send', async (_event, message) => {
+    return { sent: remoteLink.send(message) };
+  });
+
+  remoteLink.events.on('message', (msg) => broadcastToWindows('remote-message', msg));
+  remoteLink.events.on('status', (status) => broadcastToWindows('remote-status-changed', status));
 }
 
 module.exports = { registerIpcHandlers };
