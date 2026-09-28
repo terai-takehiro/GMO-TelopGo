@@ -977,14 +977,15 @@ body {
   display: flex;
   align-items: center;
   gap: 20px;
-  padding: 5px 14px;
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border);
-  font-size: 11px;
-  color: var(--text-muted);
+  height: 28px;
+  padding: 0 14px;
+  background: #15181e;
+  font-size: 12px;
+  color: #c9ced6;
   flex-shrink: 0;
 }
-
+/* JS側のインライン色 (緑) は暗背景でも読める明るめの緑へ */
+.status-bar [style*="--green"] { color: #5fd48e !important; }
 .status-item { white-space: nowrap; }
 
 /* === Utility === */
@@ -1723,12 +1724,89 @@ body {
 .od-topbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
+  gap: 10px;
+  padding: 8px 14px;
+  min-height: 52px;
   background: var(--od-bg2);
   border-bottom: 1px solid var(--od-border);
   flex-wrap: wrap;
 }
+/* 送出モード切替 (セグメント) */
+.od-mode-switch { display: flex; border: 1px solid var(--od-border); border-radius: var(--radius); overflow: hidden; }
+.od-mode-btn {
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.od-mode-btn + .od-mode-btn { border-left: 1px solid var(--od-border); }
+.od-mode-btn:hover { background: var(--bg-hover); }
+.od-mode-btn.active { background: var(--accent); color: #fff; font-weight: 700; }
+.od-mode-btn[data-mode="telop"].active { background: #8a5a00; }
+/* パンくず (番組 ▸ 放送) */
+.od-crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 14px;
+  cursor: pointer;
+  max-width: 460px;
+}
+.od-crumb:hover { border-color: var(--od-border); }
+.od-crumb-prog { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.od-crumb-bc { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.od-crumb-sep { color: var(--text-muted); }
+.od-crumb-caret { font-size: 10px; color: var(--text-muted); }
+#tab-onair .od-more { font-size: 16px; line-height: 1; padding: 4px 10px; }
+/* ポップオーバー / メニュー */
+.od-pop-wrap { position: relative; }
+.od-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+.od-pop--right { left: auto; right: 0; }
+.od-pop-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 700; color: var(--text-secondary); }
+.od-pop-field .input { width: 100%; }
+.od-menu { gap: 0; padding: 6px; min-width: 220px; }
+.od-menu-label { font-size: 11px; font-weight: 700; color: var(--text-muted); padding: 6px 10px 4px; }
+.od-menu-sep { height: 1px; background: var(--border-light); margin: 6px 0; }
+.od-menu-item {
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: pointer;
+}
+.od-menu-item:hover { background: var(--bg-hover); }
+.od-menu-item--danger { color: var(--red); }
+.od-search { width: 180px; }
 .od-bar-label { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--od-text-dim); }
 .od-sep { width: 1px; height: 22px; background: var(--od-border); margin: 0 6px; }
 .od-spacer { flex: 1; }
@@ -1754,7 +1832,18 @@ body {
   box-shadow: none;
 }
 #tab-onair .od-btn:active { transform: translateY(1px); }
-.od-direct { width: 200px; font-family: var(--font-mono); }
+.od-direct { width: 110px; font-family: var(--font-mono); }
+.od-rehearsal-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--od-border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  cursor: pointer;
+}
 .od-rehearsal-label input { accent-color: var(--yellow); }
 
 /* モニタ背景セレクト (ツールバー内) */
@@ -1807,10 +1896,12 @@ body {
   margin-bottom: 4px;
 }
 .od-corner:hover { background: var(--od-bg3); }
-.od-corner.active { background: var(--accent-soft); border-color: var(--accent); }
-.od-corner-color { width: 6px; height: 22px; border-radius: 3px; flex-shrink: 0; }
+.od-corner.active { background: var(--accent-soft); font-weight: 700; }
+.od-corner-color { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .od-corner-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .od-corner-meta { font-size: 10px; color: var(--od-text-dim); }
+.od-corners-foot { padding: 8px 10px; border-top: 1px solid var(--od-border); }
+.od-standby-btn { width: 100%; }
 .od-corners-hint { padding: 8px 10px; font-size: 10px; color: var(--od-text-dim); border-top: 1px solid var(--od-border); line-height: 1.6; }
 
 /* 中央: ページ一覧 */
@@ -2051,7 +2142,6 @@ body {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-top: 3px solid var(--od-border);
   border-bottom: 1px solid var(--od-border);
   font-weight: 700;
   font-size: 13px;
@@ -2127,26 +2217,21 @@ body {
 /* 列内の大型TAKE (系統色の枠はJSでinline指定) */
 .od-col-take {
   width: 100%;
-  padding: 11px;
-  background: linear-gradient(180deg, #34c968, #179242);
-  border: 2px solid transparent;
-  border-radius: 10px;
+  padding: 12px;
+  background: #1c7c45;
+  border: none;
+  border-radius: 8px;
   color: #fff;
-  font-size: 17px;
-  font-weight: 900;
+  font-size: 18px;
+  font-weight: 800;
   letter-spacing: 2.5px;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 3px 12px rgba(34, 170, 84, 0.35);
-  transition: transform 0.1s, box-shadow 0.15s, background 0.15s;
+  transition: background 0.12s, transform 0.08s;
 }
-.od-col-take:hover {
-  background: linear-gradient(180deg, #3fdb76, #1aa74c);
-  transform: translateY(-1px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 5px 18px rgba(34, 170, 84, 0.5);
-}
-.od-col-take:active { transform: translateY(1px); box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.2); }
+.od-col-take:hover { background: #218f50; }
+.od-col-take:active { transform: translateY(1px); background: #176a3a; }
 
-/* 送出ボタン: コンソールキー風 (白面カード + 左に機能色バー + 浮き沈み) */
+/* 送出ボタン: コンソールキー風 */
 .od-obtn {
   position: relative;
   padding: 10px 4px 9px;
@@ -2162,27 +2247,16 @@ body {
   overflow: hidden;
   transition: transform 0.1s, box-shadow 0.15s, border-color 0.15s;
 }
-.od-obtn::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 3px;
-  background: #c6d3e2;
-}
+
 .od-obtn:hover {
   transform: translateY(-1px);
   box-shadow: 0 3px 10px rgba(23, 37, 58, 0.14);
   border-color: #aec7e2;
 }
-.od-obtn:hover::before { background: var(--accent); }
 .od-obtn:active { transform: translateY(1px); box-shadow: none; }
-.od-obtn-update::before { background: #e0a53a; }
 .od-obtn-update { color: var(--yellow); }
-.od-obtn-clear::before { background: #e0736b; }
 .od-obtn-clear { color: var(--red); }
 .od-obtn-clear:hover { background: linear-gradient(180deg, #ffffff, #fdf1f0); }
-.od-obtn-clear:hover::before { background: var(--red); }
-.od-obtn-update:hover::before { background: var(--yellow); }
 /* 列内コンソール用の縮小キー */
 .od-obtn--sm { padding: 6px 2px 5px; font-size: 10px; letter-spacing: 1px; border-radius: 6px; }
 .od-obtn--sm .od-obtn-jp { font-size: 8px; }

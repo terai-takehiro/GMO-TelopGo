@@ -92,34 +92,72 @@
     <div class="od-layout">
       <div class="od-rehearsal-banner hidden" id="od-rehearsal-banner">リハーサルモード — 出力には送出されません</div>
       <div class="od-topbar">
-        <label class="od-bar-label">番組
-          <select id="od-program" class="input input--small od-select"></select>
-        </label>
-        <button class="btn btn--small od-btn" id="od-program-add" title="番組を追加">＋ 追加</button>
-        <button class="btn btn--small od-btn" id="od-program-rename" title="番組名を変更">改名</button>
-        <button class="btn btn--small od-btn" id="od-program-delete" title="番組を削除">削除</button>
-        <span class="od-sep"></span>
-        <label class="od-bar-label">放送
-          <select id="od-broadcast" class="input input--small od-select"></select>
-        </label>
-        <button class="btn btn--small od-btn" id="od-broadcast-add" title="放送(日付)を追加">＋ 追加</button>
-        <button class="btn btn--small od-btn" id="od-broadcast-dup" title="この放送を複製 (帯番組の日付運用)">⧉ 複製</button>
-        <button class="btn btn--small od-btn" id="od-broadcast-rename" title="放送名を変更">改名</button>
-        <button class="btn btn--small od-btn" id="od-broadcast-delete" title="放送を削除">削除</button>
-        <button class="btn btn--small od-btn" id="od-reselect" title="番組/放送の選択画面に戻る">☰ 選び直す</button>
-        <span class="od-sep"></span>
-        <select id="od-view-mode" class="input input--small od-select" title="表示モード">
-          <option value="thumb">サムネイル</option>
-          <option value="list">リスト</option>
-        </select>
-        <select id="od-thumb-size" class="input input--small od-select" title="サムネイルサイズ">
-          <option value="s">小</option>
-          <option value="m" selected>中</option>
-          <option value="l">大</option>
-        </select>
+        <div class="od-mode-switch" role="group" aria-label="送出モード">
+          <button class="od-mode-btn" data-mode="cg" id="od-mode-cg">リアルタイムCG</button>
+          <button class="od-mode-btn" data-mode="telop" id="od-mode-telop">電テロ</button>
+        </div>
+        <div class="od-pop-wrap">
+          <button class="od-crumb" id="od-crumb" data-pop="od-pop-rundown" title="番組・放送(日付)を切り替え">
+            <span class="od-crumb-prog" id="od-crumb-prog">-</span><span class="od-crumb-sep">▸</span><span class="od-crumb-bc" id="od-crumb-bc">-</span><span class="od-crumb-caret">▼</span>
+          </button>
+          <div class="od-pop hidden" id="od-pop-rundown">
+            <label class="od-pop-field">番組
+              <select id="od-program" class="input input--small"></select>
+            </label>
+            <label class="od-pop-field">放送 (日付)
+              <select id="od-broadcast" class="input input--small"></select>
+            </label>
+            <button class="btn btn--small" id="od-reselect" title="番組/放送の選択画面を開く">一覧から選ぶ…</button>
+          </div>
+        </div>
+        <div class="od-pop-wrap">
+          <button class="btn btn--small od-btn od-more" data-pop="od-pop-more" title="番組・放送の操作" aria-label="番組・放送の操作">⋯</button>
+          <div class="od-pop od-menu hidden" id="od-pop-more">
+            <div class="od-menu-label">番組</div>
+            <button class="od-menu-item" id="od-program-add">番組を追加…</button>
+            <button class="od-menu-item" id="od-program-rename">番組名を変更…</button>
+            <button class="od-menu-item od-menu-item--danger" id="od-program-delete">番組を削除</button>
+            <div class="od-menu-sep"></div>
+            <div class="od-menu-label">放送 (日付)</div>
+            <button class="od-menu-item" id="od-broadcast-add">放送を追加…</button>
+            <button class="od-menu-item" id="od-broadcast-dup" title="帯番組の日付運用">この放送を複製…</button>
+            <button class="od-menu-item" id="od-broadcast-rename">放送名を変更…</button>
+            <button class="od-menu-item od-menu-item--danger" id="od-broadcast-delete">放送を削除</button>
+          </div>
+        </div>
         <span class="od-spacer"></span>
-        <input type="text" id="od-direct" class="input input--small od-direct" placeholder="ページ番号 → Enter×2で送出" title="ダイレクト送出: ページ番号+EnterでNEXTセット、もう一度EnterでTAKE">
-        <label class="od-bar-label od-rehearsal-label" title="ONの間は出力へ送出せずUI上でのみ動作します">
+        <label class="od-bar-label" title="ダイレクト送出: ページ番号+EnterでNEXTセット、もう一度EnterでTAKE">ダイレクト
+          <input type="text" id="od-direct" class="input input--small od-direct" placeholder="番号→Enter×2">
+        </label>
+        <input type="text" id="od-search" class="input input--small od-search" placeholder="ページ検索" title="番号・タイトル・内容・テンプレ名でこのコーナーのページを絞り込み (Escで解除)">
+        <div class="od-pop-wrap">
+          <button class="btn btn--small" data-pop="od-pop-view">表示</button>
+          <div class="od-pop od-pop--right hidden" id="od-pop-view">
+            <label class="od-pop-field">ページの表示
+              <select id="od-view-mode" class="input input--small">
+                <option value="thumb">サムネイル</option>
+                <option value="list">リスト</option>
+              </select>
+            </label>
+            <label class="od-pop-field">サムネイルサイズ
+              <select id="od-thumb-size" class="input input--small">
+                <option value="s">小</option>
+                <option value="m" selected>中</option>
+                <option value="l">大</option>
+              </select>
+            </label>
+            <label class="od-pop-field">モニタ背景 (透過の確認用)
+              <select id="od-pvw-bg" class="input input--small">
+                <option value="black">黒</option>
+                <option value="checker">市松</option>
+                <option value="white">白</option>
+                <option value="image">画像...</option>
+              </select>
+            </label>
+            <input type="file" id="od-pvw-bg-file" accept="image/*" class="hidden">
+          </div>
+        </div>
+        <label class="od-rehearsal-label" title="ONの間は出力へ送出せずUI上でのみ動作します">
           <input type="checkbox" id="od-rehearsal"> リハーサル
         </label>
       </div>
@@ -132,27 +170,18 @@
           </div>
           <ul class="od-corner-list" id="od-corner-list"></ul>
           <div class="od-corners-hint">右クリック: 改名/色/ロック/オートフォロー<br>ドラッグで並べ替え (並び順=送出順)</div>
+          <div class="od-corners-foot">
+            <button class="btn btn--small od-standby-btn" id="od-standby-toggle">素材集 (<span id="od-standby-count">0</span>)</button>
+          </div>
         </div>
         <div class="od-center">
           <div class="od-pages-toolbar">
             <button class="btn btn--small od-btn" id="od-add-page">＋ページ</button>
             <button class="btn btn--small od-btn" id="od-import-excel">Excel取込</button>
             <button class="btn btn--small od-btn" id="od-import-pool" title="名前プールをExcelから読込 (ページ編集時の名前補完に使われます)">名前プール読込</button>
-            <span class="od-mode-badge" id="od-mode-label" title="コーナーを右クリック→「モード切替」で変更できます"></span>
-            <span class="od-key-target" id="od-key-target" title="キーボード操作 (Space=TAKE / ←→=NEXT移動 など) が効く系統。列をクリックで切替">⌨ キー操作: -</span>
             <span class="od-spacer"></span>
             <div class="od-countdown" id="od-countdown"></div>
-            <label class="od-bar-label">モニタ背景
-              <select id="od-pvw-bg" class="input input--small od-pvw-select" title="各列のOA/NEXTモニターの背景 (透過の確認用)">
-                <option value="black">黒</option>
-                <option value="checker">市松</option>
-                <option value="white">白</option>
-                <option value="image">画像...</option>
-              </select>
-            </label>
-            <input type="file" id="od-pvw-bg-file" accept="image/*" class="hidden">
-            <input type="text" id="od-search" class="input input--small od-search" placeholder="🔎 ページ検索" title="番号・タイトル・内容・テンプレ名でこのコーナーのページを絞り込み (Escで解除)">
-            <button class="btn btn--small od-btn" id="od-standby-toggle">素材集 (<span id="od-standby-count">0</span>)</button>
+            <span class="od-key-target" id="od-key-target" title="キーボード操作 (Space=TAKE / ←→=NEXT移動 など) が効く系統。列をクリックで切替">⌨ キー操作: -</span>
           </div>
           <div class="od-columns" id="od-columns"></div>
           <div class="od-standby hidden" id="od-standby">
