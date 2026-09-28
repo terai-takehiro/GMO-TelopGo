@@ -119,33 +119,40 @@ const HomeUI = {
       wrap.appendChild(empty);
       return;
     }
+    const head = document.createElement('div');
+    head.className = 'home-recent-head';
+    ['MODE', '番組', '放送', 'コーナー', 'ページ', '最終'].forEach((t) => {
+      const c = document.createElement('span');
+      c.textContent = t;
+      head.appendChild(c);
+    });
+    wrap.appendChild(head);
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const today = new Date().toDateString();
     rows.forEach((r, i) => {
       const row = document.createElement('div');
-      row.className = 'home-recent-row';
-
-      const badge = document.createElement('span');
-      badge.className = `home-badge home-badge--${r.mode}`;
-      badge.textContent = r.mode === 'telop' ? '電テロ' : 'CG';
-
-      const name = document.createElement('span');
-      name.className = 'home-recent-name';
-      name.append(r.prog.name);
-      const sep = document.createElement('span');
-      sep.className = 'home-recent-sep';
-      sep.textContent = '▸';
-      name.append(sep, r.bc.name);
-
-      const pages = (r.bc.corners || []).reduce((n, cn) => n + (cn.pages || []).length, 0);
-      const meta = document.createElement('span');
-      meta.className = 'home-recent-meta';
-      meta.textContent = `${(r.bc.corners || []).length}コーナー / ${pages}ページ`;
-
-      const open = document.createElement('button');
-      open.className = `btn btn--small${i === 0 ? ' btn--primary' : ''}`;
-      open.textContent = '開く';
-      open.addEventListener('click', () => this.resume(r.mode, r.prog.id, r.bc.id));
-
-      row.append(badge, name, meta, open);
+      row.className = `home-recent-row${i === 0 ? ' first' : ''}`;
+      row.title = 'クリックで開く';
+      const cell = (text, cls) => {
+        const c = document.createElement('span');
+        if (cls) c.className = cls;
+        c.textContent = text;
+        row.appendChild(c);
+        return c;
+      };
+      cell(r.mode === 'telop' ? '電テロ' : 'CG', 'home-recent-mode');
+      cell(r.prog.name, 'home-recent-name');
+      cell(r.bc.name, 'mono');
+      cell(String((r.bc.corners || []).length), 'mono');
+      cell(String((r.bc.corners || []).reduce((n, cn) => n + (cn.pages || []).length, 0)), 'mono');
+      let last = '—';
+      if (r.openedAt) {
+        const d = new Date(r.openedAt);
+        last = d.toDateString() === today ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      }
+      cell(last, 'mono');
+      row.addEventListener('click', () => this.resume(r.mode, r.prog.id, r.bc.id));
       wrap.appendChild(row);
     });
   },

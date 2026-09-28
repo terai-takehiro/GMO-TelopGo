@@ -22,9 +22,10 @@
       <button class="tab-btn" data-tab="settings">設定</button>
     </nav>
     <div class="app-header-status">
-      <button class="hdr-pill" id="hdr-output" data-goto="settings" data-section="output" title="出力サーバ (クリックで設定)"><span class="hdr-dot"></span><span class="hdr-pill-text">出力 停止</span></button>
+      <button class="hdr-pill" id="hdr-output" data-goto="settings" data-section="output" title="出力サーバ (クリックで設定)"><span class="hdr-dot"></span><span class="hdr-pill-text">OUTPUT 停止</span></button>
       <button class="hdr-pill hidden" id="hdr-remote" data-goto="settings" data-section="remote" title="2台運用 (クリックで設定)"><span class="hdr-dot"></span><span class="hdr-pill-text">2台運用</span></button>
-      <button class="hdr-help" id="help-open" title="ヘルプ (使い方・ショートカット)" aria-label="ヘルプ">?</button>
+      <span class="hdr-clock" id="hdr-clock" title="現在時刻">--:--:--</span>
+      <button class="hdr-help" id="help-open" title="ヘルプ (使い方・ショートカット) F1" aria-label="ヘルプ">?</button>
     </div>
   </header>
 
@@ -57,14 +58,14 @@
       <div class="home-lower">
         <section class="home-panel home-panel--recent">
           <div class="home-panel-head">
-            <h2 class="home-panel-title">続きから</h2>
-            <span class="home-panel-sub">最近開いた放送</span>
+            <h2 class="home-panel-title">最近の放送</h2>
+            <span class="home-panel-sub">クリックで開く</span>
           </div>
           <div class="home-recent" id="home-recent"></div>
         </section>
         <section class="home-panel">
           <div class="home-panel-head">
-            <h2 class="home-panel-title">システム状態</h2>
+            <h2 class="home-panel-title">システム</h2>
           </div>
           <div class="home-sys" id="home-sys"></div>
           <div class="home-panel-foot">
