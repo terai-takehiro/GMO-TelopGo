@@ -134,21 +134,47 @@
    * @param {'in'|'out'} direction
    * @returns {Promise} 全レイヤーの再生完了
    */
+  /**
+   * アニメーションの単位を並べる (既定の stagger 順)。
+   * グループアニメーションを持つグループ (.tl-group) は1単位として動き
+   * (設定の無い方向はテンプレート既定で1枚として動く)、
+   * その中のメンバーは個別設定があるものだけ追加で動く。
+   * @returns {Array<{el: HTMLElement, def: Object|null, index: number}>}
+   */
+  function units(container, variant) {
+    const layerDefs = (variant && variant.layers) || [];
+    const groupDefs = (variant && variant.groups) || [];
+    const list = [];
+    let index = 0;
+    Array.from(container.children).forEach((el) => {
+      if (el.classList.contains('tl-group')) {
+        const g = groupDefs.find((x) => x.id === el.dataset.groupId) || null;
+        list.push({ el, def: g, index: index++ });
+        el.querySelectorAll('.tl-layer').forEach((child) => {
+          const def = layerDefs.find((l) => l.id === child.dataset.layerId) || null;
+          if (def && def.anim) list.push({ el: child, def, index: -1 });
+        });
+      } else if (el.classList.contains('tl-layer')) {
+        const def = layerDefs.find((l) => l.id === el.dataset.layerId) || null;
+        list.push({ el, def, index: index++ });
+      }
+    });
+    return list;
+  }
+
   function play(container, variant, direction) {
-    const layerEls = Array.from(container.querySelectorAll('.tl-layer'));
-    if (layerEls.length === 0) return Promise.resolve();
+    const list = units(container, variant);
+    if (list.length === 0) return Promise.resolve();
 
     // 進行中のアニメーションを破棄
-    layerEls.forEach((el) => {
+    Array.from(container.children).forEach((el) => {
       el.getAnimations({ subtree: true }).forEach((a) => a.cancel());
     });
 
-    const layerDefs = (variant && variant.layers) || [];
     const finished = [];
 
-    layerEls.forEach((el, i) => {
-      const layer = layerDefs.find((l) => l.id === el.dataset.layerId) || null;
-      const resolved = resolve(variant, layer, i, direction);
+    list.forEach(({ el, def: layer, index: i }) => {
+      const resolved = resolve(variant, layer, Math.max(0, i), direction);
       const delay = resolved.delay;
       // カットは「指定時刻に出現/消滅」として1msのフェードで表現
       const anim = resolved.anim.preset === 'cut'

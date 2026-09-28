@@ -2053,6 +2053,7 @@ body {
   transform-origin: top left;
 }
 .od-next-canvas .tl-layer { position: absolute; box-sizing: border-box; }
+.od-next-canvas .tl-group, .de-canvas .tl-group { position: absolute; overflow: visible; }
 .od-next-canvas .tl-text { display: flex; white-space: pre-line; overflow: hidden; }
 .od-next-canvas .tl-text-inner { display: inline-block; position: relative; box-sizing: border-box; }
 .od-next-canvas .tl-txt-fill { position: absolute; inset: 0; padding: inherit; box-sizing: border-box; }
@@ -2966,3 +2967,23 @@ body {
 }
 #tab-design .de-layer-toggle { color: #bdbdbd; filter: grayscale(1); }
 #tab-design .de-server-warning { background: #5a4300; color: #ffe2a0; border-color: #7a5c00; }
+
+/* レイヤーグループ */
+#tab-design .de-layer-group { font-weight: 700; }
+#tab-design .de-layer-member { padding-left: 26px; }
+#tab-design .de-layer-item.in-group-selected:not(.selected) { background: #3f4758; }
+.de-layer-caret {
+  width: 16px;
+  border: none;
+  background: transparent;
+  color: #bdbdbd;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+}
+#tab-design .de-layer-type--group { background: transparent; border: none; color: #d9b86a; }
+#tab-design .de-layer-type--group svg { width: 16px; height: 16px; }
+.de-selection--multi { border-style: dashed; }
+.de-selection--multi .de-handle { display: none; }
+#tab-design .de-tl-row--group .de-tl-name { font-weight: 700; color: #e7cf8f; }
+#tab-design .de-tl-row--member .de-tl-name { padding-left: 14px; }
