@@ -4,7 +4,7 @@
 
 透過 1920×1080 の出力ページをローカルHTTPサーバで配信し、**vMix 等のブラウザ入力で取り込んで**テロップをリアルタイムに送出します。テンプレートの作画から本番の送出オペレーションまで、このアプリ1本で完結します。
 
-- 対応OS: Windows 10/11 / macOS (Apple Silicon・Intel)
+- 対応OS: Windows 10/11 (配布は Windows 版のみ。macOS はソースからのビルドで動作)
 - 技術: Electron 28 / ローカルHTTP+WebSocketサーバ / HTML5レンダリング
 - 最新の変更点は [CHANGELOG.md](CHANGELOG.md) を参照
 
@@ -72,10 +72,7 @@ SmartScreen の解除手順・トラブルシュートは **[docs/install-window
 
 ### macOS
 
-| 配布物 | ファイル | 対象 |
-|---|---|---|
-| dmg (推奨) | `GMO-TelopGo-X.Y.Z-arm64.dmg` / `-x64.dmg` | Apple Silicon / Intel |
-| ZIP版 | `GMO-TelopGo-X.Y.Z-arm64-mac.zip` / `-x64-mac.zip` | 展開してそのまま実行 |
+v3.0.0 以降、macOS 版はリリースに含めません (リリースポリシー)。必要な場合は `npm run build:mac` で自前ビルドするか、Actions の「Build macOS app」を手動実行して Artifacts から取得してください。
 
 Gatekeeper の解除手順 (右クリック→開く / `xattr -cr`) は **[docs/install-macos.md](docs/install-macos.md)** を参照。
 ※ GPIO物理ボタン (CONTEC DIO) はWindows専用です。Macでは2台運用のクライアントとして併用できます。
@@ -155,14 +152,15 @@ docs/                       詳細ドキュメント
 ### リリース (CI)
 
 - `.github/workflows/build-windows.yml` — Windows インストーラ/ポータブル版
-- `.github/workflows/build-macos.yml` — macOS dmg/zip (arm64 + x64)
+- `.github/workflows/build-macos.yml` — macOS dmg/zip (arm64 + x64)。**手動実行のみ・Release には添付しない**
 
 共通の挙動:
-- `v*` タグの push → ビルドして GitHub Release に添付
-- 手動実行 (workflow_dispatch) → Artifacts に保存。**release=true** にすると package.json のバージョンで `vX.Y.Z` タグ/Release に添付 (既存Releaseには追記)
-- `claude/**` ブランチへの push → Windows のみ動作確認用ビルド (macはコスト節約のため手動/タグ時のみ)
+- **リリースポリシー: GitHub Release は Windows 版のみ。macOS 版は作成・添付しない**
+- Windows: `v*` タグの push → ビルドして GitHub Release に添付 / 手動実行で **release=true** → package.json のバージョンで `vX.Y.Z` タグ/Release を作成して添付
+- Windows: `claude/**` ブランチへの push → 動作確認用ビルド (Artifacts)
+- macOS: 手動実行のみ (Artifacts に保存、Release には添付しない)
 
-リリース手順: `CHANGELOG.md` 追記 → `package.json` / `package-lock.json` のバージョン更新 → push → **build-windows を release=true で実行** (タグ/Release作成) → **build-macos を release=true で実行** (同じReleaseにmac版を追記)。
+リリース手順: `CHANGELOG.md` 追記 → `package.json` / `package-lock.json` のバージョン更新 → push → **build-windows を release=true で実行** (タグ/Release作成・Windows版を添付)。macOS 版は実行しない。
 
 ## ドキュメント
 
