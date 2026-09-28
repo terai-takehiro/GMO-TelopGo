@@ -78,6 +78,7 @@ const GraphicsUI = {
     const barEl = document.getElementById('status-output');
     barEl.textContent = status.running ? `出力: ポート${status.port}` : '出力: 停止';
     barEl.style.color = status.running ? 'var(--green)' : '';
+    if (typeof HeaderStatus !== 'undefined') HeaderStatus.setOutput(status.running, status.port);
 
     this.renderUrls(status);
     this.applyPreview(status);

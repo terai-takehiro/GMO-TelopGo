@@ -56,12 +56,12 @@ body {
   flex-direction: column;
 }
 
-/* === App Header === */
+/* === App Header (v3.0: ブランド + タブ + 状態 + ヘルプを1段に集約) === */
 .app-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
+  gap: 8px;
+  padding: 0 14px;
   height: 48px;
   background: var(--header-bg);
   border-bottom: 1px solid var(--border);
@@ -72,80 +72,126 @@ body {
 .app-header-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  margin-right: 12px;
 }
 
 .app-header-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  -webkit-app-region: no-drag;
-}
-
-.app-header-titles {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
 }
 
 .app-header-name {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
-  letter-spacing: 0.2px;
 }
 
-.app-header-subtitle {
-  font-size: 10px;
+.app-header-ver {
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--text-muted);
-  letter-spacing: 0.3px;
 }
 
-.app-header-actions {
+/* === Tab Bar (ヘッダー内) === */
+.tab-bar {
   display: flex;
-  gap: 8px;
+  align-items: stretch;
+  height: 48px;
   -webkit-app-region: no-drag;
 }
 
-/* === Tab Bar === */
-.tab-bar {
-  display: flex;
-  align-items: center;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
-  padding: 0 10px;
-  flex-shrink: 0;
-}
-
 .tab-btn {
-  padding: 12px 20px;
+  padding: 0 16px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   font-family: var(--font);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  border-radius: var(--radius) var(--radius) 0 0;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  box-shadow: inset 0 -3px 0 transparent;
+  transition: color 0.15s, box-shadow 0.15s;
 }
 
-.tab-btn:hover { color: var(--text-primary); background: var(--bg-panel); }
+.tab-btn:hover { color: var(--text-primary); }
 .tab-btn.active {
-  color: var(--accent);
-  font-weight: 600;
-  border-bottom-color: var(--accent);
+  color: var(--text-primary);
+  font-weight: 700;
+  box-shadow: inset 0 -3px 0 var(--accent);
 }
 
-.tab-btn--settings { margin-left: auto; }
-
-.tab-bar-right {
+.app-header-status {
   display: flex;
+  align-items: center;
   gap: 8px;
-  margin-left: 12px;
-  padding: 6px 0;
+  margin-left: auto;
+  -webkit-app-region: no-drag;
 }
+
+.hdr-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.hdr-pill:hover { background: var(--bg-hover); }
+.hdr-dot { width: 8px; height: 8px; border-radius: 50%; background: #9aa3ae; }
+.hdr-pill.ok .hdr-dot { background: var(--green); }
+.hdr-pill.warn .hdr-dot { background: var(--yellow); }
+
+.hdr-help {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.hdr-help:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* === ヘルプ (右からのドロワー) === */
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(15, 23, 42, 0.35);
+}
+.help-drawer {
+  width: min(980px, 92vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  box-shadow: -8px 0 30px rgba(15, 23, 42, 0.2);
+  animation: help-in 0.18s ease-out;
+}
+@keyframes help-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.help-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.help-title { font-size: 15px; font-weight: 700; }
+.help-drawer .manual-layout { flex: 1; min-height: 0; }
 
 /* === Tab Content === */
 .tab-content {
@@ -801,35 +847,68 @@ body {
 }
 
 /* === Settings === */
+/* v3.0: 設定は左ナビ + セクション切替 */
+.settings-layout { display: flex; flex: 1; min-height: 0; }
+.settings-nav {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+.settings-nav-group {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 14px 12px 4px;
+}
+.settings-nav-group:first-child { padding-top: 4px; }
+.settings-nav-btn {
+  text-align: left;
+  padding: 9px 12px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 14px;
+  cursor: pointer;
+}
+.settings-nav-btn:hover { background: var(--bg-panel); color: var(--text-primary); }
+.settings-nav-btn.active { background: var(--accent-soft); color: var(--text-primary); font-weight: 700; }
+
 .settings-panel {
-  padding: 20px 24px;
-  max-width: 720px;
+  padding: 28px 40px;
   overflow-y: auto;
   flex: 1;
+  display: flex;
+  flex-direction: column;
 }
-
-.settings-panel h2 {
-  font-size: 16px;
-  font-weight: 700;
-  margin-bottom: 16px;
-}
+.settings-panel > * { max-width: 960px; }
+.settings-section { display: none; }
+.settings-section.active { display: block; }
+.settings-section-head { margin-bottom: 18px; }
+.settings-section-head h2 { font-size: 22px; font-weight: 700; margin: 0; }
+.settings-section-head p { margin-top: 6px; font-size: 13px; color: var(--text-secondary); }
 
 .settings-group {
   background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  padding: 16px 18px;
+  padding: 16px 20px;
   margin-bottom: 16px;
 }
 
 .settings-group legend {
-  padding: 2px 10px;
-  font-size: 12px;
+  padding: 0 6px;
+  font-size: 14px;
   font-weight: 700;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-radius: 999px;
+  color: var(--text-primary);
 }
 
 .settings-row {
@@ -881,6 +960,8 @@ body {
 }
 
 .settings-actions {
+  margin-top: auto;
+  padding-top: 8px;
   display: flex;
   align-items: center;
   gap: 12px;

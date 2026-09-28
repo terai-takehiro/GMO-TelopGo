@@ -124,6 +124,7 @@ const RemoteSync = {
 
     const statusEl = document.getElementById('remote-conn-status');
     const barEl = document.getElementById('status-remote');
+    if (typeof HeaderStatus !== 'undefined') HeaderStatus.setRemote(status.role, status.connected, status.clientCount || 0);
 
     if (status.role === 'standalone') {
       statusEl.textContent = '停止中';

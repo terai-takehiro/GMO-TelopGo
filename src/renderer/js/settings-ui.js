@@ -472,3 +472,23 @@ const SettingsUI = {
 };
 
 document.addEventListener('DOMContentLoaded', () => SettingsUI.init());
+
+/** 設定タブの左ナビ (セクション切替) */
+const SettingsNav = {
+  init() {
+    document.querySelectorAll('#settings-nav .settings-nav-btn').forEach((btn) => {
+      btn.addEventListener('click', () => this.show(btn.dataset.section));
+    });
+    this.show('output');
+  },
+  show(section) {
+    document.querySelectorAll('#settings-nav .settings-nav-btn').forEach((b) => {
+      b.classList.toggle('active', b.dataset.section === section);
+    });
+    document.querySelectorAll('#tab-settings .settings-section').forEach((sec) => {
+      sec.classList.toggle('active', sec.dataset.section === section);
+    });
+  },
+};
+
+document.addEventListener('DOMContentLoaded', () => SettingsNav.init());

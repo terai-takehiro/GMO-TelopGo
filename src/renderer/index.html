@@ -7,33 +7,25 @@
   <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
-  <!-- アプリヘッダー -->
+  <!-- アプリヘッダー (ブランド + タブ + 状態 + ヘルプ) -->
   <header class="app-header">
     <div class="app-header-brand">
       <img src="../../assets/icon.png" alt="" class="app-header-icon">
-      <div class="app-header-titles">
-        <span class="app-header-name">GMO TelopGo</span>
-        <span class="app-header-subtitle">HTML5 テロップ送出システム</span>
-      </div>
+      <span class="app-header-name">TelopGo</span>
+      <span class="app-header-ver" id="app-header-ver"></span>
     </div>
-    <div class="app-header-actions">
-      <button class="btn btn--small" id="dl-template-name" title="名前テロップ用Excelテンプレートをダウンロード">名前テンプレDL</button>
-      <button class="btn btn--small" id="dl-template-side" title="サイドテロップ用Excelテンプレートをダウンロード">サイドテンプレDL</button>
+    <nav class="tab-bar">
+      <button class="tab-btn active" data-tab="home">ホーム</button>
+      <button class="tab-btn" data-tab="onair">送出</button>
+      <button class="tab-btn" data-tab="design">デザイン</button>
+      <button class="tab-btn" data-tab="settings">設定</button>
+    </nav>
+    <div class="app-header-status">
+      <button class="hdr-pill" id="hdr-output" data-goto="settings" data-section="output" title="出力サーバ (クリックで設定)"><span class="hdr-dot"></span><span class="hdr-pill-text">出力 停止</span></button>
+      <button class="hdr-pill hidden" id="hdr-remote" data-goto="settings" data-section="remote" title="2台運用 (クリックで設定)"><span class="hdr-dot"></span><span class="hdr-pill-text">2台運用</span></button>
+      <button class="hdr-help" id="help-open" title="ヘルプ (使い方・ショートカット)" aria-label="ヘルプ">?</button>
     </div>
   </header>
-
-  <!-- タブバー -->
-  <nav class="tab-bar">
-    <button class="tab-btn active" data-tab="home">ホーム</button>
-    <button class="tab-btn" data-tab="onair">送出</button>
-    <button class="tab-btn" data-tab="design">デザイン</button>
-    <button class="tab-btn" data-tab="manual">マニュアル</button>
-    <button class="tab-btn tab-btn--settings" data-tab="settings">設定</button>
-    <div class="tab-bar-right">
-      <button class="btn btn--small" id="project-load">読込</button>
-      <button class="btn btn--small" id="project-save">保存</button>
-    </div>
-  </nav>
 
   <!-- ===== ホームタブ (起動時ランディング) ===== -->
   <div class="tab-content active" id="tab-home">
@@ -418,11 +410,28 @@
     </div>
   </dialog>
 
-  <!-- ===== 設定 タブ ===== -->
+  <!-- ===== 設定 タブ (左ナビ + セクション) ===== -->
   <div class="tab-content" id="tab-settings">
-    <div class="settings-panel">
-      <h2>接続設定</h2>
-
+    <div class="settings-layout">
+      <aside class="settings-nav" id="settings-nav">
+        <div class="settings-nav-group">出力</div>
+        <button class="settings-nav-btn active" data-section="output">出力サーバと URL</button>
+        <button class="settings-nav-btn" data-section="channels">系統 (TL) とプリセット</button>
+        <button class="settings-nav-btn" data-section="groups">出力グループ</button>
+        <button class="settings-nav-btn" data-section="operation">操作</button>
+        <div class="settings-nav-group">連携</div>
+        <button class="settings-nav-btn" data-section="remote">2台運用</button>
+        <button class="settings-nav-btn" data-section="gpio">GPIO 物理ボタン</button>
+        <button class="settings-nav-btn" data-section="livedata">ライブデータ</button>
+        <div class="settings-nav-group">データ</div>
+        <button class="settings-nav-btn" data-section="data">保存・読込・バックアップ</button>
+      </aside>
+      <div class="settings-panel">
+      <section class="settings-section" data-section="output">
+        <div class="settings-section-head">
+          <h2>出力サーバと URL</h2>
+          <p>vMix などのブラウザ入力に出力 URL を登録します。すべて透過 1920×1080。</p>
+        </div>
       <fieldset class="settings-group">
         <legend>出力サーバ (HTML5グラフィックス)</legend>
         <div class="settings-row">
@@ -442,25 +451,14 @@
             <span class="settings-inline-hint">サーバ起動後に表示されます</span>
           </div>
         </div>
-        <div class="settings-row">
-          <label>テンプレート</label>
-          <button class="btn btn--small" id="graphics-open-template">JSONを開く</button>
-          <button class="btn btn--small" id="graphics-reload-template">再読込して反映</button>
-          <span class="settings-inline-hint">通常は「デザイン」タブで編集します (JSON直接編集は上級者向け)</span>
-        </div>
-        <div class="settings-row">
-          <label>バックアップ</label>
-          <button class="btn btn--small" id="graphics-open-backups">フォルダを開く</button>
-          <span class="settings-inline-hint">デザイン保存のたびに世代バックアップを自動作成 (最新30件)。復元はJSONを「JSONを開く」の場所へコピーして再読込</span>
-        </div>
-        <div class="settings-row">
-          <label>送出ログ</label>
-          <button class="btn btn--small" id="graphics-open-logs">ログフォルダを開く</button>
-          <span class="settings-inline-hint">TAKE/UPDATE/CLEARの操作を日別ファイルに記録します (時刻・ページ番号・内容)</span>
-        </div>
         <p class="gpio-hint">vMixのブラウザ入力に上記URLを追加してください (1920x1080・透過)。日本語/英語で別URL、名前・サイドを個別に取り込む場合は /name /side 付きのURLを使用します。他のPCから取り込む場合はWindowsファイアウォールで指定ポートの受信許可が必要です。</p>
       </fieldset>
-
+      </section>
+      <section class="settings-section" data-section="channels">
+        <div class="settings-section-head">
+          <h2>系統 (TL) とプリセット</h2>
+          <p>系統=出力の枠です。ラベル・色の変更、TL3 以降の追加、プリセットの割り当てを行います。</p>
+        </div>
       <fieldset class="settings-group">
         <legend>系統 (TL枠)</legend>
         <div class="settings-row">
@@ -469,7 +467,6 @@
         </div>
         <p class="gpio-hint">系統=出力の枠です。既定は汎用的な TL1 / TL2 で、番組に合わせてラベル(表示名)や色を自由に変えられます。系統ごとに /output/jp/(URL名) の出力URLが作られ、vMixで個別に取り込めます。各行の「プリセット適用…」で、ストックした枠 (名前/サイド 等) をその系統へ割り当てられます (ラベル・色 + 割当デザインが切替わります)。「★ プリセット保存」で現在の枠をプリセットとして保存。変更は「設定を保存」後、出力サーバ再起動とアプリ再読込で完全に反映されます。</p>
       </fieldset>
-
       <fieldset class="settings-group">
         <legend>系統プリセット (テロップ枠のストック)</legend>
         <div class="settings-row">
@@ -478,15 +475,12 @@
         </div>
         <p class="gpio-hint">「名前」「サイド」など、系統に割り当てる枠 (表示名・色 + 使用するデザイン) をストックしておく場所です。系統一覧の各行「★ プリセット保存」で保存、「プリセット適用…」で任意の系統(TL枠)へ個別に割り当てできます (例: TL1←名前, TL2←サイド)。</p>
       </fieldset>
-
-      <fieldset class="settings-group">
-        <legend>操作設定</legend>
-        <div class="settings-row">
-          <label for="op-dbltake">ダブルクリックで即TAKE</label>
-          <label class="od-bar-label"><input type="checkbox" id="op-dbltake" checked> 送出リストのページをダブルクリックしたとき、確認なしで即送出する (誤操作が心配な場合はOFF)</label>
+      </section>
+      <section class="settings-section" data-section="groups">
+        <div class="settings-section-head">
+          <h2>出力グループ</h2>
+          <p>複数の系統を 1 本の URL にレイヤー合成して出力します。</p>
         </div>
-      </fieldset>
-
       <fieldset class="settings-group">
         <legend>出力グループ (URLレイヤー合成)</legend>
         <div class="settings-row">
@@ -495,33 +489,25 @@
         </div>
         <p class="gpio-hint">複数の系統(チャンネル)を1本の出力URLに重ねて出す設定です。例: 「メイン=名前+サイド」「スコア用=スコアのみ」のように分けると、それぞれ /output/jp/g/(URL名) で配信されます。重なり順は上が背面・下が前面。日本語/英語は自動で両方のURLが作られます (日英の出し分けとは独立)。</p>
       </fieldset>
-
+      </section>
+      <section class="settings-section" data-section="operation">
+        <div class="settings-section-head">
+          <h2>操作</h2>
+          <p>送出画面の操作に関する設定です。</p>
+        </div>
       <fieldset class="settings-group">
-        <legend>ライブデータ連携 (CSV/Excel)</legend>
+        <legend>操作設定</legend>
         <div class="settings-row">
-          <label>監視ファイル</label>
-          <input type="text" id="ld-file" class="input" readonly placeholder="未選択 (CSV / Excel)">
-          <button class="btn btn--small" id="ld-choose">選択...</button>
+          <label for="op-dbltake">ダブルクリックで即TAKE</label>
+          <label class="od-bar-label"><input type="checkbox" id="op-dbltake" checked> 送出リストのページをダブルクリックしたとき、確認なしで即送出する (誤操作が心配な場合はOFF)</label>
         </div>
-        <div class="settings-row">
-          <label for="ld-region">反映先</label>
-          <select id="ld-region" class="input input--small"></select>
-          <span class="settings-inline-hint">送出中のテロップの文字を自動で差し替えます</span>
-        </div>
-        <div class="settings-row">
-          <label>セル割当</label>
-          <div class="ld-mappings" id="ld-mappings"></div>
-        </div>
-        <div class="settings-row">
-          <label>監視</label>
-          <button class="btn btn--small btn--primary" id="ld-start">開始</button>
-          <button class="btn btn--small" id="ld-stop">停止</button>
-          <span class="gpio-conn-status" id="ld-status">停止中</span>
-          <span class="settings-inline-hint" id="ld-last"></span>
-        </div>
-        <p class="gpio-hint">先頭シートの指定セル (例: B2) を1秒間隔で監視し、値が変わると送出中のテロップへ即時反映します (CHANGE相当・アニメなし)。Excelを上書き保存するだけでスコアや順位表が更新される運用ができます。2台運用時は出力担当PC側で設定してください。</p>
       </fieldset>
-
+      </section>
+      <section class="settings-section" data-section="remote">
+        <div class="settings-section-head">
+          <h2>2台運用</h2>
+          <p>LAN 上の 2 台を同期して、片方を出力担当として運用します。</p>
+        </div>
       <fieldset class="settings-group">
         <legend>リモート連携 (2台運用)</legend>
         <div class="settings-row">
@@ -557,7 +543,12 @@
         </div>
         <p class="gpio-hint">テロップデータとON AIR/NEXT状態は両PC間で自動同期されます (接続時はホストのデータが優先)。担当でないPCでのCHANGE/TAKE/CLEAR操作 (GPIOボタン含む) は担当PCへ転送されて実行されます。ホスト側のWindowsファイアウォールで指定ポートの受信許可が必要です。</p>
       </fieldset>
-
+      </section>
+      <section class="settings-section" data-section="gpio">
+        <div class="settings-section-head">
+          <h2>GPIO 物理ボタン</h2>
+          <p>CONTEC DIO の接点入力を系統ごとの TAKE / CLEAR などに割り当てます (Windows 専用)。</p>
+        </div>
       <fieldset class="settings-group">
         <legend>GPIOリモートボタン (CONTEC DIO)</legend>
         <div class="settings-row">
@@ -589,19 +580,91 @@
         <div class="gpio-mapping-columns" id="gpio-mapping-columns"></div>
         <p class="gpio-hint">「検出」をクリックしてからリモートの割り当てたいボタンを押すと、入力ビットが自動で割り当てられ、設定も自動保存されます。「接続」時にも現在の設定が自動保存されます。</p>
       </fieldset>
-
+      </section>
+      <section class="settings-section" data-section="livedata">
+        <div class="settings-section-head">
+          <h2>ライブデータ</h2>
+          <p>CSV / Excel のセルを監視し、送出中のテロップへ自動反映します。</p>
+        </div>
+      <fieldset class="settings-group">
+        <legend>ライブデータ連携 (CSV/Excel)</legend>
+        <div class="settings-row">
+          <label>監視ファイル</label>
+          <input type="text" id="ld-file" class="input" readonly placeholder="未選択 (CSV / Excel)">
+          <button class="btn btn--small" id="ld-choose">選択...</button>
+        </div>
+        <div class="settings-row">
+          <label for="ld-region">反映先</label>
+          <select id="ld-region" class="input input--small"></select>
+          <span class="settings-inline-hint">送出中のテロップの文字を自動で差し替えます</span>
+        </div>
+        <div class="settings-row">
+          <label>セル割当</label>
+          <div class="ld-mappings" id="ld-mappings"></div>
+        </div>
+        <div class="settings-row">
+          <label>監視</label>
+          <button class="btn btn--small btn--primary" id="ld-start">開始</button>
+          <button class="btn btn--small" id="ld-stop">停止</button>
+          <span class="gpio-conn-status" id="ld-status">停止中</span>
+          <span class="settings-inline-hint" id="ld-last"></span>
+        </div>
+        <p class="gpio-hint">先頭シートの指定セル (例: B2) を1秒間隔で監視し、値が変わると送出中のテロップへ即時反映します (CHANGE相当・アニメなし)。Excelを上書き保存するだけでスコアや順位表が更新される運用ができます。2台運用時は出力担当PC側で設定してください。</p>
+      </fieldset>
+      </section>
+      <section class="settings-section" data-section="data">
+        <div class="settings-section-head">
+          <h2>保存・読込・バックアップ</h2>
+          <p>ランダウンの書き出し/取り込み、デザインのバックアップ、送出ログを扱います。</p>
+        </div>
+      <fieldset class="settings-group">
+        <legend>ランダウン (番組・放送・ページ)</legend>
+        <div class="settings-row">
+          <label>ファイル</label>
+          <button class="btn btn--small" id="project-load">読込…</button>
+          <button class="btn btn--small" id="project-save">名前を付けて保存…</button>
+          <span class="settings-inline-hint">番組・放送・ページのデータをファイルへ書き出し/取り込みます (通常は自動保存)</span>
+        </div>
+      </fieldset>
+      <fieldset class="settings-group">
+        <legend>デザイン・ログ</legend>
+        <div class="settings-row">
+          <label>テンプレート</label>
+          <button class="btn btn--small" id="graphics-open-template">JSONを開く</button>
+          <button class="btn btn--small" id="graphics-reload-template">再読込して反映</button>
+          <span class="settings-inline-hint">通常は「デザイン」タブで編集します (JSON直接編集は上級者向け)</span>
+        </div>
+        <div class="settings-row">
+          <label>バックアップ</label>
+          <button class="btn btn--small" id="graphics-open-backups">フォルダを開く</button>
+          <span class="settings-inline-hint">デザイン保存のたびに世代バックアップを自動作成 (最新30件)。復元はJSONを「JSONを開く」の場所へコピーして再読込</span>
+        </div>
+        <div class="settings-row">
+          <label>送出ログ</label>
+          <button class="btn btn--small" id="graphics-open-logs">ログフォルダを開く</button>
+          <span class="settings-inline-hint">TAKE/UPDATE/CLEARの操作を日別ファイルに記録します (時刻・ページ番号・内容)</span>
+        </div>
+      </fieldset>
+      </section>
       <div class="settings-actions">
         <button class="btn btn--primary" id="save-settings">設定を保存</button>
         <span class="settings-status" id="settings-status"></span>
       </div>
+      </div>
     </div>
   </div>
 
-  <!-- ===== マニュアルタブ (アプリ内マニュアル) ===== -->
-  <div class="tab-content" id="tab-manual">
-    <div class="manual-layout">
-      <nav class="manual-nav" id="manual-nav"></nav>
-      <div class="manual-body" id="manual-body"></div>
+  <!-- ===== ヘルプ (アプリ内マニュアル) — 右上の「?」から開くドロワー ===== -->
+  <div class="help-overlay hidden" id="help-overlay">
+    <div class="help-drawer" role="dialog" aria-label="ヘルプ">
+      <div class="help-head">
+        <span class="help-title">ヘルプ</span>
+        <button class="btn btn--small" id="help-close">閉じる</button>
+      </div>
+      <div class="manual-layout">
+        <nav class="manual-nav" id="manual-nav"></nav>
+        <div class="manual-body" id="manual-body"></div>
+      </div>
     </div>
   </div>
 

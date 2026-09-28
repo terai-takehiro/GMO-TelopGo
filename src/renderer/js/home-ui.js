@@ -49,6 +49,8 @@ const HomeUI = {
       window.api.getAppVersion().then((v) => {
         const el = document.getElementById('home-version');
         if (el && v) el.textContent = `v${v}`;
+        const hdr = document.getElementById('app-header-ver');
+        if (hdr && v) hdr.textContent = `v${v}`;
       }).catch(() => {});
     }
   },
