@@ -170,6 +170,7 @@ const StartWizard = {
     if (!st.programId || !st.broadcastId) return;
     App.setActiveProgram(st.programId);
     App.setActiveBroadcast(st.broadcastId);
+    App.touchBroadcast();
     App.saveRundown();
     if (typeof RundownUI !== 'undefined' && RundownUI.loaded) {
       RundownUI.currentCornerId = null;

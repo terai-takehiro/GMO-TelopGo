@@ -31,59 +31,44 @@
   <div class="tab-content active" id="tab-home">
     <div class="home-wrap">
       <div class="home-hero">
-        <img src="../../assets/icon.png" alt="" class="home-hero-icon">
         <div>
-          <h1 class="home-hero-title">GMO TelopGo</h1>
-          <p class="home-hero-sub">HTML5 テロップ送出システム <span class="home-version" id="home-version"></span></p>
+          <h1 class="home-hero-title">送出を始める</h1>
+          <p class="home-hero-sub">モードを選び、番組と放送日を選ぶと送出画面に入ります。<span class="home-version" id="home-version"></span></p>
         </div>
         <div class="home-onair" id="home-onair">ON AIR: なし</div>
       </div>
 
-      <p class="home-section-label">送出モードを選んでください</p>
       <div class="home-modes">
-        <button class="home-mode home-mode--cg" data-mode="cg">
-          <span class="home-mode-icon">📺</span>
+        <button class="home-mode" data-mode="cg">
+          <span class="home-mode-kicker home-mode-kicker--cg">MODE 1</span>
           <span class="home-mode-title">リアルタイムCG送出</span>
-          <span class="home-mode-desc">Excelの文字リストをテンプレートに差し込んで送出。名前スーパー・サイド等、内容だけ差し替える運用に。</span>
+          <span class="home-mode-desc">テンプレートに文字を差し込んで送出。名前スーパー・サイドなど、体裁は同じで内容だけ差し替える運用に。Excel一括取込・ライブデータ連携に対応。</span>
+          <span class="home-mode-go home-mode-go--cg">番組を選ぶ →</span>
         </button>
-        <button class="home-mode home-mode--telop" data-mode="telop">
-          <span class="home-mode-icon">🖼</span>
+        <button class="home-mode" data-mode="telop">
+          <span class="home-mode-kicker home-mode-kicker--telop">MODE 2</span>
           <span class="home-mode-title">電テロ送出</span>
-          <span class="home-mode-desc">作画した1枚絵や静止画ファイルを並べて静的に送出。ドラッグ&amp;ドロップで流し込み。</span>
-        </button>
-      </div>
-
-      <div class="home-cards home-cards--sub">
-        <button class="home-card" data-goto="design">
-          <span class="home-card-icon">🎨</span>
-          <span class="home-card-title">デザイン</span>
-          <span class="home-card-desc">テロップのテンプレートを作画・編集</span>
-        </button>
-        <button class="home-card" data-goto="manual">
-          <span class="home-card-icon">📖</span>
-          <span class="home-card-title">マニュアル</span>
-          <span class="home-card-desc">使い方・操作ガイド・ショートカット</span>
-        </button>
-        <button class="home-card" data-goto="settings">
-          <span class="home-card-icon">⚙️</span>
-          <span class="home-card-title">設定</span>
-          <span class="home-card-desc">系統(TL枠)・出力グループ・サーバ・GPIO・連携</span>
+          <span class="home-mode-desc">作画した1枚絵や静止画ファイルを並べて静的に送出。画像はドラッグ&amp;ドロップで取り込み。</span>
+          <span class="home-mode-go home-mode-go--telop">番組を選ぶ →</span>
         </button>
       </div>
 
       <div class="home-lower">
-        <section class="home-panel">
-          <h2 class="home-panel-title">出力サーバ</h2>
-          <div class="home-server" id="home-server">
-            <div class="home-server-state" id="home-server-state">状態を取得中…</div>
-            <div class="home-server-urls" id="home-server-urls"></div>
-            <button class="btn btn--small" id="home-open-settings">設定タブで管理 ▶</button>
+        <section class="home-panel home-panel--recent">
+          <div class="home-panel-head">
+            <h2 class="home-panel-title">続きから</h2>
+            <span class="home-panel-sub">最近開いた放送</span>
           </div>
+          <div class="home-recent" id="home-recent"></div>
         </section>
-
         <section class="home-panel">
-          <h2 class="home-panel-title">最近の更新</h2>
-          <ul class="home-changes" id="home-changes"></ul>
+          <div class="home-panel-head">
+            <h2 class="home-panel-title">システム状態</h2>
+          </div>
+          <div class="home-sys" id="home-sys"></div>
+          <div class="home-panel-foot">
+            <button class="btn btn--small" id="home-open-settings">設定を開く →</button>
+          </div>
         </section>
       </div>
     </div>

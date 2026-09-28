@@ -70,6 +70,12 @@ const App = {
     if (tree) tree.activeBroadcastId = id;
   },
 
+  /** アクティブ放送に最終オープン時刻を記録 (ホームの「続きから」の並び順) */
+  touchBroadcast() {
+    const bc = this.activeBroadcast();
+    if (bc) bc.openedAt = Date.now();
+  },
+
   corners() {
     const broadcast = this.activeBroadcast();
     return broadcast ? broadcast.corners : [];

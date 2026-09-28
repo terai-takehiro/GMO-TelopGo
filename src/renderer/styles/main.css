@@ -2348,126 +2348,76 @@ body {
    ホームタブ (起動時ランディング)
    ============================================================ */
 #tab-home { background: var(--bg-primary); overflow-y: auto; }
-.home-wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 40px; }
-.home-hero {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 20px 24px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-}
-.home-hero-icon { width: 56px; height: 56px; border-radius: 12px; }
-.home-hero-title { font-size: 26px; font-weight: 800; color: var(--text-primary); letter-spacing: 0.5px; }
-.home-hero-sub { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
-.home-version { color: var(--text-muted); margin-left: 6px; font-family: var(--font-mono); font-size: 12px; }
+.home-wrap { width: 100%; max-width: 1320px; margin: 0 auto; padding: 36px 48px 40px; display: flex; flex-direction: column; gap: 24px; overflow-y: auto; }
+.home-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.home-hero-title { font-size: 26px; font-weight: 700; color: var(--text-primary); }
+.home-hero-sub { font-size: 14px; color: var(--text-secondary); margin-top: 6px; }
+.home-version { color: var(--text-muted); margin-left: 8px; font-family: var(--font-mono); font-size: 12px; }
 .home-onair {
-  margin-left: auto;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
   font-size: 13px;
   font-weight: 700;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 .home-onair.live { background: var(--red-dim); border-color: #f0a9a2; color: var(--red); }
 
-.home-section-label { font-size: 13px; font-weight: 700; color: var(--text-secondary); margin: 22px 2px 10px; }
-.home-modes {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 16px;
-  margin-bottom: 18px;
-}
+.home-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .home-mode {
+  text-align: left;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  text-align: left;
-  padding: 22px 24px;
-  border-radius: var(--radius-lg);
-  border: 2px solid var(--border);
-  background: var(--bg-secondary);
-  cursor: pointer;
-  transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s ease;
-}
-.home-mode:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
-.home-mode--cg { border-color: #bcdcff; background: linear-gradient(180deg, var(--accent-soft), var(--bg-secondary)); }
-.home-mode--cg:hover { border-color: var(--accent); }
-.home-mode--telop { border-color: #e6c37a; background: linear-gradient(180deg, var(--yellow-dim), var(--bg-secondary)); }
-.home-mode--telop:hover { border-color: #d99000; }
-.home-mode-icon { font-size: 34px; }
-.home-mode-title { font-size: 19px; font-weight: 800; color: var(--text-primary); }
-.home-mode-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
-
-.home-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 14px;
-  margin: 20px 0;
-}
-.home-cards--sub { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-.home-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  text-align: left;
-  padding: 18px;
-  background: var(--bg-secondary);
+  gap: 10px;
+  padding: 26px 28px;
+  border-radius: 14px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  font-family: var(--font);
   cursor: pointer;
-  transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  transition: box-shadow 0.15s, border-color 0.15s;
 }
-.home-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: #c2d4ea; }
-.home-card--primary { border-color: var(--accent); background: linear-gradient(180deg, var(--accent-soft), var(--bg-secondary)); }
-.home-card-icon { font-size: 28px; }
-.home-card-title { font-size: 16px; font-weight: 800; color: var(--text-primary); }
-.home-card-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.home-mode:hover { box-shadow: var(--shadow-md); border-color: #c2d0e0; }
+.home-mode-kicker { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; }
+.home-mode-kicker--cg, .home-mode-go--cg { color: var(--accent); }
+.home-mode-kicker--telop, .home-mode-go--telop { color: #8a5a00; }
+.home-mode-title { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+.home-mode-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
+.home-mode-go { margin-top: 6px; font-size: 13px; font-weight: 700; }
 
-.home-lower {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 14px;
-}
+.home-lower { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
 .home-panel {
+  display: flex;
+  flex-direction: column;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 16px 18px;
+  border-radius: 14px;
+  min-width: 0;
 }
-.home-panel-title { font-size: 13px; font-weight: 800; color: var(--text-primary); margin-bottom: 12px; }
-.home-quick { display: flex; flex-direction: column; gap: 10px; }
-.home-quick-row { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-muted); }
-.home-quick-row .input { width: 100%; }
-#home-go-onair { align-self: flex-start; margin-top: 4px; }
-.home-server-state { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
-.home-server-state.running { color: var(--green); }
-.home-server-state.stopped { color: var(--text-muted); }
-.home-server-urls { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
-.home-url {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--accent);
-  background: var(--accent-soft);
-  padding: 4px 8px;
-  border-radius: 6px;
-  word-break: break-all;
+.home-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 16px; }
+.home-panel-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.home-panel-sub { font-size: 12px; color: var(--text-muted); }
+.home-panel-foot { padding: 12px 16px; border-top: 1px solid var(--border-light); margin-top: auto; }
+.home-recent-row, .home-sys-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-light);
 }
-.home-changes { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.home-changes li {
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding-left: 16px;
-  position: relative;
-  line-height: 1.5;
-}
-.home-changes li::before { content: '›'; position: absolute; left: 2px; color: var(--accent); font-weight: 800; }
+.home-recent-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-recent-sep { color: var(--text-muted); margin: 0 6px; }
+.home-recent-meta { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.home-recent-empty { padding: 14px 16px; border-top: 1px solid var(--border-light); font-size: 13px; color: var(--text-muted); }
+.home-badge { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 2px 6px; white-space: nowrap; }
+.home-badge--cg { color: var(--accent); background: var(--accent-soft); }
+.home-badge--telop { color: #8a5a00; background: var(--yellow-dim); }
+.home-sys-dot { width: 8px; height: 8px; border-radius: 50%; background: #9aa3ae; flex-shrink: 0; }
+.home-sys-dot.ok { background: var(--green); }
+.home-sys-label { flex: 1; font-size: 13px; }
+.home-sys-value { font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono); text-align: right; }
 
 /* ============================================================
    マニュアルタブ (アプリ内マニュアル)
