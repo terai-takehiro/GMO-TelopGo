@@ -79,15 +79,19 @@ const RundownUI = {
       this.highlightDirectCandidates(direct.value.trim());
     });
 
-    // モードバナー (クリックでホームへ戻りモード変更)
-    const modeBanner = document.getElementById('od-mode-label');
-    if (modeBanner) {
-      modeBanner.style.cursor = 'pointer';
-      modeBanner.addEventListener('click', () => {
-        const homeBtn = document.querySelector('.tab-btn[data-tab="home"]');
-        if (homeBtn) homeBtn.click();
+    // 送出モード切替 (リアルタイムCG / 電テロ) — モードごとの番組・放送へ切り替わる
+    document.querySelectorAll('#tab-onair .od-mode-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (App.activeMode === btn.dataset.mode) return;
+        App.setMode(btn.dataset.mode);
+        this.currentCornerId = null;
+        this.ensureSelections();
+        this.renderAll();
       });
-    }
+    });
+
+    // 上部バーのポップオーバー (番組・放送 / ⋯ / 表示)
+    this.initPopovers();
 
     // コーナー
     document.getElementById('od-corner-add').addEventListener('click', () => this.addCorner());
@@ -158,6 +162,31 @@ const RundownUI = {
 
     // 残尺カウントダウン / オートフォロー
     setInterval(() => this.tick(), 250);
+  },
+
+  /** [data-pop] ボタンでポップオーバーを開閉。外側クリック・Esc・メニュー項目選択で閉じる */
+  initPopovers() {
+    const root = document.getElementById('tab-onair');
+    const closeAll = (except) => {
+      root.querySelectorAll('.od-pop').forEach((p) => { if (p !== except) p.classList.add('hidden'); });
+    };
+    root.querySelectorAll('[data-pop]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pop = document.getElementById(btn.dataset.pop);
+        if (!pop) return;
+        closeAll(pop);
+        pop.classList.toggle('hidden');
+      });
+    });
+    root.querySelectorAll('.od-pop').forEach((pop) => {
+      pop.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (e.target.closest('.od-menu-item') || e.target.id === 'od-reselect') closeAll();
+      });
+    });
+    document.addEventListener('click', () => closeAll());
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAll(); });
   },
 
   /** 各列のOA/NEXTモニターの背景コントロール (透過確認用) */
@@ -313,16 +342,18 @@ const RundownUI = {
       bcSel.appendChild(opt);
     });
     bcSel.value = tree.activeBroadcastId;
+
+    // パンくず (番組 ▸ 放送)
+    const bc = App.activeBroadcast();
+    document.getElementById('od-crumb-prog').textContent = program ? program.name : '-';
+    document.getElementById('od-crumb-bc').textContent = bc ? bc.name : '-';
   },
 
-  /** 送出タブ上部のモード表示バナー (クリックでホームへ = モード変更) */
+  /** 送出タブ上部のモード切替スイッチの選択状態 */
   renderModeBanner() {
-    const el = document.getElementById('od-mode-label');
-    if (!el) return;
-    const telop = App.activeMode === 'telop';
-    el.innerHTML = `<span class="od-mode-dot"></span>${telop ? '電テロ送出' : 'リアルタイムCG送出'}`;
-    el.title = 'クリックでホームに戻りモードを変更';
-    el.classList.toggle('telop', telop);
+    document.querySelectorAll('#tab-onair .od-mode-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.mode === App.activeMode);
+    });
   },
 
   renderCornerRail() {
@@ -589,7 +620,6 @@ const RundownUI = {
       // ヘッダ (色ドット+ラベル+件数+その系統へページ追加)
       const header = document.createElement('div');
       header.className = 'od-col-header';
-      header.style.borderTopColor = ch.color;
       const dot = document.createElement('span');
       dot.className = 'od-col-dot';
       dot.style.background = ch.color;
@@ -724,7 +754,6 @@ const RundownUI = {
       take.className = 'od-col-take';
       take.title = `${ch.label} を送出: NEXT→ON AIR (フォーカス中は Space / Enter)`;
       take.innerHTML = 'TAKE <span class="od-take-arrow">⬆</span>';
-      take.style.borderColor = ch.color;
       take.addEventListener('click', (e) => { e.stopPropagation(); this.focusChannel(ch.id); Broadcast.doTake(ch.id); });
       footer.appendChild(take);
       col.appendChild(footer);
@@ -768,11 +797,8 @@ const RundownUI = {
     if (this.activeChannelId === channelId) return;
     this.activeChannelId = channelId;
     document.querySelectorAll('#od-columns .od-col').forEach((el) => {
-      const ch = App.channelById(el.dataset.channelId);
       const active = el.dataset.channelId === channelId;
       el.classList.toggle('active', active);
-      el.style.borderColor = active && ch ? ch.color : '';
-      el.style.boxShadow = active && ch ? `0 0 0 1px ${ch.color}` : '';
     });
     this.renderKeyTarget();
   },
@@ -827,9 +853,6 @@ const RundownUI = {
       if (!ch) return;
       const active = ch.id === this.activeChannelId;
       col.classList.toggle('active', active);
-      // 操作中系統の列を系統色で縁取る (大型TAKEと色連動)
-      col.style.borderColor = active ? ch.color : '';
-      col.style.boxShadow = active ? `0 0 0 1px ${ch.color}` : '';
       const st = App.chState(ch.id);
       const nextFound = st.nextPageId ? App.findPage(st.nextPageId) : null;
       const onAirFound = st.onAirPageId ? App.findPage(st.onAirPageId) : null;

@@ -43,28 +43,6 @@
     }
   }
 
-  /**
-   * 値のインプレース更新: 変更されたbindingを持つテキストレイヤーの要素だけを
-   * 作り直して差し替える (他レイヤーのDOMと再生中アニメを保持 = ちらつかない)。
-   * スポーツコーダー等、時計/スコアの連続更新用。
-   * @param {string[]} [changedKeys] 変更されたbinding名。省略時は全テキストレイヤー
-   */
-  function patchValues(container, variant, values, options, changedKeys) {
-    const opts = options || {};
-    const assetBase = opts.assetBase || '/assets/';
-    if (!variant || !variant.layers) return;
-    const changed = changedKeys ? new Set(changedKeys) : null;
-    variant.layers.forEach((layer) => {
-      if (layer.type !== 'text' || !layer.binding || layer.visible === false) return;
-      if (changed && !changed.has(layer.binding)) return;
-      const old = container.querySelector(`[data-layer-id="${(window.CSS && CSS.escape) ? CSS.escape(layer.id) : layer.id}"]`);
-      if (!old) return;
-      const el = buildLayer(layer, values || {}, assetBase, opts);
-      old.replaceWith(el);
-      if (layer.autoFit && layer.autoFit !== 'none') fitText(el, layer);
-    });
-  }
-
   function buildLayer(layer, values, assetBase, opts) {
     const el = document.createElement('div');
     el.className = 'tl-layer';
@@ -486,5 +464,5 @@
     });
   }
 
-  global.TelopRenderer = { renderVariant, patchValues, applyFonts, edgeOffsets, shapePoints };
+  global.TelopRenderer = { renderVariant, applyFonts, edgeOffsets, shapePoints };
 })(typeof window !== 'undefined' ? window : globalThis);

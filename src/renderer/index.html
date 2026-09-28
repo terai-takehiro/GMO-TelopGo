@@ -7,97 +7,68 @@
   <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
-  <!-- アプリヘッダー -->
+  <!-- アプリヘッダー (ブランド + タブ + 状態 + ヘルプ) -->
   <header class="app-header">
     <div class="app-header-brand">
       <img src="../../assets/icon.png" alt="" class="app-header-icon">
-      <div class="app-header-titles">
-        <span class="app-header-name">GMO TelopGo</span>
-        <span class="app-header-subtitle">HTML5 テロップ送出システム</span>
-      </div>
+      <span class="app-header-name">TelopGo</span>
+      <span class="app-header-ver" id="app-header-ver"></span>
     </div>
-    <div class="app-header-actions">
-      <button class="btn btn--small" id="dl-template-name" title="名前テロップ用Excelテンプレートをダウンロード">名前テンプレDL</button>
-      <button class="btn btn--small" id="dl-template-side" title="サイドテロップ用Excelテンプレートをダウンロード">サイドテンプレDL</button>
+    <nav class="tab-bar">
+      <button class="tab-btn active" data-tab="home">ホーム</button>
+      <button class="tab-btn" data-tab="onair">送出</button>
+      <button class="tab-btn" data-tab="design">デザイン</button>
+      <button class="tab-btn" data-tab="settings">設定</button>
+    </nav>
+    <div class="app-header-status">
+      <button class="hdr-pill" id="hdr-output" data-goto="settings" data-section="output" title="出力サーバ (クリックで設定)"><span class="hdr-dot"></span><span class="hdr-pill-text">出力 停止</span></button>
+      <button class="hdr-pill hidden" id="hdr-remote" data-goto="settings" data-section="remote" title="2台運用 (クリックで設定)"><span class="hdr-dot"></span><span class="hdr-pill-text">2台運用</span></button>
+      <button class="hdr-help" id="help-open" title="ヘルプ (使い方・ショートカット)" aria-label="ヘルプ">?</button>
     </div>
   </header>
-
-  <!-- タブバー -->
-  <nav class="tab-bar">
-    <button class="tab-btn active" data-tab="home">ホーム</button>
-    <button class="tab-btn" data-tab="onair">送出</button>
-    <button class="tab-btn" data-tab="sports">スポーツ</button>
-    <button class="tab-btn" data-tab="design">デザイン</button>
-    <button class="tab-btn" data-tab="manual">マニュアル</button>
-    <button class="tab-btn tab-btn--settings" data-tab="settings">設定</button>
-    <div class="tab-bar-right">
-      <button class="btn btn--small" id="project-load">読込</button>
-      <button class="btn btn--small" id="project-save">保存</button>
-    </div>
-  </nav>
 
   <!-- ===== ホームタブ (起動時ランディング) ===== -->
   <div class="tab-content active" id="tab-home">
     <div class="home-wrap">
       <div class="home-hero">
-        <img src="../../assets/icon.png" alt="" class="home-hero-icon">
         <div>
-          <h1 class="home-hero-title">GMO TelopGo</h1>
-          <p class="home-hero-sub">HTML5 テロップ送出システム <span class="home-version" id="home-version"></span></p>
+          <h1 class="home-hero-title">送出を始める</h1>
+          <p class="home-hero-sub">モードを選び、番組と放送日を選ぶと送出画面に入ります。<span class="home-version" id="home-version"></span></p>
         </div>
         <div class="home-onair" id="home-onair">ON AIR: なし</div>
       </div>
 
-      <p class="home-section-label">送出モードを選んでください</p>
       <div class="home-modes">
-        <button class="home-mode home-mode--cg" data-mode="cg">
-          <span class="home-mode-icon">📺</span>
+        <button class="home-mode" data-mode="cg">
+          <span class="home-mode-kicker home-mode-kicker--cg">MODE 1</span>
           <span class="home-mode-title">リアルタイムCG送出</span>
-          <span class="home-mode-desc">Excelの文字リストをテンプレートに差し込んで送出。名前スーパー・サイド等、内容だけ差し替える運用に。</span>
+          <span class="home-mode-desc">テンプレートに文字を差し込んで送出。名前スーパー・サイドなど、体裁は同じで内容だけ差し替える運用に。Excel一括取込・ライブデータ連携に対応。</span>
+          <span class="home-mode-go home-mode-go--cg">番組を選ぶ →</span>
         </button>
-        <button class="home-mode home-mode--telop" data-mode="telop">
-          <span class="home-mode-icon">🖼</span>
+        <button class="home-mode" data-mode="telop">
+          <span class="home-mode-kicker home-mode-kicker--telop">MODE 2</span>
           <span class="home-mode-title">電テロ送出</span>
-          <span class="home-mode-desc">作画した1枚絵や静止画ファイルを並べて静的に送出。ドラッグ&amp;ドロップで流し込み。</span>
-        </button>
-        <button class="home-mode home-mode--sports" data-mode="sports">
-          <span class="home-mode-icon">🏆</span>
-          <span class="home-mode-title">スポーツ送出</span>
-          <span class="home-mode-desc">スコア・ピリオド・試合時計・野球カウントを操作盤でライブ操作し、スコアバグへ即時反映。</span>
-        </button>
-      </div>
-
-      <div class="home-cards home-cards--sub">
-        <button class="home-card" data-goto="design">
-          <span class="home-card-icon">🎨</span>
-          <span class="home-card-title">デザイン</span>
-          <span class="home-card-desc">テロップのテンプレートを作画・編集</span>
-        </button>
-        <button class="home-card" data-goto="manual">
-          <span class="home-card-icon">📖</span>
-          <span class="home-card-title">マニュアル</span>
-          <span class="home-card-desc">使い方・操作ガイド・ショートカット</span>
-        </button>
-        <button class="home-card" data-goto="settings">
-          <span class="home-card-icon">⚙️</span>
-          <span class="home-card-title">設定</span>
-          <span class="home-card-desc">系統(TL枠)・出力グループ・サーバ・GPIO・連携</span>
+          <span class="home-mode-desc">作画した1枚絵や静止画ファイルを並べて静的に送出。画像はドラッグ&amp;ドロップで取り込み。</span>
+          <span class="home-mode-go home-mode-go--telop">番組を選ぶ →</span>
         </button>
       </div>
 
       <div class="home-lower">
-        <section class="home-panel">
-          <h2 class="home-panel-title">出力サーバ</h2>
-          <div class="home-server" id="home-server">
-            <div class="home-server-state" id="home-server-state">状態を取得中…</div>
-            <div class="home-server-urls" id="home-server-urls"></div>
-            <button class="btn btn--small" id="home-open-settings">設定タブで管理 ▶</button>
+        <section class="home-panel home-panel--recent">
+          <div class="home-panel-head">
+            <h2 class="home-panel-title">続きから</h2>
+            <span class="home-panel-sub">最近開いた放送</span>
           </div>
+          <div class="home-recent" id="home-recent"></div>
         </section>
-
         <section class="home-panel">
-          <h2 class="home-panel-title">最近の更新</h2>
-          <ul class="home-changes" id="home-changes"></ul>
+          <div class="home-panel-head">
+            <h2 class="home-panel-title">システム状態</h2>
+          </div>
+          <div class="home-sys" id="home-sys"></div>
+          <div class="home-panel-foot">
+            <button class="btn btn--small" id="home-open-settings">設定を開く →</button>
+          </div>
         </section>
       </div>
     </div>
@@ -121,34 +92,72 @@
     <div class="od-layout">
       <div class="od-rehearsal-banner hidden" id="od-rehearsal-banner">リハーサルモード — 出力には送出されません</div>
       <div class="od-topbar">
-        <label class="od-bar-label">番組
-          <select id="od-program" class="input input--small od-select"></select>
-        </label>
-        <button class="btn btn--small od-btn" id="od-program-add" title="番組を追加">＋ 追加</button>
-        <button class="btn btn--small od-btn" id="od-program-rename" title="番組名を変更">改名</button>
-        <button class="btn btn--small od-btn" id="od-program-delete" title="番組を削除">削除</button>
-        <span class="od-sep"></span>
-        <label class="od-bar-label">放送
-          <select id="od-broadcast" class="input input--small od-select"></select>
-        </label>
-        <button class="btn btn--small od-btn" id="od-broadcast-add" title="放送(日付)を追加">＋ 追加</button>
-        <button class="btn btn--small od-btn" id="od-broadcast-dup" title="この放送を複製 (帯番組の日付運用)">⧉ 複製</button>
-        <button class="btn btn--small od-btn" id="od-broadcast-rename" title="放送名を変更">改名</button>
-        <button class="btn btn--small od-btn" id="od-broadcast-delete" title="放送を削除">削除</button>
-        <button class="btn btn--small od-btn" id="od-reselect" title="番組/放送の選択画面に戻る">☰ 選び直す</button>
-        <span class="od-sep"></span>
-        <select id="od-view-mode" class="input input--small od-select" title="表示モード">
-          <option value="thumb">サムネイル</option>
-          <option value="list">リスト</option>
-        </select>
-        <select id="od-thumb-size" class="input input--small od-select" title="サムネイルサイズ">
-          <option value="s">小</option>
-          <option value="m" selected>中</option>
-          <option value="l">大</option>
-        </select>
+        <div class="od-mode-switch" role="group" aria-label="送出モード">
+          <button class="od-mode-btn" data-mode="cg" id="od-mode-cg">リアルタイムCG</button>
+          <button class="od-mode-btn" data-mode="telop" id="od-mode-telop">電テロ</button>
+        </div>
+        <div class="od-pop-wrap">
+          <button class="od-crumb" id="od-crumb" data-pop="od-pop-rundown" title="番組・放送(日付)を切り替え">
+            <span class="od-crumb-prog" id="od-crumb-prog">-</span><span class="od-crumb-sep">▸</span><span class="od-crumb-bc" id="od-crumb-bc">-</span><span class="od-crumb-caret">▼</span>
+          </button>
+          <div class="od-pop hidden" id="od-pop-rundown">
+            <label class="od-pop-field">番組
+              <select id="od-program" class="input input--small"></select>
+            </label>
+            <label class="od-pop-field">放送 (日付)
+              <select id="od-broadcast" class="input input--small"></select>
+            </label>
+            <button class="btn btn--small" id="od-reselect" title="番組/放送の選択画面を開く">一覧から選ぶ…</button>
+          </div>
+        </div>
+        <div class="od-pop-wrap">
+          <button class="btn btn--small od-btn od-more" data-pop="od-pop-more" title="番組・放送の操作" aria-label="番組・放送の操作">⋯</button>
+          <div class="od-pop od-menu hidden" id="od-pop-more">
+            <div class="od-menu-label">番組</div>
+            <button class="od-menu-item" id="od-program-add">番組を追加…</button>
+            <button class="od-menu-item" id="od-program-rename">番組名を変更…</button>
+            <button class="od-menu-item od-menu-item--danger" id="od-program-delete">番組を削除</button>
+            <div class="od-menu-sep"></div>
+            <div class="od-menu-label">放送 (日付)</div>
+            <button class="od-menu-item" id="od-broadcast-add">放送を追加…</button>
+            <button class="od-menu-item" id="od-broadcast-dup" title="帯番組の日付運用">この放送を複製…</button>
+            <button class="od-menu-item" id="od-broadcast-rename">放送名を変更…</button>
+            <button class="od-menu-item od-menu-item--danger" id="od-broadcast-delete">放送を削除</button>
+          </div>
+        </div>
         <span class="od-spacer"></span>
-        <input type="text" id="od-direct" class="input input--small od-direct" placeholder="ページ番号 → Enter×2で送出" title="ダイレクト送出: ページ番号+EnterでNEXTセット、もう一度EnterでTAKE">
-        <label class="od-bar-label od-rehearsal-label" title="ONの間は出力へ送出せずUI上でのみ動作します">
+        <label class="od-bar-label" title="ダイレクト送出: ページ番号+EnterでNEXTセット、もう一度EnterでTAKE">ダイレクト
+          <input type="text" id="od-direct" class="input input--small od-direct" placeholder="番号→Enter×2">
+        </label>
+        <input type="text" id="od-search" class="input input--small od-search" placeholder="ページ検索" title="番号・タイトル・内容・テンプレ名でこのコーナーのページを絞り込み (Escで解除)">
+        <div class="od-pop-wrap">
+          <button class="btn btn--small" data-pop="od-pop-view">表示</button>
+          <div class="od-pop od-pop--right hidden" id="od-pop-view">
+            <label class="od-pop-field">ページの表示
+              <select id="od-view-mode" class="input input--small">
+                <option value="thumb">サムネイル</option>
+                <option value="list">リスト</option>
+              </select>
+            </label>
+            <label class="od-pop-field">サムネイルサイズ
+              <select id="od-thumb-size" class="input input--small">
+                <option value="s">小</option>
+                <option value="m" selected>中</option>
+                <option value="l">大</option>
+              </select>
+            </label>
+            <label class="od-pop-field">モニタ背景 (透過の確認用)
+              <select id="od-pvw-bg" class="input input--small">
+                <option value="black">黒</option>
+                <option value="checker">市松</option>
+                <option value="white">白</option>
+                <option value="image">画像...</option>
+              </select>
+            </label>
+            <input type="file" id="od-pvw-bg-file" accept="image/*" class="hidden">
+          </div>
+        </div>
+        <label class="od-rehearsal-label" title="ONの間は出力へ送出せずUI上でのみ動作します">
           <input type="checkbox" id="od-rehearsal"> リハーサル
         </label>
       </div>
@@ -161,27 +170,18 @@
           </div>
           <ul class="od-corner-list" id="od-corner-list"></ul>
           <div class="od-corners-hint">右クリック: 改名/色/ロック/オートフォロー<br>ドラッグで並べ替え (並び順=送出順)</div>
+          <div class="od-corners-foot">
+            <button class="btn btn--small od-standby-btn" id="od-standby-toggle">素材集 (<span id="od-standby-count">0</span>)</button>
+          </div>
         </div>
         <div class="od-center">
           <div class="od-pages-toolbar">
             <button class="btn btn--small od-btn" id="od-add-page">＋ページ</button>
             <button class="btn btn--small od-btn" id="od-import-excel">Excel取込</button>
             <button class="btn btn--small od-btn" id="od-import-pool" title="名前プールをExcelから読込 (ページ編集時の名前補完に使われます)">名前プール読込</button>
-            <span class="od-mode-badge" id="od-mode-label" title="コーナーを右クリック→「モード切替」で変更できます"></span>
-            <span class="od-key-target" id="od-key-target" title="キーボード操作 (Space=TAKE / ←→=NEXT移動 など) が効く系統。列をクリックで切替">⌨ キー操作: -</span>
             <span class="od-spacer"></span>
             <div class="od-countdown" id="od-countdown"></div>
-            <label class="od-bar-label">モニタ背景
-              <select id="od-pvw-bg" class="input input--small od-pvw-select" title="各列のOA/NEXTモニターの背景 (透過の確認用)">
-                <option value="black">黒</option>
-                <option value="checker">市松</option>
-                <option value="white">白</option>
-                <option value="image">画像...</option>
-              </select>
-            </label>
-            <input type="file" id="od-pvw-bg-file" accept="image/*" class="hidden">
-            <input type="text" id="od-search" class="input input--small od-search" placeholder="🔎 ページ検索" title="番号・タイトル・内容・テンプレ名でこのコーナーのページを絞り込み (Escで解除)">
-            <button class="btn btn--small od-btn" id="od-standby-toggle">素材集 (<span id="od-standby-count">0</span>)</button>
+            <span class="od-key-target" id="od-key-target" title="キーボード操作 (Space=TAKE / ←→=NEXT移動 など) が効く系統。列をクリックで切替">⌨ キー操作: -</span>
           </div>
           <div class="od-columns" id="od-columns"></div>
           <div class="od-standby hidden" id="od-standby">
@@ -196,132 +196,6 @@
     </div>
     <datalist id="od-namepool"></datalist>
   </div>
-
-  <!-- ===== スポーツタブ (スポーツコーダー操作盤) ===== -->
-  <!-- ===== スポーツタブ (スポーツシーン・コンポーザー) ===== -->
-  <div class="tab-content" id="tab-sports">
-    <div class="sp-layout">
-      <div class="sp-topbar">
-        <span class="sp-context" id="sp-context">-</span>
-        <button class="btn btn--small od-btn" id="sp-reselect" title="番組/試合の選択画面に戻る">☰ 選び直す</button>
-        <span class="od-sep"></span>
-        <label class="od-bar-label">競技
-          <select id="sp-sport" class="input input--small od-select"></select>
-        </label>
-        <span class="od-sep"></span>
-        <label class="od-bar-label">大会 <input type="text" id="sp-meta-tournament" class="input input--small sp-meta"></label>
-        <label class="od-bar-label">試合 <input type="text" id="sp-meta-game" class="input input--small sp-meta"></label>
-        <label class="od-bar-label">場所 <input type="text" id="sp-meta-place" class="input input--small sp-meta"></label>
-        <label class="od-bar-label">日付 <input type="text" id="sp-meta-date" class="input input--small sp-meta sp-meta--s"></label>
-        <label class="od-bar-label">時間 <input type="text" id="sp-meta-time" class="input input--small sp-meta sp-meta--s"></label>
-      </div>
-
-      <!-- 汎用/セット制: 簡易バー送出 -->
-      <div class="sp-generic hidden" id="sp-generic">
-        <div class="sp-teams">
-          <div class="sp-team-card">
-            <div class="sp-team-head"><input type="text" id="g-home-name" class="input sp-team-name"></div>
-            <div class="sp-score" id="g-home-score">0</div>
-            <div class="sp-score-keys">
-              <button class="sp-key sp-key--big" data-team="home" data-score-delta="1">+1</button>
-              <button class="sp-key" data-team="home" data-score-delta="2">+2</button>
-              <button class="sp-key" data-team="home" data-score-delta="3">+3</button>
-              <button class="sp-key sp-key--minus" data-team="home" data-score-delta="-1">−1</button>
-            </div>
-          </div>
-          <div class="sp-center">
-            <div class="sp-period-label" id="g-period">第1ピリオド</div>
-            <div class="sp-period-keys"><button class="btn" id="g-period-up">▲ 進める</button><button class="btn" id="g-period-down">▼ 戻す</button></div>
-            <div class="sp-clock-display" id="g-clock-display">00:00</div>
-            <div class="sp-period-keys"><button class="sp-key sp-key--big" id="g-clock-toggle">▶ 開始/停止</button><button class="btn" id="g-clock-reset">リセット</button></div>
-          </div>
-          <div class="sp-team-card">
-            <div class="sp-team-head"><input type="text" id="g-away-name" class="input sp-team-name"></div>
-            <div class="sp-score" id="g-away-score">0</div>
-            <div class="sp-score-keys">
-              <button class="sp-key sp-key--big" data-team="away" data-score-delta="1">+1</button>
-              <button class="sp-key" data-team="away" data-score-delta="2">+2</button>
-              <button class="sp-key" data-team="away" data-score-delta="3">+3</button>
-              <button class="sp-key sp-key--minus" data-team="away" data-score-delta="-1">−1</button>
-            </div>
-          </div>
-        </div>
-        <div class="sp-generic-send">
-          <button class="od-col-take" id="g-take">TAKE <span class="od-take-arrow">⬆</span></button>
-          <button class="od-obtn od-obtn-clear" id="g-clear">CLEAR<span class="od-obtn-jp">消去</span></button>
-          <span class="sp-onair-pill" id="g-onair">OFF AIR</span>
-        </div>
-      </div>
-
-      <!-- 野球コンソール -->
-      <div class="sp-baseball" id="sp-baseball">
-        <div class="sp-bb-top">
-          <div class="sp-bb-linescore" id="bb-linescore"></div>
-          <div class="sp-bb-status">
-            <span class="sp-bb-status-label" id="bb-status">1回表</span>
-            <button class="btn btn--small" id="bb-inn-up" title="イニングを進める (表→ウラ→次の回)">▲ 進める</button>
-            <button class="btn btn--small" id="bb-inn-down" title="イニングを戻す">▼ 戻す</button>
-            <button class="btn btn--small" id="bb-change" title="チェンジ (BSO・走者クリア)">チェンジ</button>
-          </div>
-        </div>
-        <div class="sp-bb-main">
-          <div class="sp-bb-team">
-            <div class="sp-bb-team-head">HOME <input type="text" id="bb-short-home" class="input input--small sp-short" title="短縮名"></div>
-            <div class="sp-bb-roster" id="bb-roster-home"></div>
-            <button class="btn btn--small" id="bb-roster-add-home">＋ 選手追加</button>
-          </div>
-          <div class="sp-bb-center">
-            <div class="sp-bb-diamond">
-              <button class="sp-base" data-base="1" title="2塁">2</button>
-              <button class="sp-base" data-base="0" title="1塁">1</button>
-              <button class="sp-base" data-base="2" title="3塁">3</button>
-              <button class="btn btn--small sp-diamond-clear" id="bb-clear-runners">全走者クリア</button>
-            </div>
-            <div class="sp-bb-count">
-              <button class="sp-key" id="bb-ball">BALL <span class="sp-bb-dots" id="bb-balls">○○○</span></button>
-              <button class="sp-key" id="bb-strike">STRIKE <span class="sp-bb-dots" id="bb-strikes">○○</span></button>
-              <button class="sp-key" id="bb-out">OUT <span class="sp-bb-dots" id="bb-outs">○○</span></button>
-            </div>
-            <div class="sp-bb-count-actions">
-              <button class="btn btn--small" id="bb-batter-change">打者交代 (BSクリア)</button>
-              <button class="btn btn--small" id="bb-count-reset">カウントリセット</button>
-            </div>
-            <div class="sp-bb-run">
-              <span class="sp-bb-run-label">得点 (現イニング)</span>
-              <button class="sp-key sp-key--big" id="bb-run-plus">＋</button>
-              <button class="sp-key sp-key--minus" id="bb-run-minus">−</button>
-            </div>
-          </div>
-          <div class="sp-bb-team">
-            <div class="sp-bb-team-head">AWAY <input type="text" id="bb-short-away" class="input input--small sp-short" title="短縮名"></div>
-            <div class="sp-bb-roster" id="bb-roster-away"></div>
-            <button class="btn btn--small" id="bb-roster-add-away">＋ 選手追加</button>
-          </div>
-        </div>
-        <div class="sp-bb-windows">
-          <div class="sp-windows-title">オンエアウィンドウ (ONで送出 / 位置・サイズでプレビュー上をドラッグ配置)</div>
-          <div class="sp-windows-list" id="sp-windows"></div>
-        </div>
-      </div>
-
-      <!-- ドラッグ配置コンポーザー -->
-      <div class="sp-composer hidden" id="sp-composer">
-        <div class="sp-composer-bar">
-          <span id="sp-composer-title">位置・サイズ</span>
-          <span class="od-spacer"></span>
-          <label class="od-bar-label">X <input type="number" id="sp-c-x" class="input input--small sp-c-num"></label>
-          <label class="od-bar-label">Y <input type="number" id="sp-c-y" class="input input--small sp-c-num"></label>
-          <label class="od-bar-label">サイズ% <input type="number" id="sp-c-scale" class="input input--small sp-c-num"></label>
-          <button class="btn btn--small btn--primary" id="sp-composer-close">閉じる</button>
-        </div>
-        <div class="sp-composer-stage" id="sp-composer-stage">
-          <iframe id="sp-composer-frame" src="about:blank" sandbox="allow-scripts allow-same-origin" allow="autoplay"></iframe>
-          <div class="sp-composer-box" id="sp-composer-box">ウィンドウ<span class="sp-composer-handle" id="sp-composer-handle"></span></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
 
   <!-- テンプレート追加ダイアログ -->
   <dialog id="de-tpl-dialog" class="de-dialog">
@@ -382,99 +256,219 @@
     </div>
   </dialog>
 
-  <!-- ===== デザイン タブ ===== -->
+
+  <!-- ===== デザイン タブ (Photoshop風: メニュー / オプションバー / ツール / ドキュメントタブ / パネルドック) ===== -->
   <div class="tab-content" id="tab-design">
     <div class="de-layout">
-      <div class="de-toolbar">
-        <label class="de-tool-label">デザインセット
-          <select id="de-set-select" class="input input--small"></select>
-        </label>
-        <button class="btn btn--small" id="de-set-new" title="新しいデザインセットを作成">＋ 新規</button>
-        <button class="btn btn--small" id="de-set-rename" title="セット名を変更">改名</button>
-        <button class="btn btn--small" id="de-set-delete" title="セットを削除 (使用中のセットは削除不可)">🗑</button>
-        <button class="btn btn--small" id="de-set-gallery-btn" title="デザインセットをサムネイルで一覧表示 (クリックで切替)">一覧</button>
-        <span class="de-toolbar-sep"></span>
-        <label class="de-tool-label">テンプレート
-          <select id="de-template" class="input input--small"></select>
-        </label>
-        <button class="btn btn--small" id="de-tpl-add" title="テンプレートを追加 (チャンネルを選んで新規作成)">＋</button>
-        <button class="btn btn--small" id="de-tpl-rename" title="テンプレート名を変更">改名</button>
-        <button class="btn btn--small" id="de-tpl-delete" title="テンプレートを削除">削除</button>
-        <div class="de-lang-switch">
-          <button class="btn btn--small active" id="de-lang-jp">JP</button>
-          <button class="btn btn--small" id="de-lang-en">EN</button>
+      <div class="de-menubar">
+        <div class="de-menu-wrap">
+          <button class="de-menu-btn" data-demenu="de-menu-file">ファイル</button>
+          <div class="de-menu hidden" id="de-menu-file">
+            <button class="de-menu-item" data-click="de-save">保存して反映<span class="de-menu-kbd">Ctrl+S</span></button>
+            <button class="de-menu-item" id="de-reload">破棄して再読込</button>
+            <div class="de-menu-sep"></div>
+            <button class="de-menu-item" id="de-import">デザインを読み込み…</button>
+            <button class="de-menu-item" id="de-export">デザインを書き出し…</button>
+            <button class="de-menu-item" id="de-export-png" title="表示中のテンプレートを1920x1080の透過PNGとして保存">PNG で保存…</button>
+          </div>
         </div>
-        <label class="de-tool-label">ズーム
-          <select id="de-zoom" class="input input--small">
-            <option value="fit">フィット</option>
-            <option value="0.25">25%</option>
-            <option value="0.5">50%</option>
-            <option value="0.75">75%</option>
-            <option value="1">100%</option>
-          </select>
-        </label>
-        <label class="de-tool-label">グリッド
-          <select id="de-grid" class="input input--small" title="グリッドを表示し、ドラッグ時に吸着します">
-            <option value="0">なし</option>
-            <option value="10">10px</option>
-            <option value="20">20px</option>
-            <option value="50">50px</option>
-          </select>
-        </label>
-        <label class="de-tool-label" title="セーフティエリア (90%) を表示">
-          <input type="checkbox" id="de-safety"> セーフティ
-        </label>
-        <button class="btn btn--small" id="de-anim-settings" title="レイヤーの選択を解除してテンプレートのアニメーション設定を表示">アニメ設定</button>
-        <button class="btn btn--small" id="de-play-in">&#9654; IN</button>
-        <button class="btn btn--small" id="de-play-out">&#9654; OUT</button>
-        <button class="btn btn--small" id="de-copy-lang">JP&#8594;ENコピー</button>
-        <button class="btn btn--small" id="de-add-font">フォント追加</button>
-        <button class="btn btn--small" id="de-add-gfont">Webフォント</button>
-        <button class="btn btn--small" id="de-font-replace" title="プロジェクト内の全レイヤーのフォントを一括で置き換え">フォント置換</button>
-        <button class="btn btn--small" id="de-export">書き出し</button>
-        <button class="btn btn--small" id="de-import">読み込み</button>
-        <button class="btn btn--small" id="de-export-png" title="表示中のテンプレートを1920x1080の透過PNGとして保存">PNG保存</button>
+        <div class="de-menu-wrap">
+          <button class="de-menu-btn" data-demenu="de-menu-edit">編集</button>
+          <div class="de-menu hidden" id="de-menu-edit">
+            <button class="de-menu-item" id="de-undo">元に戻す<span class="de-menu-kbd">Ctrl+Z</span></button>
+            <button class="de-menu-item" id="de-redo">やり直す<span class="de-menu-kbd">Ctrl+Y</span></button>
+            <div class="de-menu-sep"></div>
+            <button class="de-menu-item" data-click="de-duplicate">レイヤーを複製</button>
+            <button class="de-menu-item" data-click="de-delete">レイヤーを削除<span class="de-menu-kbd">Del</span></button>
+            <div class="de-menu-sep"></div>
+            <button class="de-menu-item" data-click="de-copy-lang">JP のレイアウトを EN へコピー</button>
+          </div>
+        </div>
+        <div class="de-menu-wrap">
+          <button class="de-menu-btn" data-demenu="de-menu-layer">レイヤー</button>
+          <div class="de-menu hidden" id="de-menu-layer">
+            <button class="de-menu-item" data-click="de-add-text">文字を追加</button>
+            <button class="de-menu-item" data-click="de-add-rect">図形を追加</button>
+            <button class="de-menu-item" data-click="de-add-image">画像を追加…</button>
+            <div class="de-menu-sep"></div>
+            <button class="de-menu-item" data-click="de-layer-top">最前面へ</button>
+            <button class="de-menu-item" data-click="de-layer-up">前面へ</button>
+            <button class="de-menu-item" data-click="de-layer-down">背面へ</button>
+            <button class="de-menu-item" data-click="de-layer-bottom">最背面へ</button>
+          </div>
+        </div>
+        <div class="de-menu-wrap">
+          <button class="de-menu-btn" data-demenu="de-menu-tpl">テンプレート</button>
+          <div class="de-menu hidden" id="de-menu-tpl">
+            <button class="de-menu-item" data-click="de-tpl-add">新規テンプレート…</button>
+            <button class="de-menu-item" data-click="de-tpl-rename">名前を変更…</button>
+            <button class="de-menu-item de-menu-item--danger" data-click="de-tpl-delete">削除</button>
+          </div>
+        </div>
+        <div class="de-menu-wrap">
+          <button class="de-menu-btn" data-demenu="de-menu-type">書式</button>
+          <div class="de-menu hidden" id="de-menu-type">
+            <button class="de-menu-item" id="de-add-font">フォントを追加…</button>
+            <button class="de-menu-item" id="de-add-gfont">Web フォントを取得…</button>
+            <button class="de-menu-item" id="de-font-replace" title="プロジェクト内の全レイヤーのフォントを一括で置き換え">フォントを一括置換…</button>
+          </div>
+        </div>
+        <div class="de-menu-wrap">
+          <button class="de-menu-btn" data-demenu="de-menu-anim">アニメーション</button>
+          <div class="de-menu hidden" id="de-menu-anim">
+            <button class="de-menu-item" id="de-anim-settings" title="レイヤーの選択を解除してテンプレートのアニメーション設定を表示">テンプレートのアニメーション設定</button>
+            <div class="de-menu-sep"></div>
+            <button class="de-menu-item" id="de-play-in">IN を試写</button>
+            <button class="de-menu-item" id="de-play-out">OUT を試写</button>
+          </div>
+        </div>
         <span class="de-spacer"></span>
-        <button class="btn btn--small" id="de-undo" title="Ctrl+Z">元に戻す</button>
-        <button class="btn btn--small" id="de-redo" title="Ctrl+Y">やり直す</button>
-        <button class="btn btn--small" id="de-reload">破棄して再読込</button>
-        <button class="btn btn--small btn--primary" id="de-save">保存して反映</button>
-      </div>
-      <div class="de-main">
-        <div class="de-layers">
-          <div class="de-layers-header">
-            <span>レイヤー</span>
-            <span>
-              <button class="btn btn--small" id="de-layer-top" title="選択レイヤーを最前面へ">最前面</button>
-              <button class="btn btn--small" id="de-layer-up" title="選択レイヤーを1つ前面へ">&#9650; 前へ</button>
-              <button class="btn btn--small" id="de-layer-down" title="選択レイヤーを1つ背面へ">&#9660; 後へ</button>
-              <button class="btn btn--small" id="de-layer-bottom" title="選択レイヤーを最背面へ">最背面</button>
-            </span>
-          </div>
-          <ul class="de-layer-list" id="de-layer-list"></ul>
-          <div class="de-layers-actions">
-            <button class="btn btn--small" id="de-add-text">+文字</button>
-            <button class="btn btn--small" id="de-add-rect">+矩形</button>
-            <button class="btn btn--small" id="de-add-image">+画像</button>
-            <button class="btn btn--small" id="de-duplicate">複製</button>
-            <button class="btn btn--small btn--danger" id="de-delete">削除</button>
+        <label class="de-menubar-label">デザインセット
+          <select id="de-set-select" class="de-dark-select"></select>
+        </label>
+        <div class="de-menu-wrap">
+          <button class="de-menu-btn" data-demenu="de-menu-set">セット管理</button>
+          <div class="de-menu de-menu--right hidden" id="de-menu-set">
+            <button class="de-menu-item" id="de-set-gallery-btn" title="デザインセットをサムネイルで一覧表示 (クリックで切替)">一覧から切り替え…</button>
+            <div class="de-menu-sep"></div>
+            <button class="de-menu-item" id="de-set-new">新しいセット…</button>
+            <button class="de-menu-item" id="de-set-rename">セット名を変更…</button>
+            <button class="de-menu-item de-menu-item--danger" id="de-set-delete" title="セットを削除 (使用中のセットは削除不可)">セットを削除</button>
           </div>
         </div>
-        <div class="de-viewport" id="de-viewport">
-          <div class="de-server-warning hidden" id="de-server-warning">出力サーバが停止中のため、画像・持ち込みフォントが表示されません (設定タブで起動してください)</div>
-          <div class="de-canvas-wrap" id="de-canvas-wrap">
-            <div class="de-canvas" id="de-canvas"></div>
-            <div class="de-overlay" id="de-overlay">
-              <div class="de-grid-layer hidden" id="de-grid-layer"></div>
-              <div class="de-safety-box hidden" id="de-safety-box"></div>
-              <div class="de-guide de-guide-v hidden" id="de-guide-v"></div>
-              <div class="de-guide de-guide-h hidden" id="de-guide-h"></div>
-              <div class="de-selection hidden" id="de-selection"></div>
+      </div>
+
+      <div class="de-optbar">
+        <div class="de-lang-switch" role="group" aria-label="言語">
+          <button class="de-seg active" id="de-lang-jp">JP</button>
+          <button class="de-seg" id="de-lang-en">EN</button>
+        </div>
+        <button class="de-ob" id="de-copy-lang" title="JPのレイアウトをENへコピー">JP→EN</button>
+        <span class="de-optbar-sep"></span>
+        <button class="de-ob" data-click="de-play-in">IN 試写</button>
+        <button class="de-ob" data-click="de-play-out">OUT 試写</button>
+        <span class="de-spacer"></span>
+        <button class="de-ob de-ob--primary" id="de-save">保存して反映</button>
+      </div>
+
+      <div class="de-main">
+        <div class="de-tools" role="toolbar" aria-label="ツール">
+          <button class="de-tool active" data-tool="select" title="選択・移動 (V)" aria-label="選択・移動">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M5 3l14 8-6 2-2 6z"/></svg>
+          </button>
+          <span class="de-tools-sep"></span>
+          <button class="de-tool" id="de-add-text" title="文字レイヤーを追加 (T)" aria-label="文字">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 5h14M12 5v15M9 20h6"/></svg>
+          </button>
+          <button class="de-tool" id="de-add-rect" title="矩形を追加 (U)" aria-label="矩形">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>
+          </button>
+          <button class="de-tool" data-shape="ellipse" title="楕円を追加" aria-label="楕円">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="12" rx="8" ry="6"/></svg>
+          </button>
+          <button class="de-tool" data-shape="polygon" title="多角形を追加" aria-label="多角形">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l8 6-3 10H7L4 9z"/></svg>
+          </button>
+          <button class="de-tool" data-shape="star" title="星形を追加" aria-label="星形">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/></svg>
+          </button>
+          <button class="de-tool" id="de-add-image" title="画像を追加" aria-label="画像">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
+          </button>
+        </div>
+
+        <div class="de-center">
+          <div class="de-doc-tabs" id="de-doc-tabs"></div>
+          <select id="de-template" class="hidden" aria-hidden="true"></select>
+          <div class="de-viewport" id="de-viewport">
+            <div class="de-server-warning hidden" id="de-server-warning">出力サーバが停止中のため、画像・持ち込みフォントが表示されません (設定タブで起動してください)</div>
+            <div class="de-canvas-wrap" id="de-canvas-wrap">
+              <div class="de-canvas" id="de-canvas"></div>
+              <div class="de-overlay" id="de-overlay">
+                <div class="de-grid-layer hidden" id="de-grid-layer"></div>
+                <div class="de-safety-box hidden" id="de-safety-box"></div>
+                <div class="de-guide de-guide-v hidden" id="de-guide-v"></div>
+                <div class="de-guide de-guide-h hidden" id="de-guide-h"></div>
+                <div class="de-selection hidden" id="de-selection"></div>
+              </div>
             </div>
           </div>
+          <div class="de-statusbar">
+            <label class="de-sb-item">ズーム
+              <select id="de-zoom" class="de-dark-select">
+                <option value="fit">フィット</option>
+                <option value="0.25">25%</option>
+                <option value="0.5">50%</option>
+                <option value="0.75">75%</option>
+                <option value="1">100%</option>
+              </select>
+            </label>
+            <span class="de-sb-item de-mono">1920 × 1080 px</span>
+            <label class="de-sb-item" title="グリッドを表示し、ドラッグ時に吸着します">グリッド
+              <select id="de-grid" class="de-dark-select">
+                <option value="0">なし</option>
+                <option value="10">10px</option>
+                <option value="20">20px</option>
+                <option value="50">50px</option>
+              </select>
+            </label>
+            <label class="de-sb-item" title="セーフティエリア (90%) を表示"><input type="checkbox" id="de-safety"> セーフティ</label>
+            <span class="de-spacer"></span>
+            <span class="de-sb-item" id="de-sb-info"></span>
+          </div>
         </div>
-        <div class="de-props" id="de-props">
-          <div class="de-props-empty">レイヤーを選択してください</div>
+
+        <div class="de-dock">
+          <div class="de-panel de-panel--props">
+            <div class="de-ptabs" id="de-props-tabs">
+              <button class="de-ptab active" data-ptab="props">プロパティ</button>
+              <button class="de-ptab" data-ptab="text">文字</button>
+              <button class="de-ptab" data-ptab="anim">アニメーション</button>
+            </div>
+            <div class="de-props" id="de-props">
+              <div class="de-props-empty">レイヤーを選択してください</div>
+            </div>
+          </div>
+          <div class="de-panel de-panel--lib">
+            <div class="de-ptabs" id="de-lib-tabs">
+              <button class="de-ptab active" data-libtab="tpl">テンプレート</button>
+              <button class="de-ptab" data-libtab="style">スタイル</button>
+            </div>
+            <div class="de-lib-body" id="de-lib-tpl">
+              <div class="de-tpl-list" id="de-tpl-list"></div>
+              <div class="de-panel-foot">
+                <button class="de-ob" id="de-tpl-rename" title="テンプレート名を変更">改名</button>
+                <button class="de-ob" id="de-tpl-delete" title="テンプレートを削除">削除</button>
+                <span class="de-spacer"></span>
+                <button class="de-ob" id="de-tpl-add" title="テンプレートを追加 (系統を選んで新規作成)">＋ 新規</button>
+              </div>
+            </div>
+            <div class="de-lib-body hidden" id="de-lib-style">
+              <div class="de-style-grid" id="de-style-grid"></div>
+              <div class="de-panel-foot">
+                <span class="de-panel-hint" id="de-style-hint">クリックで選択中の文字レイヤーに適用</span>
+                <span class="de-spacer"></span>
+                <button class="de-ob" id="de-style-add" title="選択中の文字レイヤーの装飾をスタイルとして登録">＋ 登録</button>
+              </div>
+            </div>
+          </div>
+          <div class="de-panel de-panel--layers">
+            <div class="de-ptabs"><span class="de-ptab active">レイヤー</span></div>
+            <ul class="de-layer-list" id="de-layer-list"></ul>
+            <div class="de-panel-foot">
+              <button class="de-icon-btn" id="de-layer-top" title="最前面へ" aria-label="最前面へ">⤒</button>
+              <button class="de-icon-btn" id="de-layer-up" title="前面へ" aria-label="前面へ">▲</button>
+              <button class="de-icon-btn" id="de-layer-down" title="背面へ" aria-label="背面へ">▼</button>
+              <button class="de-icon-btn" id="de-layer-bottom" title="最背面へ" aria-label="最背面へ">⤓</button>
+              <span class="de-spacer"></span>
+              <button class="de-icon-btn" id="de-duplicate" title="レイヤーを複製" aria-label="レイヤーを複製">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 9v6M9 12h6"/></svg>
+              </button>
+              <button class="de-icon-btn" id="de-delete" title="レイヤーを削除 (Del)" aria-label="レイヤーを削除">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -549,11 +543,28 @@
     </div>
   </dialog>
 
-  <!-- ===== 設定 タブ ===== -->
+  <!-- ===== 設定 タブ (左ナビ + セクション) ===== -->
   <div class="tab-content" id="tab-settings">
-    <div class="settings-panel">
-      <h2>接続設定</h2>
-
+    <div class="settings-layout">
+      <aside class="settings-nav" id="settings-nav">
+        <div class="settings-nav-group">出力</div>
+        <button class="settings-nav-btn active" data-section="output">出力サーバと URL</button>
+        <button class="settings-nav-btn" data-section="channels">系統 (TL) とプリセット</button>
+        <button class="settings-nav-btn" data-section="groups">出力グループ</button>
+        <button class="settings-nav-btn" data-section="operation">操作</button>
+        <div class="settings-nav-group">連携</div>
+        <button class="settings-nav-btn" data-section="remote">2台運用</button>
+        <button class="settings-nav-btn" data-section="gpio">GPIO 物理ボタン</button>
+        <button class="settings-nav-btn" data-section="livedata">ライブデータ</button>
+        <div class="settings-nav-group">データ</div>
+        <button class="settings-nav-btn" data-section="data">保存・読込・バックアップ</button>
+      </aside>
+      <div class="settings-panel">
+      <section class="settings-section" data-section="output">
+        <div class="settings-section-head">
+          <h2>出力サーバと URL</h2>
+          <p>vMix などのブラウザ入力に出力 URL を登録します。すべて透過 1920×1080。</p>
+        </div>
       <fieldset class="settings-group">
         <legend>出力サーバ (HTML5グラフィックス)</legend>
         <div class="settings-row">
@@ -573,25 +584,14 @@
             <span class="settings-inline-hint">サーバ起動後に表示されます</span>
           </div>
         </div>
-        <div class="settings-row">
-          <label>テンプレート</label>
-          <button class="btn btn--small" id="graphics-open-template">JSONを開く</button>
-          <button class="btn btn--small" id="graphics-reload-template">再読込して反映</button>
-          <span class="settings-inline-hint">通常は「デザイン」タブで編集します (JSON直接編集は上級者向け)</span>
-        </div>
-        <div class="settings-row">
-          <label>バックアップ</label>
-          <button class="btn btn--small" id="graphics-open-backups">フォルダを開く</button>
-          <span class="settings-inline-hint">デザイン保存のたびに世代バックアップを自動作成 (最新30件)。復元はJSONを「JSONを開く」の場所へコピーして再読込</span>
-        </div>
-        <div class="settings-row">
-          <label>送出ログ</label>
-          <button class="btn btn--small" id="graphics-open-logs">ログフォルダを開く</button>
-          <span class="settings-inline-hint">TAKE/UPDATE/CLEARの操作を日別ファイルに記録します (時刻・ページ番号・内容)</span>
-        </div>
         <p class="gpio-hint">vMixのブラウザ入力に上記URLを追加してください (1920x1080・透過)。日本語/英語で別URL、名前・サイドを個別に取り込む場合は /name /side 付きのURLを使用します。他のPCから取り込む場合はWindowsファイアウォールで指定ポートの受信許可が必要です。</p>
       </fieldset>
-
+      </section>
+      <section class="settings-section" data-section="channels">
+        <div class="settings-section-head">
+          <h2>系統 (TL) とプリセット</h2>
+          <p>系統=出力の枠です。ラベル・色の変更、TL3 以降の追加、プリセットの割り当てを行います。</p>
+        </div>
       <fieldset class="settings-group">
         <legend>系統 (TL枠)</legend>
         <div class="settings-row">
@@ -600,7 +600,6 @@
         </div>
         <p class="gpio-hint">系統=出力の枠です。既定は汎用的な TL1 / TL2 で、番組に合わせてラベル(表示名)や色を自由に変えられます。系統ごとに /output/jp/(URL名) の出力URLが作られ、vMixで個別に取り込めます。各行の「プリセット適用…」で、ストックした枠 (名前/サイド 等) をその系統へ割り当てられます (ラベル・色 + 割当デザインが切替わります)。「★ プリセット保存」で現在の枠をプリセットとして保存。変更は「設定を保存」後、出力サーバ再起動とアプリ再読込で完全に反映されます。</p>
       </fieldset>
-
       <fieldset class="settings-group">
         <legend>系統プリセット (テロップ枠のストック)</legend>
         <div class="settings-row">
@@ -609,15 +608,12 @@
         </div>
         <p class="gpio-hint">「名前」「サイド」など、系統に割り当てる枠 (表示名・色 + 使用するデザイン) をストックしておく場所です。系統一覧の各行「★ プリセット保存」で保存、「プリセット適用…」で任意の系統(TL枠)へ個別に割り当てできます (例: TL1←名前, TL2←サイド)。</p>
       </fieldset>
-
-      <fieldset class="settings-group">
-        <legend>操作設定</legend>
-        <div class="settings-row">
-          <label for="op-dbltake">ダブルクリックで即TAKE</label>
-          <label class="od-bar-label"><input type="checkbox" id="op-dbltake" checked> 送出リストのページをダブルクリックしたとき、確認なしで即送出する (誤操作が心配な場合はOFF)</label>
+      </section>
+      <section class="settings-section" data-section="groups">
+        <div class="settings-section-head">
+          <h2>出力グループ</h2>
+          <p>複数の系統を 1 本の URL にレイヤー合成して出力します。</p>
         </div>
-      </fieldset>
-
       <fieldset class="settings-group">
         <legend>出力グループ (URLレイヤー合成)</legend>
         <div class="settings-row">
@@ -626,33 +622,25 @@
         </div>
         <p class="gpio-hint">複数の系統(チャンネル)を1本の出力URLに重ねて出す設定です。例: 「メイン=名前+サイド」「スコア用=スコアのみ」のように分けると、それぞれ /output/jp/g/(URL名) で配信されます。重なり順は上が背面・下が前面。日本語/英語は自動で両方のURLが作られます (日英の出し分けとは独立)。</p>
       </fieldset>
-
+      </section>
+      <section class="settings-section" data-section="operation">
+        <div class="settings-section-head">
+          <h2>操作</h2>
+          <p>送出画面の操作に関する設定です。</p>
+        </div>
       <fieldset class="settings-group">
-        <legend>ライブデータ連携 (CSV/Excel)</legend>
+        <legend>操作設定</legend>
         <div class="settings-row">
-          <label>監視ファイル</label>
-          <input type="text" id="ld-file" class="input" readonly placeholder="未選択 (CSV / Excel)">
-          <button class="btn btn--small" id="ld-choose">選択...</button>
+          <label for="op-dbltake">ダブルクリックで即TAKE</label>
+          <label class="od-bar-label"><input type="checkbox" id="op-dbltake" checked> 送出リストのページをダブルクリックしたとき、確認なしで即送出する (誤操作が心配な場合はOFF)</label>
         </div>
-        <div class="settings-row">
-          <label for="ld-region">反映先</label>
-          <select id="ld-region" class="input input--small"></select>
-          <span class="settings-inline-hint">送出中のテロップの文字を自動で差し替えます</span>
-        </div>
-        <div class="settings-row">
-          <label>セル割当</label>
-          <div class="ld-mappings" id="ld-mappings"></div>
-        </div>
-        <div class="settings-row">
-          <label>監視</label>
-          <button class="btn btn--small btn--primary" id="ld-start">開始</button>
-          <button class="btn btn--small" id="ld-stop">停止</button>
-          <span class="gpio-conn-status" id="ld-status">停止中</span>
-          <span class="settings-inline-hint" id="ld-last"></span>
-        </div>
-        <p class="gpio-hint">先頭シートの指定セル (例: B2) を1秒間隔で監視し、値が変わると送出中のテロップへ即時反映します (CHANGE相当・アニメなし)。Excelを上書き保存するだけでスコアや順位表が更新される運用ができます。2台運用時は出力担当PC側で設定してください。</p>
       </fieldset>
-
+      </section>
+      <section class="settings-section" data-section="remote">
+        <div class="settings-section-head">
+          <h2>2台運用</h2>
+          <p>LAN 上の 2 台を同期して、片方を出力担当として運用します。</p>
+        </div>
       <fieldset class="settings-group">
         <legend>リモート連携 (2台運用)</legend>
         <div class="settings-row">
@@ -688,7 +676,12 @@
         </div>
         <p class="gpio-hint">テロップデータとON AIR/NEXT状態は両PC間で自動同期されます (接続時はホストのデータが優先)。担当でないPCでのCHANGE/TAKE/CLEAR操作 (GPIOボタン含む) は担当PCへ転送されて実行されます。ホスト側のWindowsファイアウォールで指定ポートの受信許可が必要です。</p>
       </fieldset>
-
+      </section>
+      <section class="settings-section" data-section="gpio">
+        <div class="settings-section-head">
+          <h2>GPIO 物理ボタン</h2>
+          <p>CONTEC DIO の接点入力を系統ごとの TAKE / CLEAR などに割り当てます (Windows 専用)。</p>
+        </div>
       <fieldset class="settings-group">
         <legend>GPIOリモートボタン (CONTEC DIO)</legend>
         <div class="settings-row">
@@ -720,19 +713,91 @@
         <div class="gpio-mapping-columns" id="gpio-mapping-columns"></div>
         <p class="gpio-hint">「検出」をクリックしてからリモートの割り当てたいボタンを押すと、入力ビットが自動で割り当てられ、設定も自動保存されます。「接続」時にも現在の設定が自動保存されます。</p>
       </fieldset>
-
+      </section>
+      <section class="settings-section" data-section="livedata">
+        <div class="settings-section-head">
+          <h2>ライブデータ</h2>
+          <p>CSV / Excel のセルを監視し、送出中のテロップへ自動反映します。</p>
+        </div>
+      <fieldset class="settings-group">
+        <legend>ライブデータ連携 (CSV/Excel)</legend>
+        <div class="settings-row">
+          <label>監視ファイル</label>
+          <input type="text" id="ld-file" class="input" readonly placeholder="未選択 (CSV / Excel)">
+          <button class="btn btn--small" id="ld-choose">選択...</button>
+        </div>
+        <div class="settings-row">
+          <label for="ld-region">反映先</label>
+          <select id="ld-region" class="input input--small"></select>
+          <span class="settings-inline-hint">送出中のテロップの文字を自動で差し替えます</span>
+        </div>
+        <div class="settings-row">
+          <label>セル割当</label>
+          <div class="ld-mappings" id="ld-mappings"></div>
+        </div>
+        <div class="settings-row">
+          <label>監視</label>
+          <button class="btn btn--small btn--primary" id="ld-start">開始</button>
+          <button class="btn btn--small" id="ld-stop">停止</button>
+          <span class="gpio-conn-status" id="ld-status">停止中</span>
+          <span class="settings-inline-hint" id="ld-last"></span>
+        </div>
+        <p class="gpio-hint">先頭シートの指定セル (例: B2) を1秒間隔で監視し、値が変わると送出中のテロップへ即時反映します (CHANGE相当・アニメなし)。Excelを上書き保存するだけでスコアや順位表が更新される運用ができます。2台運用時は出力担当PC側で設定してください。</p>
+      </fieldset>
+      </section>
+      <section class="settings-section" data-section="data">
+        <div class="settings-section-head">
+          <h2>保存・読込・バックアップ</h2>
+          <p>ランダウンの書き出し/取り込み、デザインのバックアップ、送出ログを扱います。</p>
+        </div>
+      <fieldset class="settings-group">
+        <legend>ランダウン (番組・放送・ページ)</legend>
+        <div class="settings-row">
+          <label>ファイル</label>
+          <button class="btn btn--small" id="project-load">読込…</button>
+          <button class="btn btn--small" id="project-save">名前を付けて保存…</button>
+          <span class="settings-inline-hint">番組・放送・ページのデータをファイルへ書き出し/取り込みます (通常は自動保存)</span>
+        </div>
+      </fieldset>
+      <fieldset class="settings-group">
+        <legend>デザイン・ログ</legend>
+        <div class="settings-row">
+          <label>テンプレート</label>
+          <button class="btn btn--small" id="graphics-open-template">JSONを開く</button>
+          <button class="btn btn--small" id="graphics-reload-template">再読込して反映</button>
+          <span class="settings-inline-hint">通常は「デザイン」タブで編集します (JSON直接編集は上級者向け)</span>
+        </div>
+        <div class="settings-row">
+          <label>バックアップ</label>
+          <button class="btn btn--small" id="graphics-open-backups">フォルダを開く</button>
+          <span class="settings-inline-hint">デザイン保存のたびに世代バックアップを自動作成 (最新30件)。復元はJSONを「JSONを開く」の場所へコピーして再読込</span>
+        </div>
+        <div class="settings-row">
+          <label>送出ログ</label>
+          <button class="btn btn--small" id="graphics-open-logs">ログフォルダを開く</button>
+          <span class="settings-inline-hint">TAKE/UPDATE/CLEARの操作を日別ファイルに記録します (時刻・ページ番号・内容)</span>
+        </div>
+      </fieldset>
+      </section>
       <div class="settings-actions">
         <button class="btn btn--primary" id="save-settings">設定を保存</button>
         <span class="settings-status" id="settings-status"></span>
       </div>
+      </div>
     </div>
   </div>
 
-  <!-- ===== マニュアルタブ (アプリ内マニュアル) ===== -->
-  <div class="tab-content" id="tab-manual">
-    <div class="manual-layout">
-      <nav class="manual-nav" id="manual-nav"></nav>
-      <div class="manual-body" id="manual-body"></div>
+  <!-- ===== ヘルプ (アプリ内マニュアル) — 右上の「?」から開くドロワー ===== -->
+  <div class="help-overlay hidden" id="help-overlay">
+    <div class="help-drawer" role="dialog" aria-label="ヘルプ">
+      <div class="help-head">
+        <span class="help-title">ヘルプ</span>
+        <button class="btn btn--small" id="help-close">閉じる</button>
+      </div>
+      <div class="manual-layout">
+        <nav class="manual-nav" id="manual-nav"></nav>
+        <div class="manual-body" id="manual-body"></div>
+      </div>
     </div>
   </div>
 
@@ -761,7 +826,6 @@
   <script src="js/home-ui.js"></script>
   <script src="js/manual-ui.js"></script>
   <script src="js/start-wizard.js"></script>
-  <script src="js/sports-ui.js"></script>
   <script src="js/tab-controller.js"></script>
   <script src="js/drag-drop.js"></script>
   <script src="js/broadcast.js"></script>

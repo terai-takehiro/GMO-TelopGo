@@ -34,8 +34,8 @@ function uid(prefix) {
 function defaultCorner(mode) {
   return {
     id: uid('cn'),
-    name: mode === 'telop' ? '電テロ1' : mode === 'sports' ? '試合' : 'コーナー1',
-    color: mode === 'telop' ? '#e8b160' : mode === 'sports' ? '#2fa36b' : '#4da3ff',
+    name: mode === 'telop' ? '電テロ1' : 'コーナー1',
+    color: mode === 'telop' ? '#e8b160' : '#4da3ff',
     mode,
     locked: false,
     autoFollow: 'off',
@@ -58,7 +58,6 @@ function buildDefault() {
     activeMode: 'cg',
     cg: defaultTree('cg'),
     telop: defaultTree('telop'),
-    sports: defaultTree('sports'),
     namePool: [],
   };
 }
@@ -118,7 +117,6 @@ function migrateV2toV3(old) {
     activeMode: 'cg',
     cg,
     telop,
-    sports: defaultTree('sports'),
     namePool: old.namePool || [],
   };
 }
@@ -132,8 +130,9 @@ function normalize(rd) {
   }
   // v3: 欠損補完
   rd.version = 3;
-  if (rd.activeMode !== 'telop' && rd.activeMode !== 'sports') rd.activeMode = 'cg';
-  ['cg', 'telop', 'sports'].forEach((mode) => {
+  if (rd.activeMode !== 'telop') rd.activeMode = 'cg';
+  delete rd.sports; // v3.0: スポーツ送出を廃止 (旧データを破棄)
+  ['cg', 'telop'].forEach((mode) => {
     if (!rd[mode] || !Array.isArray(rd[mode].programs) || rd[mode].programs.length === 0) {
       rd[mode] = defaultTree(mode);
     }

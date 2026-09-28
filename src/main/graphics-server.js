@@ -50,7 +50,7 @@ let getProject = () => null;
 const state = {};
 
 function regionState(region) {
-  if (!state[region]) state[region] = { onAir: false, templateKey: null, values: {}, static: null, layout: null };
+  if (!state[region]) state[region] = { onAir: false, templateKey: null, values: {}, static: null };
   return state[region];
 }
 
@@ -240,30 +240,6 @@ function change(region, templateKey, values) {
   take(region, templateKey, values, false);
 }
 
-/**
- * UPDATE (インプレース): onAir中のテンプレートの値だけを差し替える。
- * 出力側はDOMを保持したまま変更されたbindingのレイヤーのみ描き直すため、
- * 時計やスコアの連続更新でもちらつかない (スポーツコーダー用)。
- */
-function updateValues(region, values) {
-  const st = regionState(region);
-  if (!st.onAir || !st.templateKey) return false;
-  st.values = Object.assign({}, st.values, values);
-  broadcast({ type: 'update', region, values });
-  return true;
-}
-
-/**
- * レイアウト: リージョン(=オンエアウィンドウ)全体を出力上で移動/拡縮する。
- * コンテナへCSS transformを掛けるだけなので、take/clear/update やアニメと直交。
- * スポーツシーン・コンポーザー用 (各ウィンドウを任意位置に配置)。
- */
-function setLayout(region, x, y, scale) {
-  const st = regionState(region);
-  st.layout = { x: x || 0, y: y || 0, scale: scale === undefined ? 1 : scale };
-  broadcast({ type: 'layout', region, x: st.layout.x, y: st.layout.y, scale: st.layout.scale });
-}
-
 /** CLEAR: OUTアニメーションで消去 */
 function clear(region) {
   const st = regionState(region);
@@ -286,5 +262,5 @@ function refreshProject() {
 
 module.exports = {
   events, configure, start, stop, isRunning, getStatus,
-  take, takeStatic, change, updateValues, setLayout, clear, stopAnim, refreshProject,
+  take, takeStatic, change, clear, stopAnim, refreshProject,
 };
