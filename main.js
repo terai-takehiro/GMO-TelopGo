@@ -19,7 +19,8 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 700,
     backgroundColor: '#f0f4f8',
-    icon: path.join(__dirname, 'assets', 'icon.png'), // タスクバー/ウィンドウのアイコン
+    // タスクバー/ウィンドウのアイコン (Windows は複数サイズ入りの .ico)
+    icon: path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -31,6 +32,10 @@ function createWindow() {
   mainWindow.setMenuBarVisibility(false);
   mainWindow.maximize(); // 運用は全画面(最大化)が基本
 }
+
+// Windows: インストーラのショートカットと同じ AppUserModelID にして、
+// タスクバーでアプリのアイコン・グループ化が正しく効くようにする
+if (process.platform === 'win32') app.setAppUserModelId('com.gmo.telopgo');
 
 app.whenReady().then(() => {
   registerIpcHandlers();

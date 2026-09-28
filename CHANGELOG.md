@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Windows のタスクバー・exe のアイコンが Electron の標準アイコンのままだった問題を修正**
+  - 原因: `build.win.signAndEditExecutable: false` により exe へのアイコン埋め込みがスキップされていた
+  - 複数サイズ (16〜256px) 入りの `assets/icon.ico` を追加し、exe・インストーラ・ウィンドウに使用
+  - `AppUserModelID` をインストーラのショートカットと揃え、タスクバーのアイコン/グループ化を正しく反映
+
+
 ## [3.0.2] - 2026-09-28
 
 ### Added
