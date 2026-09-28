@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [3.0.2] - 2026-09-28
 
 ### Added
 - **右クリックメニュー (Photoshop風)** をデザイン画面の各所に追加
