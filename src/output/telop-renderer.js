@@ -20,8 +20,10 @@
     if (!variant || !variant.layers) return;
 
     const fitQueue = [];
+    // 非表示グループ (デザインのレイヤーグループ) のメンバーは描画しない
+    const hiddenGroups = new Set((variant.groups || []).filter((g) => g.visible === false).map((g) => g.id));
     variant.layers.forEach((layer) => {
-      if (layer.visible === false) return;
+      if (layer.visible === false || (layer.groupId && hiddenGroups.has(layer.groupId))) return;
       const el = buildLayer(layer, values || {}, assetBase, opts);
       if (!el) return;
       container.appendChild(el);

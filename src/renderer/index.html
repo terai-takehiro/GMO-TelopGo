@@ -291,6 +291,9 @@
             <button class="de-menu-item" data-click="de-add-rect">図形を追加</button>
             <button class="de-menu-item" data-click="de-add-image">画像を追加…</button>
             <div class="de-menu-sep"></div>
+            <button class="de-menu-item" data-click="de-group">グループ化<span class="de-menu-kbd">Ctrl+G</span></button>
+            <button class="de-menu-item" id="de-ungroup">グループ解除<span class="de-menu-kbd">Ctrl+Shift+G</span></button>
+            <div class="de-menu-sep"></div>
             <button class="de-menu-item" data-click="de-layer-top">最前面へ</button>
             <button class="de-menu-item" data-click="de-layer-up">前面へ</button>
             <button class="de-menu-item" data-click="de-layer-down">背面へ</button>
@@ -461,6 +464,9 @@
               <button class="de-icon-btn" id="de-layer-down" title="背面へ" aria-label="背面へ">▼</button>
               <button class="de-icon-btn" id="de-layer-bottom" title="最背面へ" aria-label="最背面へ">⤓</button>
               <span class="de-spacer"></span>
+              <button class="de-icon-btn" id="de-group" title="選択中のレイヤーをグループ化 (Ctrl+G)" aria-label="グループ化">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 6h7l2 2h9v11H3z"/></svg>
+              </button>
               <button class="de-icon-btn" id="de-duplicate" title="レイヤーを複製" aria-label="レイヤーを複製">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 9v6M9 12h6"/></svg>
               </button>

@@ -86,7 +86,7 @@ const DesignEditor = {
     // ツールバー
     document.getElementById('de-template').addEventListener('change', (e) => {
       this.templateKey = e.target.value;
-      this.selectedId = null;
+      this.clearSelection();
       this.renderAll();
     });
     document.getElementById('de-tpl-add').addEventListener('click', () => this.openTplDialog());
@@ -102,7 +102,7 @@ const DesignEditor = {
       this.renderSelection();
     });
     document.getElementById('de-anim-settings').addEventListener('click', () => {
-      this.selectedId = null;
+      this.clearSelection();
       this.renderAll();
     });
     document.getElementById('de-play-in').addEventListener('click', () => this.playAnimation('in'));
@@ -224,6 +224,8 @@ const DesignEditor = {
     });
 
     document.getElementById('de-style-add').addEventListener('click', () => this.registerStylePreset());
+    document.getElementById('de-group').addEventListener('click', () => this.groupSelection());
+    document.getElementById('de-ungroup').addEventListener('click', () => this.ungroupSelection());
   },
 
   /** 図形ツール: 矩形を追加して形状を設定 */
@@ -241,7 +243,7 @@ const DesignEditor = {
   selectTemplate(key) {
     if (!this.project.templates[key] || key === this.templateKey) return;
     this.templateKey = key;
-    this.selectedId = null;
+    this.clearSelection();
     document.getElementById('de-template').value = key;
     this.renderAll();
   },
@@ -375,6 +377,74 @@ const DesignEditor = {
     App.setStatus(`スタイル「${name}」を登録しました`, 'success');
   },
 
+  /** グループ / 複数選択のプロパティ (名前・位置・整列・グループ化/解除) */
+  renderGroupProps(panel, group, members) {
+    const mk = (tag, cls, text) => {
+      const el = document.createElement(tag);
+      if (cls) el.className = cls;
+      if (text !== undefined) el.textContent = text;
+      return el;
+    };
+    const row = (label, ...inputs) => {
+      const div = mk('div', 'de-prop-row');
+      div.appendChild(mk('label', '', label));
+      inputs.forEach((i) => div.appendChild(i));
+      panel.appendChild(div);
+    };
+    panel.appendChild(mk('div', 'de-props-section', group ? 'グループ' : `${members.length}個のレイヤーを選択中`));
+    if (group) {
+      const name = mk('input', 'input input--small');
+      name.type = 'text';
+      name.value = group.name;
+      name.addEventListener('change', () => { this.beginChange(); group.name = name.value || group.name; this.renderLayerList(); });
+      row('名前', name);
+      row('メンバー', mk('span', 'de-prop-file', `${members.length}レイヤー`));
+    }
+    const b = this.boundsOf(members);
+    const num = (val, prop, apply) => {
+      const input = mk('input', 'input input--small de-prop-num');
+      input.type = 'number';
+      input.value = Math.round(val);
+      input.dataset.gprop = prop;
+      input.addEventListener('change', () => { this.beginChange(); apply(parseFloat(input.value) || 0); });
+      return input;
+    };
+    const shift = (dx, dy) => { this.moveTargets(dx, dy); this.renderArtboard(); };
+    row('X / Y',
+      num(b.x, 'x', (v) => shift(v - this.boundsOf(members).x, 0)),
+      num(b.y, 'y', (v) => shift(0, v - this.boundsOf(members).y)));
+    row('W / H', mk('span', 'de-prop-file', `${Math.round(b.w)} × ${Math.round(b.h)}`));
+    const alignBtn = (label, title, fn) => {
+      const btn = mk('button', 'btn btn--small de-align-btn', label);
+      btn.title = title;
+      btn.addEventListener('click', () => { this.beginChange(); const bb = this.boundsOf(members); fn(bb); this.renderArtboard(); this.renderProps(); });
+      return btn;
+    };
+    row('整列 (横)',
+      alignBtn('左', '左端へ', (bb) => shift(-bb.x, 0)),
+      alignBtn('中央', '水平中央へ', (bb) => shift(Math.round((this.CANVAS_W - bb.w) / 2) - bb.x, 0)),
+      alignBtn('右', '右端へ', (bb) => shift(this.CANVAS_W - bb.w - bb.x, 0)));
+    row('整列 (縦)',
+      alignBtn('上', '上端へ', (bb) => shift(0, -bb.y)),
+      alignBtn('中央', '垂直中央へ', (bb) => shift(0, Math.round((this.CANVAS_H - bb.h) / 2) - bb.y)),
+      alignBtn('下', '下端へ', (bb) => shift(0, this.CANVAS_H - bb.h - bb.y)));
+
+    const actions = mk('div', 'de-prop-row');
+    if (group) {
+      const ungroup = mk('button', 'btn btn--small', 'グループ解除 (Ctrl+Shift+G)');
+      ungroup.addEventListener('click', () => this.ungroupSelection());
+      actions.appendChild(ungroup);
+    } else {
+      const grp = mk('button', 'btn btn--small btn--primary', 'グループ化 (Ctrl+G)');
+      grp.addEventListener('click', () => this.groupSelection());
+      actions.appendChild(grp);
+    }
+    panel.appendChild(actions);
+    panel.appendChild(mk('div', 'de-props-hint', group
+      ? 'キャンバスでメンバーをクリックするとグループごと選択・移動します。Ctrl+クリックでメンバー単体を選択できます。'
+      : 'レイヤーパネルで Ctrl / Shift + クリック、キャンバスで Shift + クリックで選択を追加できます。'));
+  },
+
   /** プロパティパネルのタブ表示を反映 */
   showPropsTab(override) {
     const tab = override || this.propsTab;
@@ -437,7 +507,7 @@ const DesignEditor = {
       return;
     }
     this.sets = result;
-    this.selectedId = null;
+    this.clearSelection();
     await this.loadProject();
     const name = result.sets.find((s) => s.id === id);
     App.setStatus(`デザインセット「${name ? name.name : id}」に切り替えました (出力にも反映されます)`, 'success');
@@ -476,7 +546,7 @@ const DesignEditor = {
         return;
       }
       this.sets = result;
-      this.selectedId = null;
+      this.clearSelection();
       await this.refreshSets();
       await this.loadProject();
       App.setStatus(`デザインセット「${name}」を作成しました`, 'success');
@@ -516,7 +586,7 @@ const DesignEditor = {
       return;
     }
     this.sets = result;
-    this.selectedId = null;
+    this.clearSelection();
     await this.refreshSets();
     await this.loadProject();
     App.setStatus(`デザインセット「${entry.name}」を削除し、「${others[0].name}」に切り替えました`, 'success');
@@ -575,7 +645,7 @@ const DesignEditor = {
     template.label = name;
     this.project.templates[key] = template;
     this.templateKey = key;
-    this.selectedId = null;
+    this.clearSelection();
     this.refreshTemplateSelect();
     this.renderAll();
     App.setStatus(`テンプレート「${name}」を追加しました (保存で送出タブでも使えます)`, 'success');
@@ -600,7 +670,7 @@ const DesignEditor = {
     this.beginChange();
     delete this.project.templates[this.templateKey];
     this.templateKey = Object.keys(this.project.templates)[0];
-    this.selectedId = null;
+    this.clearSelection();
     this.refreshTemplateSelect();
     this.renderAll();
   },
@@ -778,7 +848,7 @@ const DesignEditor = {
     const result = await window.api.graphicsImportDesign();
     if (!result) return;
     if (result.ok) {
-      this.selectedId = null;
+      this.clearSelection();
       await this.loadProject();
       App.setStatus('デザインをインポートし、出力へ反映しました', 'success');
     } else {
@@ -800,8 +870,9 @@ const DesignEditor = {
     canvas.height = Math.max(1, Math.round(this.CANVAS_H * scale));
     const ctx = canvas.getContext('2d');
     ctx.scale(scale, scale);
+    const hiddenGroups = new Set(((variant && variant.groups) || []).filter((g) => g.visible === false).map((g) => g.id));
     for (const layer of (variant && variant.layers) || []) {
-      if (layer.visible === false) continue;
+      if (layer.visible === false || (layer.groupId && hiddenGroups.has(layer.groupId))) continue;
       ctx.save();
       ctx.globalAlpha = layer.opacity !== undefined ? layer.opacity : 1;
       if (layer.rotation) {
@@ -1421,6 +1492,184 @@ const DesignEditor = {
     return this.layers().find((l) => l.id === this.selectedId) || null;
   },
 
+  // ===== グループ (layer.groupId で束ねる。バリアントの groups に名前・表示・ロック・折りたたみを保持) =====
+
+  /** 選択中のグループID (レイヤー単体選択 selectedId が無いときのみ有効) */
+  selectedGroupId: null,
+  /** 複数選択中のレイヤーID (selectedId を含むときのみ有効) */
+  selectedIds: [],
+
+  groups() {
+    const v = this.variant();
+    if (!Array.isArray(v.groups)) v.groups = [];
+    return v.groups;
+  },
+
+  groupById(id) {
+    return id ? this.groups().find((g) => g.id === id) || null : null;
+  },
+
+  groupMembers(gid) {
+    return this.layers().filter((l) => l.groupId === gid);
+  },
+
+  /** 表示判定 (レイヤー自身 + 所属グループ) */
+  isShown(layer) {
+    const g = this.groupById(layer.groupId);
+    return layer.visible !== false && !(g && g.visible === false);
+  },
+
+  isLocked(layer) {
+    const g = this.groupById(layer.groupId);
+    return !!layer.locked || !!(g && g.locked);
+  },
+
+  activeGroup() {
+    if (this.selectedId) return null;
+    return this.groupById(this.selectedGroupId);
+  },
+
+  multiSelected() {
+    if (!this.selectedId || this.selectedIds.length < 2 || !this.selectedIds.includes(this.selectedId)) return [];
+    const ids = new Set(this.selectedIds);
+    return this.layers().filter((l) => ids.has(l.id));
+  },
+
+  /** 操作対象のレイヤー群 (グループ / 複数選択 / 単体) */
+  targets() {
+    const g = this.activeGroup();
+    if (g) return this.groupMembers(g.id);
+    const multi = this.multiSelected();
+    if (multi.length) return multi;
+    const one = this.selected();
+    return one ? [one] : [];
+  },
+
+  clearSelection() {
+    this.selectedId = null;
+    this.selectedGroupId = null;
+    this.selectedIds = [];
+  },
+
+  /** レイヤーを選択 (additive=true で複数選択に追加/解除) */
+  selectLayer(id, additive) {
+    if (additive) {
+      const base = this.activeGroup() ? this.groupMembers(this.selectedGroupId).map((l) => l.id)
+        : (this.multiSelected().length ? [...this.selectedIds] : (this.selectedId ? [this.selectedId] : []));
+      const set = new Set(base);
+      if (set.has(id)) set.delete(id); else set.add(id);
+      this.selectedIds = [...set];
+      this.selectedGroupId = null;
+      this.selectedId = set.has(id) ? id : (this.selectedIds[this.selectedIds.length - 1] || null);
+    } else {
+      this.selectedId = id;
+      this.selectedIds = id ? [id] : [];
+      this.selectedGroupId = null;
+    }
+  },
+
+  selectGroup(gid) {
+    this.selectedId = null;
+    this.selectedIds = [];
+    this.selectedGroupId = gid;
+  },
+
+  refreshSelectionUI() {
+    this.renderLayerList();
+    this.renderProps();
+    this.renderSelection();
+  },
+
+  /** 対象群の外接矩形 */
+  boundsOf(layers) {
+    const x = Math.min(...layers.map((l) => l.x));
+    const y = Math.min(...layers.map((l) => l.y));
+    const r = Math.max(...layers.map((l) => l.x + l.w));
+    const b = Math.max(...layers.map((l) => l.y + l.h));
+    return { x, y, w: r - x, h: b - y };
+  },
+
+  /** 空のグループを削除し、グループの並びを連続させる (重ね順は各グループの最前面メンバーの位置) */
+  normalizeGroups() {
+    const v = this.variant();
+    const layers = v.layers;
+    const ids = new Set(this.groups().map((g) => g.id));
+    layers.forEach((l) => { if (l.groupId && !ids.has(l.groupId)) delete l.groupId; });
+    v.groups = this.groups().filter((g) => layers.some((l) => l.groupId === g.id));
+    // 連続化: 前面側から走査し、グループは最初に現れた位置へまとめる
+    const out = [];
+    const placed = new Set();
+    for (let i = layers.length - 1; i >= 0; i--) {
+      const l = layers[i];
+      if (!l.groupId) { out.unshift(l); continue; }
+      if (placed.has(l.groupId)) continue;
+      placed.add(l.groupId);
+      out.unshift(...layers.filter((m) => m.groupId === l.groupId));
+    }
+    layers.splice(0, layers.length, ...out);
+  },
+
+  /** 選択中のレイヤーをグループ化 (Ctrl+G) */
+  groupSelection() {
+    const members = this.targets();
+    if (!members.length) return;
+    if (this.activeGroup() && members.length === this.groupMembers(this.selectedGroupId).length) return;
+    this.beginChange();
+    const layers = this.layers();
+    const topIdx = Math.max(...members.map((l) => layers.indexOf(l)));
+    const n = this.groups().length + 1;
+    let gid = `g${Date.now().toString(36)}`;
+    while (this.groupById(gid)) gid += 'x';
+    this.groups().push({ id: gid, name: `グループ ${n}`, visible: true, locked: false, collapsed: false });
+    // メンバーを抜き出し、最前面メンバーの位置へまとめて挿入
+    const set = new Set(members);
+    const anchor = layers.slice(topIdx + 1).find((l) => !set.has(l)) || null;
+    const rest = layers.filter((l) => !set.has(l));
+    members.forEach((l) => { l.groupId = gid; });
+    const at = anchor ? rest.indexOf(anchor) : rest.length;
+    rest.splice(at, 0, ...layers.filter((l) => set.has(l)));
+    layers.splice(0, layers.length, ...rest);
+    this.normalizeGroups();
+    this.selectGroup(gid);
+    this.renderAll();
+    App.setStatus(`${members.length}個のレイヤーをグループ化しました`, 'success');
+  },
+
+  /** グループ解除 (Ctrl+Shift+G) — 選択中のグループ、または選択レイヤーの所属グループ */
+  ungroupSelection() {
+    const g = this.activeGroup() || this.groupById((this.selected() || {}).groupId);
+    if (!g) return;
+    this.beginChange();
+    const members = this.groupMembers(g.id);
+    members.forEach((l) => { delete l.groupId; });
+    this.variant().groups = this.groups().filter((x) => x.id !== g.id);
+    this.selectedIds = members.map((l) => l.id);
+    this.selectedId = members.length ? members[members.length - 1].id : null;
+    this.selectedGroupId = null;
+    this.renderAll();
+    App.setStatus(`グループ「${g.name}」を解除しました`, 'success');
+  },
+
+  async renameGroup(g) {
+    const name = await AppModal.prompt('グループ名', { value: g.name });
+    if (!name) return;
+    this.beginChange();
+    g.name = name;
+    this.renderLayerList();
+    this.renderProps();
+  },
+
+  /** 対象群をまとめて移動 */
+  moveTargets(dx, dy) {
+    this.targets().forEach((l) => {
+      l.x += dx;
+      l.y += dy;
+      this.updateLayerElement(l);
+    });
+    this.renderSelection();
+    this.renderPropsValues();
+  },
+
   region() {
     return this.project.templates[this.templateKey].region;
   },
@@ -1489,6 +1738,7 @@ const DesignEditor = {
       this.templateKey = Object.keys(this.project.templates)[0];
     }
     if (!this.selected()) this.selectedId = null;
+    if (!this.activeGroup()) this.selectedGroupId = null;
     this.renderAll();
   },
 
@@ -1509,7 +1759,7 @@ const DesignEditor = {
 
   async reload() {
     if (this.dirty && !confirm('未保存の変更を破棄して再読込しますか?')) return;
-    this.selectedId = null;
+    this.clearSelection();
     await this.loadProject();
     App.setStatus('デザインを再読込しました');
   },
@@ -1532,7 +1782,7 @@ const DesignEditor = {
     this.lang = lang;
     document.getElementById('de-lang-jp').classList.toggle('active', lang === 'jp');
     document.getElementById('de-lang-en').classList.toggle('active', lang === 'en');
-    this.selectedId = null;
+    this.clearSelection();
     this.renderAll();
 
     // EN初回切替時: JPとは独立したレイアウトであることを案内
@@ -1598,26 +1848,62 @@ const DesignEditor = {
     });
   },
 
-  /** レイヤーパネル (上=前面) */
+  /** レイヤーパネル (上=前面)。グループはフォルダ行 + インデントしたメンバー */
   renderLayerList() {
     const list = document.getElementById('de-layer-list');
     list.innerHTML = '';
     const layers = this.layers();
+    const multi = new Set(this.multiSelected().map((l) => l.id));
+    const activeGroup = this.activeGroup();
+    const renderedGroups = new Set();
+
+    const toggleBtn = (on, onLabel, offLabel, onTitle, offTitle, handler) => {
+      const b = document.createElement('button');
+      b.className = `de-layer-toggle${on ? '' : ' de-layer-toggle--off'}`;
+      b.textContent = on ? onLabel : offLabel;
+      b.title = on ? onTitle : offTitle;
+      b.addEventListener('click', (e) => { e.stopPropagation(); this.beginChange(); handler(); this.renderAll(); });
+      return b;
+    };
+
     [...layers].reverse().forEach((layer) => {
+      const g = this.groupById(layer.groupId);
+      if (g && !renderedGroups.has(g.id)) {
+        renderedGroups.add(g.id);
+        const gi = document.createElement('li');
+        gi.className = 'de-layer-item de-layer-group';
+        gi.classList.toggle('selected', !!activeGroup && activeGroup.id === g.id);
+        const caret = document.createElement('button');
+        caret.className = 'de-layer-caret';
+        caret.textContent = g.collapsed ? '▸' : '▾';
+        caret.title = g.collapsed ? '展開' : '折りたたむ';
+        caret.addEventListener('click', (e) => { e.stopPropagation(); g.collapsed = !g.collapsed; this.renderLayerList(); });
+        const vis = toggleBtn(g.visible !== false, '👁', '‐', '表示中 — クリックでグループを非表示', '非表示中 — クリックで表示',
+          () => { g.visible = g.visible === false; });
+        const icon = document.createElement('span');
+        icon.className = 'de-layer-type de-layer-type--group';
+        icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 6h7l2 2h9v11H3z"/></svg>';
+        const name = document.createElement('span');
+        name.className = 'de-layer-name';
+        name.textContent = g.name;
+        name.title = 'ダブルクリックで名前を変更';
+        name.addEventListener('dblclick', (e) => { e.stopPropagation(); this.renameGroup(g); });
+        const lock = toggleBtn(!!g.locked, '🔒', '🔓', 'グループをロック中 — クリックで解除', 'クリックでグループをロック',
+          () => { g.locked = !g.locked; });
+        gi.append(caret, vis, icon, name, lock);
+        gi.addEventListener('click', () => { this.selectGroup(g.id); this.refreshSelectionUI(); });
+        list.appendChild(gi);
+      }
+      if (g && g.collapsed) return;
+
       const li = document.createElement('li');
       li.className = 'de-layer-item';
-      li.classList.toggle('selected', layer.id === this.selectedId);
+      if (g) li.classList.add('de-layer-member');
+      li.classList.toggle('selected', layer.id === this.selectedId || multi.has(layer.id));
+      li.classList.toggle('in-group-selected', !!activeGroup && layer.groupId === activeGroup.id);
 
-      const visBtn = document.createElement('button');
-      visBtn.className = 'de-layer-toggle';
-      visBtn.textContent = layer.visible === false ? '‐' : '👁';
-      visBtn.title = layer.visible === false ? '非表示中 — クリックで表示' : '表示中 — クリックで非表示';
-      visBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.beginChange();
-        layer.visible = layer.visible === false;
-        this.renderAll();
-      });
+      const visBtn = toggleBtn(layer.visible !== false, '👁', '‐', '表示中 — クリックで非表示', '非表示中 — クリックで表示',
+        () => { layer.visible = layer.visible === false; });
 
       const name = document.createElement('span');
       name.className = 'de-layer-name';
@@ -1628,23 +1914,14 @@ const DesignEditor = {
       typeBadge.textContent = { text: 'T', rect: '■', image: '🖼' }[layer.type] || '?';
       typeBadge.title = { text: 'テキストレイヤー', rect: '図形レイヤー', image: '画像レイヤー' }[layer.type] || 'レイヤー';
 
-      const lockBtn = document.createElement('button');
-      lockBtn.className = `de-layer-toggle${layer.locked ? '' : ' de-layer-toggle--off'}`;
-      lockBtn.textContent = layer.locked ? '🔒' : '🔓';
-      lockBtn.title = layer.locked ? 'ロック中 — クリックで解除' : 'クリックでロック (編集不可にする)';
-      lockBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.beginChange();
-        layer.locked = !layer.locked;
-        this.renderAll();
-      });
+      const lockBtn = toggleBtn(!!layer.locked, '🔒', '🔓', 'ロック中 — クリックで解除', 'クリックでロック (編集不可にする)',
+        () => { layer.locked = !layer.locked; });
 
       li.append(visBtn, typeBadge, name, lockBtn);
-      li.addEventListener('click', () => {
-        this.selectedId = layer.id;
-        this.renderLayerList();
-        this.renderProps();
-        this.renderSelection();
+      li.title = 'Ctrl / Shift + クリックで複数選択';
+      li.addEventListener('click', (e) => {
+        this.selectLayer(layer.id, e.ctrlKey || e.metaKey || e.shiftKey);
+        this.refreshSelectionUI();
       });
       list.appendChild(li);
     });
@@ -1715,54 +1992,103 @@ const DesignEditor = {
   },
 
   duplicateLayer() {
-    const src = this.selected();
-    if (!src) return;
+    const srcs = this.targets();
+    if (!srcs.length) return;
     this.beginChange();
-    const copy = JSON.parse(JSON.stringify(src));
-    copy.id = this.newLayerId();
-    copy.name = `${src.name || src.id} コピー`;
-    copy.x += 20;
-    copy.y += 20;
-    const idx = this.layers().indexOf(src);
-    this.layers().splice(idx + 1, 0, copy);
-    this.selectedId = copy.id;
+    const layers = this.layers();
+    const group = this.activeGroup();
+    let newGid = null;
+    if (group) {
+      newGid = `g${Date.now().toString(36)}`;
+      this.groups().push({ ...JSON.parse(JSON.stringify(group)), id: newGid, name: `${group.name} コピー` });
+    }
+    const topIdx = Math.max(...srcs.map((l) => layers.indexOf(l)));
+    const copies = srcs.map((src) => {
+      const copy = JSON.parse(JSON.stringify(src));
+      copy.id = this.newLayerId();
+      layers.push(copy); // newLayerId の重複回避のため一旦末尾へ
+      copy.name = `${src.name || src.id} コピー`;
+      copy.x += 20;
+      copy.y += 20;
+      if (newGid) copy.groupId = newGid;
+      return copy;
+    });
+    copies.forEach((c) => layers.splice(layers.indexOf(c), 1));
+    layers.splice(topIdx + 1, 0, ...copies);
+    this.normalizeGroups();
+    if (newGid) this.selectGroup(newGid);
+    else if (copies.length > 1) { this.selectedIds = copies.map((c) => c.id); this.selectedId = copies[copies.length - 1].id; this.selectedGroupId = null; }
+    else this.selectLayer(copies[0].id);
     this.renderAll();
   },
 
   deleteLayer() {
-    const layer = this.selected();
-    if (!layer) return;
+    const targets = new Set(this.targets());
+    if (!targets.size) return;
     this.beginChange();
     const layers = this.layers();
-    layers.splice(layers.indexOf(layer), 1);
-    this.selectedId = null;
+    const rest = layers.filter((l) => !targets.has(l));
+    layers.splice(0, layers.length, ...rest);
+    this.normalizeGroups();
+    this.clearSelection();
     this.renderAll();
+  },
+
+  /**
+   * 重ね順の単位: グループに属さないレイヤーは1枚、グループはメンバー一式で1単位。
+   * グループ内の単体レイヤーはグループ内でのみ移動する。
+   */
+  reorderUnits(list) {
+    const units = [];
+    list.forEach((l) => {
+      const last = units[units.length - 1];
+      if (l.groupId && last && last[0].groupId === l.groupId) last.push(l);
+      else units.push([l]);
+    });
+    return units;
   },
 
   /** 重ね順変更 (+1=前面へ / -1=背面へ) */
   moveLayer(direction) {
-    const layer = this.selected();
-    if (!layer) return;
-    const layers = this.layers();
-    const idx = layers.indexOf(layer);
-    const to = idx + direction;
-    if (to < 0 || to >= layers.length) return;
-    this.beginChange();
-    layers.splice(idx, 1);
-    layers.splice(to, 0, layer);
-    this.renderAll();
+    this.reorder((arr, i) => {
+      const to = i + direction;
+      if (to < 0 || to >= arr.length) return false;
+      const [u] = arr.splice(i, 1);
+      arr.splice(to, 0, u);
+      return true;
+    });
   },
 
   /** 最前面/最背面へ移動 */
   moveLayerEnd(front) {
-    const layer = this.selected();
-    if (!layer) return;
+    this.reorder((arr, i) => {
+      if ((front && i === arr.length - 1) || (!front && i === 0)) return false;
+      const [u] = arr.splice(i, 1);
+      if (front) arr.push(u); else arr.unshift(u);
+      return true;
+    });
+  },
+
+  reorder(op) {
     const layers = this.layers();
-    const idx = layers.indexOf(layer);
-    if (idx < 0 || (front && idx === layers.length - 1) || (!front && idx === 0)) return;
-    this.beginChange();
-    layers.splice(idx, 1);
-    if (front) layers.push(layer); else layers.unshift(layer);
+    const group = this.activeGroup();
+    const layer = this.selected();
+    if (!group && !layer) return;
+    if (!group && layer.groupId) {
+      // グループ内の並べ替え
+      const members = this.groupMembers(layer.groupId);
+      const i = members.indexOf(layer);
+      if (!op(members, i)) return;
+      this.beginChange();
+      const start = layers.findIndex((l) => l.groupId === layer.groupId);
+      layers.splice(start, members.length, ...members);
+    } else {
+      const units = this.reorderUnits(layers);
+      const i = units.findIndex((u) => (group ? u[0].groupId === group.id : u[0] === layer));
+      if (i < 0 || !op(units, i)) return;
+      this.beginChange();
+      layers.splice(0, layers.length, ...units.flat());
+    }
     this.renderAll();
   },
 
@@ -1781,7 +2107,7 @@ const DesignEditor = {
     const layers = this.layers();
     for (let i = layers.length - 1; i >= 0; i--) {
       const l = layers[i];
-      if (l.visible === false || l.locked) continue;
+      if (!this.isShown(l) || this.isLocked(l)) continue;
       if (pt.x >= l.x && pt.x <= l.x + l.w && pt.y >= l.y && pt.y <= l.y + l.h) return l;
     }
     return null;
@@ -1791,27 +2117,41 @@ const DesignEditor = {
     if (e.button !== 0) return;
     const pt = this.canvasPoint(e);
     const layer = this.hitTest(pt);
-    this.selectedId = layer ? layer.id : null;
-    this.renderLayerList();
-    this.renderProps();
-    this.renderSelection();
-
-    if (layer) {
-      this.beginChange();
-      this.drag = {
-        kind: 'move',
-        layer,
-        startX: pt.x, startY: pt.y,
-        origX: layer.x, origY: layer.y,
-        moved: false,
-      };
-      e.preventDefault();
+    if (!layer) {
+      this.clearSelection();
+      this.refreshSelectionUI();
+      return;
     }
+    const inTargets = this.targets().includes(layer);
+    if (e.shiftKey) {
+      this.selectLayer(layer.id, true);        // Shift: 複数選択に追加/解除
+    } else if (inTargets && this.targets().length > 1) {
+      // 選択中の複数/グループをそのままドラッグ
+    } else if (layer.groupId && !(e.ctrlKey || e.metaKey)) {
+      this.selectGroup(layer.groupId);          // グループのメンバーはグループごと選択 (Ctrl+クリックで単体)
+    } else {
+      this.selectLayer(layer.id);
+    }
+    this.refreshSelectionUI();
+
+    const targets = this.targets();
+    if (!targets.includes(layer)) return;
+    this.beginChange();
+    const bounds = this.boundsOf(targets);
+    this.drag = {
+      kind: 'move',
+      layers: targets,
+      origs: targets.map((l) => ({ x: l.x, y: l.y })),
+      bounds,
+      startX: pt.x, startY: pt.y,
+      moved: false,
+    };
+    e.preventDefault();
   },
 
   startResize(e, handle) {
     const layer = this.selected();
-    if (!layer) return;
+    if (!layer || this.targets().length > 1) return;
     const pt = this.canvasPoint(e);
     this.beginChange();
     this.drag = {
@@ -1830,18 +2170,23 @@ const DesignEditor = {
     const dy = pt.y - this.drag.startY;
 
     if (this.drag.kind === 'move') {
-      const layer = this.drag.layer;
-      let nx = Math.round(this.drag.origX + dx);
-      let ny = Math.round(this.drag.origY + dy);
-      const snapped = this.applySnap(layer, nx, ny);
-      layer.x = snapped.x;
-      layer.y = snapped.y;
+      // 複数/グループは外接矩形でスナップし、全メンバーを同じ量だけ動かす
+      const { layers, origs, bounds } = this.drag;
+      const nx = Math.round(bounds.x + dx);
+      const ny = Math.round(bounds.y + dy);
+      const snapped = this.applySnap({ ...bounds }, nx, ny, new Set(layers));
+      let bx = snapped.x;
+      let by = snapped.y;
       if (this.gridSize > 0 && !snapped.guided) {
-        layer.x = Math.round(layer.x / this.gridSize) * this.gridSize;
-        layer.y = Math.round(layer.y / this.gridSize) * this.gridSize;
+        bx = Math.round(bx / this.gridSize) * this.gridSize;
+        by = Math.round(by / this.gridSize) * this.gridSize;
       }
+      layers.forEach((l, i) => {
+        l.x = origs[i].x + (bx - bounds.x);
+        l.y = origs[i].y + (by - bounds.y);
+        this.updateLayerElement(l);
+      });
       this.drag.moved = true;
-      this.updateLayerElement(layer);
       this.renderSelection();
     } else {
       const { handle, layer, orig } = this.drag;
@@ -1873,7 +2218,7 @@ const DesignEditor = {
   },
 
   /** キャンバス中央・端 + 他レイヤーの端/中央へのスナップ */
-  applySnap(layer, nx, ny) {
+  applySnap(layer, nx, ny, exclude) {
     const threshold = this.SNAP_PX / this.zoom;
     const guideV = document.getElementById('de-guide-v');
     const guideH = document.getElementById('de-guide-h');
@@ -1884,7 +2229,7 @@ const DesignEditor = {
     const xTargets = [0, this.CANVAS_W / 2, this.CANVAS_W];
     const yTargets = [0, this.CANVAS_H / 2, this.CANVAS_H];
     this.layers().forEach((other) => {
-      if (other === layer || other.visible === false) return;
+      if (other === layer || (exclude && exclude.has(other)) || !this.isShown(other)) return;
       xTargets.push(other.x, other.x + other.w / 2, other.x + other.w);
       yTargets.push(other.y, other.y + other.h / 2, other.y + other.h);
     });
@@ -1925,12 +2270,14 @@ const DesignEditor = {
 
   renderSelection() {
     const box = document.getElementById('de-selection');
-    const layer = this.selected();
-    if (!layer) {
+    const targets = this.targets();
+    if (!targets.length) {
       box.classList.add('hidden');
       return;
     }
+    const layer = targets.length === 1 ? targets[0] : this.boundsOf(targets);
     box.classList.remove('hidden');
+    box.classList.toggle('de-selection--multi', targets.length > 1);
     box.style.left = `${layer.x * this.zoom}px`;
     box.style.top = `${layer.y * this.zoom}px`;
     box.style.width = `${layer.w * this.zoom}px`;
@@ -1956,16 +2303,22 @@ const DesignEditor = {
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); this.undo(); return; }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); this.redo(); return; }
 
-    // Escで選択解除 (アニメーション設定パネルに戻る)
-    if (e.key === 'Escape' && this.selectedId) {
+    // グループ化 / 解除
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'g' || e.key === 'G')) {
       e.preventDefault();
-      this.selectedId = null;
+      if (e.shiftKey) this.ungroupSelection(); else this.groupSelection();
+      return;
+    }
+
+    // Escで選択解除 (アニメーション設定パネルに戻る)
+    if (e.key === 'Escape' && (this.selectedId || this.selectedGroupId)) {
+      e.preventDefault();
+      this.clearSelection();
       this.renderAll();
       return;
     }
 
-    const layer = this.selected();
-    if (!layer) return;
+    if (!this.targets().length) return;
 
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
@@ -1977,11 +2330,7 @@ const DesignEditor = {
     if (moves[e.key]) {
       e.preventDefault();
       this.beginChange();
-      layer.x += moves[e.key][0];
-      layer.y += moves[e.key][1];
-      this.updateLayerElement(layer);
-      this.renderSelection();
-      this.renderPropsValues();
+      this.moveTargets(moves[e.key][0], moves[e.key][1]);
     }
   },
 
@@ -2041,6 +2390,17 @@ const DesignEditor = {
     };
     const textTab = document.querySelector('#de-props-tabs [data-ptab="text"]');
     if (textTab) textTab.classList.toggle('dim', !(layer && layer.type === 'text'));
+
+    // グループ / 複数選択
+    const group = this.activeGroup();
+    const multi = this.multiSelected();
+    if (group || multi.length) {
+      this.renderGroupProps(panes.props, group, group ? this.groupMembers(group.id) : multi);
+      emptyMsg(panes.text, '文字レイヤーを1つ選択すると、フォント・塗り・縁取りなどを編集できます');
+      emptyMsg(panes.anim, 'レイヤーを1つ選択するか、選択を解除するとアニメーションを設定できます');
+      this.showPropsTab(this.propsTab === 'anim' || this.propsTab === 'text' ? 'props' : null);
+      return;
+    }
 
     if (!layer) {
       // レイヤー未選択時はテンプレートのアニメーション設定を表示
@@ -2572,7 +2932,7 @@ const DesignEditor = {
    * 各レイヤーの開始タイミングと長さを横棒で可視化。行クリックでレイヤー選択。
    */
   renderTimeline(panel, dir) {
-    const layers = this.layers().filter((l) => l.visible !== false);
+    const layers = this.layers().filter((l) => this.isShown(l));
     if (layers.length === 0) return;
 
     const items = layers.map((layer, i) => {
@@ -2645,7 +3005,7 @@ const DesignEditor = {
       rowEl.append(name, badge, track);
       rowEl.addEventListener('click', () => {
         if (this._tlDragged) return; // ドラッグ直後のクリックは選択しない
-        this.selectedId = it.layer.id;
+        this.selectLayer(it.layer.id);
         this.renderLayerList();
         this.renderProps();
         this.renderSelection();
@@ -2768,6 +3128,14 @@ const DesignEditor = {
 
   /** ドラッグ中のX/Y/W/H入力欄だけ更新 */
   renderPropsValues() {
+    if (this.targets().length > 1) {
+      const b = this.boundsOf(this.targets());
+      ['x', 'y'].forEach((prop) => {
+        const input = document.querySelector(`#de-props [data-gprop="${prop}"]`);
+        if (input && document.activeElement !== input) input.value = Math.round(b[prop]);
+      });
+      return;
+    }
     const layer = this.selected();
     if (!layer) return;
     ['x', 'y', 'w', 'h'].forEach((prop) => {

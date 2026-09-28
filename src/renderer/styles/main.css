@@ -2966,3 +2966,21 @@ body {
 }
 #tab-design .de-layer-toggle { color: #bdbdbd; filter: grayscale(1); }
 #tab-design .de-server-warning { background: #5a4300; color: #ffe2a0; border-color: #7a5c00; }
+
+/* レイヤーグループ */
+#tab-design .de-layer-group { font-weight: 700; }
+#tab-design .de-layer-member { padding-left: 26px; }
+#tab-design .de-layer-item.in-group-selected:not(.selected) { background: #3f4758; }
+.de-layer-caret {
+  width: 16px;
+  border: none;
+  background: transparent;
+  color: #bdbdbd;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+}
+#tab-design .de-layer-type--group { background: transparent; border: none; color: #d9b86a; }
+#tab-design .de-layer-type--group svg { width: 16px; height: 16px; }
+.de-selection--multi { border-style: dashed; }
+.de-selection--multi .de-handle { display: none; }
