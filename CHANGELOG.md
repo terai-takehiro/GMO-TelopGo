@@ -12,6 +12,11 @@
 - Photoshop 互換ショートカット: Ctrl+C / Ctrl+V (レイヤーのコピー/ペースト)、Ctrl+J (複製)、Ctrl+A (すべて選択)、
   Ctrl+D (選択解除)、Ctrl+] / Ctrl+[ (前面/背面へ)、Ctrl+Shift+] / [ (最前面/最背面へ)。レイヤー名のダブルクリックで名前変更
 
+### Changed
+- **アプリアイコンを新しい「G」ロゴに変更** (インストーラ / exe / タスクバー / ヘッダー)。
+  出力ページ (`/output/...`) とアプリ画面にファビコンを設定 (出力サーバは `/favicon.ico` も返す)。
+  元画像 (144px) をベクター化した `assets/source/icon.svg` から 512px を書き出し
+
 ### Fixed
 - テンプレート名の変更が動かなかった問題を修正 (Electron で使えない window.prompt をアプリ内モーダルに置換)
 

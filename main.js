@@ -19,6 +19,7 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 700,
     backgroundColor: '#f0f4f8',
+    icon: path.join(__dirname, 'assets', 'icon.png'), // タスクバー/ウィンドウのアイコン
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
