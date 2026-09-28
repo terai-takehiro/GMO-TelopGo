@@ -445,6 +445,66 @@ const DesignEditor = {
       : 'レイヤーパネルで Ctrl / Shift + クリック、キャンバスで Shift + クリックで選択を追加できます。'));
   },
 
+  /**
+   * グループのアニメーション (グループを1枚の絵として IN/OUT)。
+   * Photoshopのグループ(フォルダ)と同じく、メンバーはグループの箱ごと一緒に動く。
+   */
+  renderGroupAnim(panel, group) {
+    const mk = (tag, cls, text) => {
+      const el = document.createElement(tag);
+      if (cls) el.className = cls;
+      if (text !== undefined) el.textContent = text;
+      return el;
+    };
+    panel.appendChild(mk('div', 'de-props-section', 'グループのアニメーション'));
+    const row = mk('div', 'de-prop-row');
+    row.appendChild(mk('label', '', '動き'));
+    const sel = mk('select', 'input input--small');
+    [['default', 'メンバーごとに動く (既定)'], ['custom', 'グループを1枚として動かす']].forEach(([v, l]) => {
+      const o = mk('option', '', l);
+      o.value = v;
+      sel.appendChild(o);
+    });
+    sel.value = group.anim ? 'custom' : 'default';
+    sel.addEventListener('change', () => {
+      this.beginChange();
+      if (sel.value === 'custom') {
+        group.anim = {
+          in: { preset: 'slide', direction: 'up', duration: 400, easing: 'ease-out', delay: 0 },
+          out: { preset: 'fade', duration: 250, easing: 'ease-in', delay: 0 },
+        };
+      } else {
+        delete group.anim;
+      }
+      this.renderArtboard();
+      this.renderSelection();
+      this.renderProps();
+    });
+    row.appendChild(sel);
+    panel.appendChild(row);
+
+    if (!group.anim) {
+      panel.appendChild(mk('div', 'de-props-hint',
+        '「グループを1枚として動かす」にすると、メンバー全体をまとめてスライド・ワイプ・ズームなどで出し入れできます。メンバーに個別設定があれば、グループの動きに重ねて動きます。'));
+      return;
+    }
+    ['in', 'out'].forEach((dir) => {
+      group.anim[dir] = group.anim[dir]
+        || { preset: 'fade', duration: dir === 'in' ? 350 : 250, easing: dir === 'in' ? 'ease-out' : 'ease-in', delay: 0 };
+      const head = mk('div', 'de-props-section de-anim-head');
+      head.appendChild(mk('span', '', dir === 'in' ? 'IN (グループ)' : 'OUT (グループ)'));
+      const play = mk('button', 'btn btn--small', '▶試写');
+      play.addEventListener('click', () => this.playAnimation(dir));
+      head.appendChild(play);
+      panel.appendChild(head);
+      this.renderAnimFields(panel, group.anim[dir], {
+        includeDelay: true,
+        defaultEasing: dir === 'in' ? 'ease-out' : 'ease-in',
+      });
+    });
+    panel.appendChild(mk('div', 'de-props-hint', '「開始」はTAKEからの時間です。全体のタイミングは選択を解除するとタイムラインで確認できます。'));
+  },
+
   /** プロパティパネルのタブ表示を反映 */
   showPropsTab(override) {
     const tab = override || this.propsTab;
@@ -2262,8 +2322,10 @@ const DesignEditor = {
   updateLayerElement(layer) {
     const el = document.querySelector(`#de-canvas [data-layer-id="${layer.id}"]`);
     if (!el) return;
-    el.style.left = `${layer.x}px`;
-    el.style.top = `${layer.y}px`;
+    // グループアニメーションの箱 (.tl-group) の中は箱の原点からの相対座標
+    const box = el.parentElement && el.parentElement.classList.contains('tl-group') ? el.parentElement : null;
+    el.style.left = `${layer.x - (box ? Number(box.dataset.bx) : 0)}px`;
+    el.style.top = `${layer.y - (box ? Number(box.dataset.by) : 0)}px`;
     el.style.width = `${layer.w}px`;
     el.style.height = `${layer.h}px`;
   },
@@ -2397,8 +2459,9 @@ const DesignEditor = {
     if (group || multi.length) {
       this.renderGroupProps(panes.props, group, group ? this.groupMembers(group.id) : multi);
       emptyMsg(panes.text, '文字レイヤーを1つ選択すると、フォント・塗り・縁取りなどを編集できます');
-      emptyMsg(panes.anim, 'レイヤーを1つ選択するか、選択を解除するとアニメーションを設定できます');
-      this.showPropsTab(this.propsTab === 'anim' || this.propsTab === 'text' ? 'props' : null);
+      if (group) this.renderGroupAnim(panes.anim, group);
+      else emptyMsg(panes.anim, 'グループ化するとグループ単位のアニメーションを設定できます');
+      this.showPropsTab(this.propsTab === 'text' || (!group && this.propsTab === 'anim') ? 'props' : null);
       return;
     }
 
@@ -2935,10 +2998,28 @@ const DesignEditor = {
     const layers = this.layers().filter((l) => this.isShown(l));
     if (layers.length === 0) return;
 
-    const items = layers.map((layer, i) => {
-      const r = TelopAnimator.resolve(this.variant(), layer, i, dir);
+    // アニメーション単位 (出力の TelopAnimator.units と同じ規則):
+    // グループアニメーションを持つグループは1行、そのメンバーは個別設定があるものだけ行を持つ
+    const units = [];
+    const seen = new Set();
+    let idx = 0;
+    layers.forEach((layer) => {
+      const g = this.groupById(layer.groupId);
+      if (g && g.anim) {
+        if (!seen.has(g.id)) {
+          seen.add(g.id);
+          units.push({ layer: g, index: idx++, isGroup: true });
+          this.groupMembers(g.id).filter((m) => this.isShown(m) && m.anim)
+            .forEach((m) => units.push({ layer: m, index: 0, member: true }));
+        }
+        return;
+      }
+      units.push({ layer, index: idx++ });
+    });
+    const items = units.map((u) => {
+      const r = TelopAnimator.resolve(this.variant(), u.layer, u.index, dir);
       return {
-        layer,
+        ...u,
         delay: r.delay,
         duration: r.anim.preset === 'cut' ? 0 : (r.anim.duration || 0),
         custom: r.custom,
@@ -2951,13 +3032,13 @@ const DesignEditor = {
 
     items.forEach((it) => {
       const rowEl = document.createElement('div');
-      rowEl.className = 'de-tl-row';
+      rowEl.className = 'de-tl-row' + (it.isGroup ? ' de-tl-row--group' : '') + (it.member ? ' de-tl-row--member' : '');
       rowEl.title = `${it.layer.name || it.layer.id}: ${(it.delay / 1000).toFixed(2)}秒後に開始`
         + (it.duration ? ` / ${it.duration}ms` : ' (出現)') + (it.custom ? ' [個別設定]' : ' [既定]');
 
       const name = document.createElement('span');
       name.className = 'de-tl-name';
-      name.textContent = it.layer.name || it.layer.id;
+      name.textContent = (it.isGroup ? '▣ ' : '') + (it.layer.name || it.layer.id);
 
       // 既定/個別バッジ (個別はクリックで既定に戻せる)
       const badge = document.createElement('span');
@@ -2972,6 +3053,7 @@ const DesignEditor = {
           this.beginChange();
           delete it.layer.anim[dir];
           if (!it.layer.anim.in && !it.layer.anim.out) delete it.layer.anim;
+          this.renderArtboard();
           this.renderProps();
           App.setStatus(`${it.layer.name || it.layer.id} の${dir.toUpperCase()}を既定に戻しました`, 'success');
         });
@@ -2987,7 +3069,7 @@ const DesignEditor = {
       track.appendChild(bar);
 
       // バー本体ドラッグ = 開始タイミング変更
-      const index = layers.indexOf(it.layer);
+      const index = it.index;
       bar.addEventListener('mousedown', (e) => {
         this.startTimelineDrag(e, { dir, layer: it.layer, index, bar, track, total, mode: 'move' });
       });
@@ -3005,7 +3087,7 @@ const DesignEditor = {
       rowEl.append(name, badge, track);
       rowEl.addEventListener('click', () => {
         if (this._tlDragged) return; // ドラッグ直後のクリックは選択しない
-        this.selectLayer(it.layer.id);
+        if (it.isGroup) this.selectGroup(it.layer.id); else this.selectLayer(it.layer.id);
         this.renderLayerList();
         this.renderProps();
         this.renderSelection();

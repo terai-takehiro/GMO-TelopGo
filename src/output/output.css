@@ -36,6 +36,12 @@ html, body {
   box-sizing: border-box;
 }
 
+/* グループアニメーション用の箱 (メンバーはこの中に相対配置) */
+.tl-group {
+  position: absolute;
+  overflow: visible;
+}
+
 .tl-text {
   display: flex;
   white-space: pre-line;

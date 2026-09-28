@@ -22,11 +22,38 @@
     const fitQueue = [];
     // 非表示グループ (デザインのレイヤーグループ) のメンバーは描画しない
     const hiddenGroups = new Set((variant.groups || []).filter((g) => g.visible === false).map((g) => g.id));
+    // グループアニメーションを持つグループは .tl-group (外接矩形の箱) にまとめ、1枚の絵として動かす
+    const wrappers = {};
+    const wrapperFor = (gid) => {
+      if (wrappers[gid]) return wrappers[gid];
+      const members = variant.layers.filter((l) => l.groupId === gid && l.visible !== false);
+      const bx = Math.min(...members.map((l) => l.x));
+      const by = Math.min(...members.map((l) => l.y));
+      const g = document.createElement('div');
+      g.className = 'tl-group';
+      g.dataset.groupId = gid;
+      g.dataset.bx = bx;
+      g.dataset.by = by;
+      g.style.left = `${bx}px`;
+      g.style.top = `${by}px`;
+      g.style.width = `${Math.max(...members.map((l) => l.x + l.w)) - bx}px`;
+      g.style.height = `${Math.max(...members.map((l) => l.y + l.h)) - by}px`;
+      container.appendChild(g);
+      wrappers[gid] = g;
+      return g;
+    };
     variant.layers.forEach((layer) => {
       if (layer.visible === false || (layer.groupId && hiddenGroups.has(layer.groupId))) return;
       const el = buildLayer(layer, values || {}, assetBase, opts);
       if (!el) return;
-      container.appendChild(el);
+      if (layer.groupId && groupHasAnim(variant, layer.groupId)) {
+        const g = wrapperFor(layer.groupId);
+        el.style.left = `${layer.x - Number(g.dataset.bx)}px`;
+        el.style.top = `${layer.y - Number(g.dataset.by)}px`;
+        g.appendChild(el);
+      } else {
+        container.appendChild(el);
+      }
       if (layer.type === 'text' && layer.autoFit && layer.autoFit !== 'none') {
         fitQueue.push([el, layer]);
       }
@@ -43,6 +70,12 @@
         });
       });
     }
+  }
+
+  /** グループにIN/OUTいずれかのグループアニメーションが設定されているか */
+  function groupHasAnim(variant, gid) {
+    const g = (variant.groups || []).find((x) => x.id === gid);
+    return !!(g && g.anim && (g.anim.in || g.anim.out));
   }
 
   function buildLayer(layer, values, assetBase, opts) {
@@ -466,5 +499,5 @@
     });
   }
 
-  global.TelopRenderer = { renderVariant, applyFonts, edgeOffsets, shapePoints };
+  global.TelopRenderer = { renderVariant, groupHasAnim, applyFonts, edgeOffsets, shapePoints };
 })(typeof window !== 'undefined' ? window : globalThis);
