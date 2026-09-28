@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+- **入力用 Excel テンプレの書き出し**: 送出画面の「Excelテンプレ書き出し」、Excel取込ダイアログの
+  「Excelテンプレを書き出し…」、デザインのテンプレート右クリックから、選んだテンプレートの入力用 Excel を出力。
+  1行目=見出し (レイヤー名 [項目名])、2行目=見本 (デザインのサンプル文字)。列順は Excel 取込と同じ
+
 ### Fixed
 - **Windows のタスクバー・exe のアイコンが Electron の標準アイコンのままだった問題を修正**
   - 原因: `build.win.signAndEditExecutable: false` により exe へのアイコン埋め込みがスキップされていた

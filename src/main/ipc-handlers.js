@@ -31,6 +31,25 @@ function templateBindings(templateKey) {
   return bindings;
 }
 
+/**
+ * テンプレートの文字フィールド一覧 (templateBindings と同じ順序) と、
+ * 見出し用のレイヤー名・見本のサンプル文字
+ */
+function templateFields(templateKey) {
+  const project = graphicsStore.getProject();
+  const template = project && project.templates && project.templates[templateKey];
+  if (!template) return [];
+  const fields = [];
+  ['jp', 'en'].forEach((lang) => {
+    const variant = template.variants && template.variants[lang];
+    ((variant && variant.layers) || []).forEach((layer) => {
+      if (layer.type !== 'text' || !layer.binding || fields.some((f) => f.binding === layer.binding)) return;
+      fields.push({ binding: layer.binding, label: layer.name || '', sample: layer.sample || layer.text || '' });
+    });
+  });
+  return fields;
+}
+
 /** テンプレートの出力リージョン(チャンネル)を解決 */
 function templateRegion(templateKey) {
   const project = graphicsStore.getProject();
@@ -671,11 +690,18 @@ function registerIpcHandlers() {
       ];
       defaultFilename = 'side-telop-template.xlsx';
     } else {
-      // 任意テンプレート: bindingフィールドをそのまま列ヘッダに
-      const bindings = templateBindings(telopType);
-      if (bindings.length === 0) return { success: false, error: 'テンプレートに文字フィールドがありません。' };
-      wsData = [bindings];
-      defaultFilename = `${String(telopType).replace(/[^\w-]/g, '_')}-template.xlsx`;
+      // 任意テンプレート: 列 = 文字フィールド (取込と同じ列順)。
+      // 1行目 = 見出し (レイヤー名 [フィールド名])、2行目 = 見本 (デザインのサンプル文字)
+      const fields = templateFields(telopType);
+      if (fields.length === 0) return { success: false, error: 'テンプレートに文字フィールドがありません。' };
+      wsData = [
+        fields.map((f) => (f.label && f.label !== f.binding ? `${f.label} [${f.binding}]` : f.binding)),
+        fields.map((f) => f.sample || ''),
+      ];
+      const project = graphicsStore.getProject();
+      const tpl = project && project.templates && project.templates[telopType];
+      const base = (tpl && tpl.label) || telopType;
+      defaultFilename = `${String(base).replace(/[\\/:*?"<>|]/g, '_')}_Excelテンプレ.xlsx`;
     }
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);

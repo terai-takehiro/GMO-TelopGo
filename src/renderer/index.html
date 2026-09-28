@@ -179,6 +179,7 @@
           <div class="od-pages-toolbar">
             <button class="btn btn--small od-btn" id="od-add-page">＋ページ</button>
             <button class="btn btn--small od-btn" id="od-import-excel">Excel取込</button>
+            <button class="btn btn--small od-btn" id="od-export-excel-template" title="選んだテンプレートの入力用Excel (列見出し+見本行) を書き出します">Excelテンプレ書き出し</button>
             <button class="btn btn--small od-btn" id="od-import-pool" title="名前プールをExcelから読込 (ページ編集時の名前補完に使われます)">名前プール読込</button>
             <span class="od-spacer"></span>
             <div class="od-countdown" id="od-countdown"></div>
@@ -231,6 +232,8 @@
       <select id="od-page-template" class="input"></select>
     </div>
     <div class="de-dialog-actions">
+      <button class="btn btn--small hidden" id="od-page-dialog-template" title="このテンプレートの入力用Excelを書き出します">Excelテンプレを書き出し…</button>
+      <span class="od-spacer"></span>
       <button class="btn btn--small" id="od-page-dialog-cancel">キャンセル</button>
       <button class="btn btn--small btn--primary" id="od-page-dialog-ok">OK</button>
     </div>
