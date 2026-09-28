@@ -225,7 +225,310 @@ const DesignEditor = {
 
     document.getElementById('de-style-add').addEventListener('click', () => this.registerStylePreset());
     document.getElementById('de-group').addEventListener('click', () => this.groupSelection());
+    this.initContextMenus();
     document.getElementById('de-ungroup').addEventListener('click', () => this.ungroupSelection());
+  },
+
+  // ===== 右クリックメニュー (Photoshop風) =====
+
+  /**
+   * コンテキストメニューを表示する
+   * items: { label, kbd?, action?, disabled?, danger?, checked?, submenu?: items } | '-'
+   */
+  showContextMenu(x, y, items) {
+    this.closeContextMenu();
+    const build = (list, left, top, isSub) => {
+      const menu = document.createElement('div');
+      menu.className = `de-ctx${isSub ? ' de-ctx--sub' : ''}`;
+      list.forEach((it) => {
+        if (it === '-') {
+          if (menu.lastChild && !menu.lastChild.classList.contains('de-ctx-sep')) {
+            menu.appendChild(Object.assign(document.createElement('div'), { className: 'de-ctx-sep' }));
+          }
+          return;
+        }
+        const row = document.createElement('button');
+        row.className = `de-ctx-item${it.danger ? ' de-ctx-item--danger' : ''}`;
+        row.disabled = !!it.disabled;
+        const check = document.createElement('span');
+        check.className = 'de-ctx-check';
+        check.textContent = it.checked ? '✓' : '';
+        const label = document.createElement('span');
+        label.className = 'de-ctx-label';
+        label.textContent = it.label;
+        const kbd = document.createElement('span');
+        kbd.className = 'de-ctx-kbd';
+        kbd.textContent = it.submenu ? '▸' : (it.kbd || '');
+        row.append(check, label, kbd);
+        if (it.submenu) {
+          let sub = null;
+          row.addEventListener('mouseenter', () => {
+            menu.querySelectorAll(':scope > .de-ctx--sub').forEach((m) => m.remove());
+            const r = row.getBoundingClientRect();
+            sub = build(it.submenu, r.right - 2, r.top - 4, true);
+            menu.appendChild(sub);
+          });
+        } else {
+          row.addEventListener('mouseenter', () => {
+            menu.querySelectorAll(':scope > .de-ctx--sub').forEach((m) => m.remove());
+          });
+          row.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.closeContextMenu();
+            if (!it.disabled && it.action) it.action();
+          });
+        }
+        menu.appendChild(row);
+      });
+      if (menu.lastChild && menu.lastChild.classList.contains('de-ctx-sep')) menu.lastChild.remove();
+      menu.style.left = `${left}px`;
+      menu.style.top = `${top}px`;
+      // 画面外にはみ出さないよう位置補正 (描画後に計測)
+      requestAnimationFrame(() => {
+        const r = menu.getBoundingClientRect();
+        if (r.right > window.innerWidth) menu.style.left = `${Math.max(4, (isSub ? left - r.width - 180 : window.innerWidth - r.width - 4))}px`;
+        if (r.bottom > window.innerHeight) menu.style.top = `${Math.max(4, window.innerHeight - r.height - 4)}px`;
+      });
+      if (!isSub) document.body.appendChild(menu);
+      return menu;
+    };
+    this._ctx = build(items, x, y, false);
+  },
+
+  closeContextMenu() {
+    if (this._ctx) { this._ctx.remove(); this._ctx = null; }
+  },
+
+  initContextMenus() {
+    const close = () => this.closeContextMenu();
+    document.addEventListener('mousedown', (e) => { if (this._ctx && !this._ctx.contains(e.target)) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    window.addEventListener('blur', close);
+    window.addEventListener('resize', close);
+
+    // キャンバス: レイヤー上ならそのレイヤー (グループ) のメニュー、空き領域なら作成メニュー
+    document.getElementById('de-viewport').addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const wrap = document.getElementById('de-canvas-wrap');
+      const r = wrap.getBoundingClientRect();
+      const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      const layer = inside ? this.hitTest(this.canvasPoint(e)) : null;
+      if (layer && !this.targets().includes(layer)) {
+        if (layer.groupId && !(e.ctrlKey || e.metaKey)) this.selectGroup(layer.groupId); else this.selectLayer(layer.id);
+        this.refreshSelectionUI();
+      }
+      if (layer) this.showContextMenu(e.clientX, e.clientY, this.layerMenuItems());
+      else this.showContextMenu(e.clientX, e.clientY, this.canvasMenuItems());
+    });
+
+    // ドキュメントタブ / テンプレート一覧: テンプレートのメニュー
+    ['de-doc-tabs', 'de-tpl-list'].forEach((id) => {
+      document.getElementById(id).addEventListener('contextmenu', (e) => {
+        const btn = e.target.closest('[data-tpl-key]');
+        if (!btn) return;
+        e.preventDefault();
+        this.selectTemplate(btn.dataset.tplKey);
+        this.showContextMenu(e.clientX, e.clientY, this.templateMenuItems(btn.dataset.tplKey));
+      });
+    });
+  },
+
+  /** レイヤー / グループ / 複数選択の右クリックメニュー */
+  layerMenuItems() {
+    const targets = this.targets();
+    const group = this.activeGroup();
+    const one = targets.length === 1 ? targets[0] : null;
+    const inGroup = !!(one && one.groupId) || !!group;
+    const allHidden = targets.every((l) => l.visible === false);
+    const allLocked = targets.every((l) => l.locked);
+    const textLayer = one && one.type === 'text' ? one : null;
+    const align = (fn) => () => { this.beginChange(); const b = this.boundsOf(this.targets()); fn(b); this.renderAll(); };
+    const shift = (dx, dy) => this.targets().forEach((l) => { l.x += dx; l.y += dy; });
+    const items = [];
+    if (group) {
+      items.push({ label: 'グループ名の変更…', action: () => this.renameGroup(group) });
+      items.push({ label: 'グループのアニメーション…', action: () => { this.propsTab = 'anim'; this.renderProps(); } });
+      items.push('-');
+      items.push({ label: 'グループを複製', kbd: 'Ctrl+J', action: () => this.duplicateLayer() });
+      items.push({ label: 'グループ解除', kbd: 'Ctrl+Shift+G', action: () => this.ungroupSelection() });
+      items.push({ label: 'グループを削除', kbd: 'Del', danger: true, action: () => this.deleteLayer() });
+    } else {
+      if (one) items.push({ label: 'レイヤー名の変更…', action: () => this.renameLayer(one) });
+      items.push({ label: targets.length > 1 ? `${targets.length}個のレイヤーを複製` : 'レイヤーを複製', kbd: 'Ctrl+J', action: () => this.duplicateLayer() });
+      items.push({ label: targets.length > 1 ? `${targets.length}個のレイヤーを削除` : 'レイヤーを削除', kbd: 'Del', danger: true, action: () => this.deleteLayer() });
+      items.push('-');
+      items.push({ label: 'レイヤーからグループ…', kbd: 'Ctrl+G', action: () => this.groupSelection() });
+      if (inGroup) items.push({ label: 'グループから出す / 解除', kbd: 'Ctrl+Shift+G', action: () => this.ungroupSelection() });
+    }
+    items.push('-');
+    items.push({ label: 'コピー', kbd: 'Ctrl+C', action: () => this.copyLayers() });
+    items.push({ label: 'ペースト', kbd: 'Ctrl+V', disabled: !this._layerClipboard, action: () => this.pasteLayers() });
+    items.push('-');
+    items.push({
+      label: '重ね順',
+      submenu: [
+        { label: '最前面へ', kbd: 'Ctrl+Shift+]', action: () => this.moveLayerEnd(true) },
+        { label: '前面へ', kbd: 'Ctrl+]', action: () => this.moveLayer(1) },
+        { label: '背面へ', kbd: 'Ctrl+[', action: () => this.moveLayer(-1) },
+        { label: '最背面へ', kbd: 'Ctrl+Shift+[', action: () => this.moveLayerEnd(false) },
+      ],
+    });
+    items.push({
+      label: '整列 (カンバス基準)',
+      submenu: [
+        { label: '左端', action: align((b) => shift(-b.x, 0)) },
+        { label: '水平方向中央', action: align((b) => shift(Math.round((this.CANVAS_W - b.w) / 2) - b.x, 0)) },
+        { label: '右端', action: align((b) => shift(this.CANVAS_W - b.w - b.x, 0)) },
+        '-',
+        { label: '上端', action: align((b) => shift(0, -b.y)) },
+        { label: '垂直方向中央', action: align((b) => shift(0, Math.round((this.CANVAS_H - b.h) / 2) - b.y)) },
+        { label: '下端', action: align((b) => shift(0, this.CANVAS_H - b.h - b.y)) },
+      ],
+    });
+    items.push('-');
+    if (group) {
+      items.push({ label: 'グループを非表示', checked: group.visible === false, action: () => { this.beginChange(); group.visible = group.visible === false; this.renderAll(); } });
+      items.push({ label: 'グループをロック', checked: !!group.locked, action: () => { this.beginChange(); group.locked = !group.locked; this.renderAll(); } });
+    } else {
+      items.push({ label: 'レイヤーを非表示', checked: allHidden, action: () => { this.beginChange(); targets.forEach((l) => { l.visible = allHidden; }); this.renderAll(); } });
+      items.push({ label: 'レイヤーをロック', checked: allLocked, action: () => { this.beginChange(); targets.forEach((l) => { l.locked = !allLocked; }); this.renderAll(); } });
+    }
+    if (textLayer) {
+      items.push('-');
+      items.push({ label: 'レイヤースタイルをコピー', action: () => { this._styleClipboard = this.captureStyle(textLayer); App.setStatus('装飾スタイルをコピーしました', 'success'); } });
+      items.push({ label: 'レイヤースタイルをペースト', disabled: !this._styleClipboard, action: () => { this.beginChange(); this.applyStyle(textLayer, this._styleClipboard); this.renderAll(); } });
+      items.push({ label: 'スタイルとして登録…', action: () => this.registerStylePreset() });
+    }
+    items.push('-');
+    items.push({ label: '選択を解除', kbd: 'Ctrl+D', action: () => { this.clearSelection(); this.renderAll(); } });
+    return items;
+  },
+
+  /** キャンバスの空き領域の右クリックメニュー */
+  canvasMenuItems() {
+    return [
+      { label: '文字を追加', action: () => this.addLayer('text') },
+      { label: '矩形を追加', action: () => this.addLayer('rect') },
+      { label: '楕円を追加', action: () => this.addShapeLayer('ellipse') },
+      { label: '画像を追加…', action: () => this.addLayer('image') },
+      '-',
+      { label: 'ペースト', kbd: 'Ctrl+V', disabled: !this._layerClipboard, action: () => this.pasteLayers() },
+      { label: 'すべてを選択', kbd: 'Ctrl+A', disabled: !this.layers().length, action: () => this.selectAll() },
+      { label: '選択を解除', kbd: 'Ctrl+D', disabled: !this.targets().length, action: () => { this.clearSelection(); this.renderAll(); } },
+      '-',
+      { label: 'IN を試写', action: () => this.playAnimation('in') },
+      { label: 'OUT を試写', action: () => this.playAnimation('out') },
+      { label: 'テンプレートのアニメーション設定', action: () => { this.clearSelection(); this.renderAll(); } },
+      '-',
+      {
+        label: '表示',
+        submenu: [
+          { label: 'フィット', action: () => this.setZoomValue('fit') },
+          { label: '100%', action: () => this.setZoomValue('1') },
+          { label: '50%', action: () => this.setZoomValue('0.5') },
+          '-',
+          { label: 'セーフティエリア', checked: document.getElementById('de-safety').checked, action: () => { const c = document.getElementById('de-safety'); c.checked = !c.checked; c.dispatchEvent(new Event('change')); } },
+        ],
+      },
+    ];
+  },
+
+  /** テンプレート (ドキュメントタブ / 一覧) の右クリックメニュー */
+  templateMenuItems(key) {
+    return [
+      { label: 'テンプレート名の変更…', action: () => this.renameTemplate() },
+      { label: 'テンプレートを複製', action: () => this.duplicateTemplate(key) },
+      { label: '新規テンプレート…', action: () => this.openTplDialog() },
+      '-',
+      { label: 'JP のレイアウトを EN へコピー', action: () => this.copyJpToEn() },
+      { label: 'PNG で保存…', action: () => this.exportPng() },
+      '-',
+      { label: 'テンプレートを削除', danger: true, disabled: Object.keys(this.project.templates).length <= 1, action: () => this.deleteTemplate() },
+    ];
+  },
+
+  setZoomValue(v) {
+    const sel = document.getElementById('de-zoom');
+    sel.value = v;
+    sel.dispatchEvent(new Event('change'));
+  },
+
+  selectAll() {
+    const ids = this.layers().filter((l) => this.isShown(l) && !this.isLocked(l)).map((l) => l.id);
+    if (!ids.length) return;
+    this.selectedIds = ids;
+    this.selectedId = ids[ids.length - 1];
+    this.selectedGroupId = null;
+    if (ids.length === 1) this.selectedIds = [ids[0]];
+    this.refreshSelectionUI();
+  },
+
+  async renameLayer(layer) {
+    const name = await AppModal.prompt('レイヤー名', { value: layer.name || '' });
+    if (!name) return;
+    this.beginChange();
+    layer.name = name;
+    this.renderLayerList();
+    this.renderProps();
+  },
+
+  /** レイヤーのコピー (Ctrl+C): グループ選択時はグループごと */
+  copyLayers() {
+    const targets = this.targets();
+    if (!targets.length) return;
+    const group = this.activeGroup();
+    this._layerClipboard = {
+      templateKey: this.templateKey,
+      lang: this.lang,
+      layers: JSON.parse(JSON.stringify(targets)),
+      group: group ? JSON.parse(JSON.stringify(group)) : null,
+    };
+    App.setStatus(`${targets.length}個のレイヤーをコピーしました`, 'success');
+  },
+
+  /** ペースト (Ctrl+V): 同じテンプレートなら少しずらし、別テンプレートなら同じ位置に */
+  pasteLayers() {
+    const clip = this._layerClipboard;
+    if (!clip) return;
+    this.beginChange();
+    const offset = clip.templateKey === this.templateKey && clip.lang === this.lang ? 20 : 0;
+    let gid = null;
+    if (clip.group) {
+      gid = `g${Date.now().toString(36)}`;
+      this.groups().push({ ...JSON.parse(JSON.stringify(clip.group)), id: gid });
+    }
+    const layers = this.layers();
+    const pasted = clip.layers.map((src) => {
+      const l = JSON.parse(JSON.stringify(src));
+      l.id = this.newLayerId();
+      layers.push(l);
+      l.x += offset;
+      l.y += offset;
+      if (gid) l.groupId = gid; else delete l.groupId;
+      return l;
+    });
+    this.normalizeGroups();
+    if (gid) this.selectGroup(gid);
+    else if (pasted.length > 1) { this.selectedIds = pasted.map((l) => l.id); this.selectedId = pasted[pasted.length - 1].id; this.selectedGroupId = null; }
+    else this.selectLayer(pasted[0].id);
+    this.renderAll();
+  },
+
+  /** テンプレートを複製 (レイヤーIDは振り直す) */
+  duplicateTemplate(key) {
+    const src = this.project.templates[key];
+    if (!src) return;
+    this.beginChange();
+    const copy = JSON.parse(JSON.stringify(src));
+    Object.values(copy.variants || {}).forEach((v) => (v.layers || []).forEach((l) => { l.id = this.newLayerId(); }));
+    copy.label = `${this.templateLabel(key)} コピー`;
+    const newKey = `tpl_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
+    this.project.templates[newKey] = copy;
+    this.templateKey = newKey;
+    this.clearSelection();
+    this.refreshTemplateSelect();
+    this.renderAll();
+    App.setStatus(`テンプレート「${copy.label}」を作成しました`, 'success');
   },
 
   /** 図形ツール: 矩形を追加して形状を設定 */
@@ -260,7 +563,8 @@ const DesignEditor = {
       tab.textContent = key === this.templateKey
         ? `${this.templateLabel(key)} @ ${zoomLabel} (${this.lang.toUpperCase()})${this.dirty ? ' *' : ''}`
         : this.templateLabel(key);
-      tab.title = this.templateLabel(key);
+      tab.title = `${this.templateLabel(key)} (右クリックでメニュー)`;
+      tab.dataset.tplKey = key;
       tab.addEventListener('click', () => this.selectTemplate(key));
       tabs.appendChild(tab);
     });
@@ -280,6 +584,7 @@ const DesignEditor = {
       meta.className = 'de-tpl-meta';
       meta.textContent = `${ch ? ch.label : tpl.region} · ${(variant.layers || []).length}レイヤー`;
       row.append(name, meta);
+      row.dataset.tplKey = key;
       row.addEventListener('click', () => this.selectTemplate(key));
       list.appendChild(row);
     });
@@ -306,7 +611,7 @@ const DesignEditor = {
     const layer = this.selected();
     const canApply = !!(layer && layer.type === 'text');
     document.getElementById('de-style-hint').textContent = canApply
-      ? 'クリックで適用 / 右クリックで削除' : '文字レイヤーを選択すると適用できます';
+      ? 'クリックで適用 / 右クリックでメニュー' : '文字レイヤーを選択すると適用できます';
     document.getElementById('de-style-add').disabled = !canApply;
     if (!this.stylePresets.length) {
       const empty = document.createElement('div');
@@ -354,13 +659,23 @@ const DesignEditor = {
         this.renderProps();
         App.setStatus(`スタイル「${preset.name}」を適用しました`, 'success');
       });
-      cell.addEventListener('contextmenu', async (e) => {
+      cell.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        if (!window.api.graphicsStylePresetDelete) return;
-        if (!confirm(`スタイル「${preset.name}」を削除しますか?`)) return;
-        await window.api.graphicsStylePresetDelete(preset.id);
-        await this.refreshStylePresets();
-        this.renderStylePanel();
+        const target = this.selected();
+        this.showContextMenu(e.clientX, e.clientY, [
+          { label: '選択中のレイヤーに適用', disabled: !(target && target.type === 'text'), action: () => cell.click() },
+          '-',
+          {
+            label: 'スタイルを削除', danger: true,
+            action: async () => {
+              if (!window.api.graphicsStylePresetDelete) return;
+              if (!confirm(`スタイル「${preset.name}」を削除しますか?`)) return;
+              await window.api.graphicsStylePresetDelete(preset.id);
+              await this.refreshStylePresets();
+              this.renderStylePanel();
+            },
+          },
+        ]);
       });
       grid.appendChild(cell);
     });
@@ -711,8 +1026,9 @@ const DesignEditor = {
     App.setStatus(`テンプレート「${name}」を追加しました (保存で送出タブでも使えます)`, 'success');
   },
 
-  renameTemplate() {
-    const name = prompt('テンプレート名', this.templateLabel(this.templateKey));
+  async renameTemplate() {
+    // Electron では window.prompt が使えないためアプリ内モーダルを使う
+    const name = await AppModal.prompt('テンプレート名', { value: this.templateLabel(this.templateKey) });
     if (!name) return;
     this.beginChange();
     this.project.templates[this.templateKey].label = name;
@@ -1952,6 +2268,11 @@ const DesignEditor = {
           () => { g.locked = !g.locked; });
         gi.append(caret, vis, icon, name, lock);
         gi.addEventListener('click', () => { this.selectGroup(g.id); this.refreshSelectionUI(); });
+        gi.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          if (!(this.activeGroup() && this.activeGroup().id === g.id)) { this.selectGroup(g.id); this.refreshSelectionUI(); }
+          this.showContextMenu(e.clientX, e.clientY, this.layerMenuItems());
+        });
         list.appendChild(gi);
       }
       if (g && g.collapsed) return;
@@ -1982,6 +2303,15 @@ const DesignEditor = {
       li.addEventListener('click', (e) => {
         this.selectLayer(layer.id, e.ctrlKey || e.metaKey || e.shiftKey);
         this.refreshSelectionUI();
+      });
+      li.addEventListener('dblclick', (e) => {
+        if (e.target.closest('.de-layer-name')) this.renameLayer(layer);
+      });
+      li.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        // 複数選択中のレイヤー上なら選択を保ったまま、それ以外はそのレイヤーを選択
+        if (!this.targets().includes(layer) || this.activeGroup()) { this.selectLayer(layer.id); this.refreshSelectionUI(); }
+        this.showContextMenu(e.clientX, e.clientY, this.layerMenuItems());
       });
       list.appendChild(li);
     });
@@ -2364,6 +2694,20 @@ const DesignEditor = {
 
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); this.undo(); return; }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); this.redo(); return; }
+
+    // Photoshop互換ショートカット
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.shiftKey && (e.key === 'c' || e.key === 'C')) { e.preventDefault(); this.copyLayers(); return; }
+    if (mod && !e.shiftKey && (e.key === 'v' || e.key === 'V')) { e.preventDefault(); this.pasteLayers(); return; }
+    if (mod && !e.shiftKey && (e.key === 'j' || e.key === 'J')) { e.preventDefault(); this.duplicateLayer(); return; }
+    if (mod && !e.shiftKey && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); this.selectAll(); return; }
+    if (mod && !e.shiftKey && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); this.clearSelection(); this.renderAll(); return; }
+    if (mod && (e.code === 'BracketRight' || e.code === 'BracketLeft')) {
+      e.preventDefault();
+      const front = e.code === 'BracketRight';
+      if (e.shiftKey) this.moveLayerEnd(front); else this.moveLayer(front ? 1 : -1);
+      return;
+    }
 
     // グループ化 / 解除
     if ((e.ctrlKey || e.metaKey) && (e.key === 'g' || e.key === 'G')) {
