@@ -29,9 +29,6 @@
   const canvas = document.getElementById('canvas');
 
   function handlesRegion(region) {
-    // 合成URL (/output/jp) は設定チャンネルに無いウィンドウregion (スポーツの
-    // スコアボード/BSO等) も含め、送出された全リージョンを重畳する。
-    if (target.type === 'all') return true;
     return orderedRegions.includes(region);
   }
 
@@ -129,26 +126,11 @@
     generation[region]++;
     TelopRenderer.renderVariant(container, variant, values);
     container.classList.add('on-air');
-    container._variant = variant; // OUTアニメ/インプレース更新用に保持
-    container._values = values;
+    container._variant = variant; // OUTアニメ用に保持 (静的送出はtemplateKeyを持たない)
 
     if (animate) {
       TelopAnimator.play(container, variant, 'in');
     }
-  }
-
-  /**
-   * UPDATE (インプレース): onAir中の領域の値だけを差し替える。
-   * DOMを保持したまま変更bindingのテキストレイヤーのみ再描画するため、
-   * 時計/スコアの連続更新でもちらつかない (スポーツコーダー用)。
-   */
-  function updateInPlace(region, values) {
-    if (!handlesRegion(region)) return;
-    const container = containerFor(region);
-    if (!container.classList.contains('on-air') || !container._variant) return;
-    const merged = Object.assign({}, container._values || {}, values);
-    container._values = merged;
-    TelopRenderer.patchValues(container, container._variant, merged, null, Object.keys(values));
   }
 
   function hide(region) {
@@ -163,18 +145,6 @@
       container.classList.remove('on-air');
       container.innerHTML = '';
     });
-  }
-
-  /**
-   * LAYOUT: リージョン(=オンエアウィンドウ)全体を移動/拡縮する。
-   * コンテナへCSS transformを掛けるだけ。子レイヤーのアニメ(transform)とは独立。
-   */
-  function applyLayout(region, layout) {
-    if (!handlesRegion(region)) return;
-    const container = containerFor(region);
-    if (!layout) { container.style.transform = ''; return; }
-    const s = layout.scale === undefined ? 1 : layout.scale;
-    container.style.transform = `translate(${layout.x || 0}px, ${layout.y || 0}px) scale(${s})`;
   }
 
   /** STOP: 再生中アニメーションの一時停止/再開トグル */
@@ -196,7 +166,6 @@
       if (!handlesRegion(region)) return;
       const s = state[region];
       const container = containerFor(region);
-      applyLayout(region, s && s.layout); // 位置・サイズを復元 (再接続/リロード時)
       if (s && s.onAir && (s.templateKey || s.static)) {
         show(region, s.static ? { static: s.static } : { templateKey: s.templateKey, values: s.values }, false);
       } else {
@@ -230,12 +199,6 @@
             msg.static ? { static: msg.static } : { templateKey: msg.templateKey, values: msg.values },
             msg.animate !== false,
           );
-          break;
-        case 'update':
-          updateInPlace(msg.region, msg.values || {});
-          break;
-        case 'layout':
-          applyLayout(msg.region, { x: msg.x, y: msg.y, scale: msg.scale });
           break;
         case 'clear':
           hide(msg.region);

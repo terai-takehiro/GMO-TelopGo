@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.0.0] - 開発中
+
+### Removed (機能の絞り込み — スポーツ送出を廃止)
+- **スポーツ送出モードをソースコードから完全に削除**: ホームのモードカード、スポーツタブ、
+  操作盤 (`sports-ui.js`)、マニュアルの該当章、関連スタイルを撤去
+- スポーツ専用の送出経路を削除: 明示region送出 (`graphicsTakeTo`)、region レイアウト
+  (`graphicsSetLayout` / WS `layout`)、インプレース値更新 (`graphicsUpdateValues` / WS `update` /
+  `TelopRenderer.patchValues`)、合成URLの全region重畳
+- 既定テンプレートから `sports-score` / `sports-baseball` / `bb-*` 6種を削除。
+  既存のデザインプロジェクト・デザインセットからも読み込み時に自動で取り除く
+- ランダウンの `sports` ツリーを廃止 (既存データは読み込み時に破棄、`activeMode` は CG へ戻す)
+- v2.8.1 で追加した汎用描画プリミティブ (`boxShadow` / `radii` / `polycustom`) は存続
+
 ## [2.9.0] - 2026-07-14
 
 ### Added (スポーツシーン・コンポーザー — 野球コンソール & オンエアウィンドウ配置)

@@ -26,7 +26,6 @@ const ManualUI = {
         <ul class="manual-list">
           <li><b>ホーム</b> — 送出モードの選択 (リアルタイムCG / 電テロ) と各機能への入口・サーバ状況</li>
           <li><b>送出</b> — 本番のランダウン操作画面 (リアルタイムCG / 電テロ)。モード選択後に<b>番組→放送(日付)を選んで</b>入る</li>
-          <li><b>スポーツ</b> — スポーツシーン・コンポーザー。野球コンソール + オンエアウィンドウを自分で配置してライブ操作</li>
           <li><b>デザイン</b> — テロップのテンプレート作画</li>
           <li><b>マニュアル</b> — このページ</li>
           <li><b>設定</b> — 出力チャンネル・出力グループ・サーバ・GPIO・連携</li>
@@ -64,49 +63,6 @@ const ManualUI = {
         </ol>
         <div class="manual-tip">💡「デザインから」追加した作画は<b>固定コピー</b>されます。以後テンプレートを編集しても、送出リスト上の絵柄は変わりません。</div>
         <div class="manual-tip">🖼 静止画の<b>表示方法</b>は右ペインで選べます: 全体表示(contain) / 画面いっぱい(cover) / 引き伸ばし(fill)。対応形式: PNG / JPG / WebP / GIF / SVG。</div>`,
-    },
-    {
-      id: 'sports', title: 'スポーツ送出', html: `
-        <h2 class="manual-h2">スポーツシーン・コンポーザーとは</h2>
-        <p class="manual-p">試合中のスコア・カウント・走者・選手紹介などを専用の操作盤でライブ操作し、ON AIR中の表示へ<b>再テイクなし・アニメなしで即時反映</b>し続ける機能です。値の更新は画面を作り直さず文字だけを差し替えるため、毎秒動く時計でもちらつきません。</p>
-        <p class="manual-p">v2.9 からは、固定レイアウトを送るのではなく、<b>スコアボード / BSO / 走者 / 得点(大) / タイトル / 選手紹介</b> をそれぞれ<b>独立したオンエア・ウィンドウ</b>として扱います。各ウィンドウは個別に <b>ON AIR / OFF</b> でき、<b>プレビュー上でドラッグして位置・サイズを自由に組める</b>ため、番組ごとに自分の中継レイアウトを作れます。</p>
-        <ol class="manual-steps">
-          <li>ホームで<b>「🏆 スポーツ送出」</b>を選び、番組 → 試合(放送) を選択</li>
-          <li>競技で<b>「野球 (コンソール)」</b>を選ぶ (汎用/セット制は下部の簡易バーで送出)</li>
-          <li>大会名・試合名・チーム短縮名・打順表を入力</li>
-          <li>右下<b>「オンエアウィンドウ」</b>で出したい要素の <b>ON AIR</b> を押す → その要素だけが出力に重畳表示</li>
-          <li><b>「位置・サイズ」</b>を押し、プレビュー上で枠をドラッグ (角をドラッグで拡縮/数値入力も可) して配置</li>
-          <li>以後、得点・BSO・走者・イニングの操作がそのままON AIRの各ウィンドウへ反映されます</li>
-        </ol>
-        <h2 class="manual-h2">野球コンソール</h2>
-        <ul class="manual-list">
-          <li><b>イニング別得点表</b>: 各回のマスを左クリックで+1 / 右クリックで−1。R (合計) は自動集計</li>
-          <li><b>得点 (現イニング)</b>: <b>＋ / −</b> で、いま攻撃中の回・チームの升へ加点</li>
-          <li><b>BSO</b>: BALL/STRIKE/OUT のクリックで自動巡回 (四球・三振でカウントリセット、スリーアウトで自動チェンジ)。「打者交代」でB/Sのみクリア</li>
-          <li><b>走者ダイヤ</b>: 塁をクリックでトグル、「全走者クリア」で一括解除</li>
-          <li><b>打順表</b>: 選手追加、名前/背番号は直接編集、守備位置はクリックで巡回。行の<b>「選手」</b>ボタンで選手紹介テロップを送出 (その打者を現打者に設定)</li>
-          <li><b>チェンジ / イニング進める・戻す</b>: 表↔裏・回の手動操作</li>
-        </ul>
-        <h2 class="manual-h2">オンエアウィンドウと位置・サイズ</h2>
-        <p class="manual-p">各ウィンドウは出力上で <b>1つの独立した重畳レイヤー (region)</b> です。合成URL <code>/output/jp</code> は ON AIR 中の全ウィンドウを重ねて表示します。</p>
-        <ul class="manual-list">
-          <li><b>ON AIR トグル</b>: 押すとそのウィンドウを送出 (もう一度で消去)。位置・サイズは記憶され、次回ON AIR時も復元</li>
-          <li><b>位置・サイズ</b>: プレビューを重ねたステージで半透明の枠をドラッグ。角のハンドルで拡大縮小。X/Y/サイズ% の数値入力も併設 (10px スナップ)</li>
-          <li>配置は試合(放送)ごとに保存され、2台運用でも同期されます</li>
-        </ul>
-        <h2 class="manual-h2">独自ウィンドウの作り方 (binding規約)</h2>
-        <p class="manual-p">デザインタブでテキストレイヤーのbindingに以下の名前を付ければ、自作テンプレートを操作盤のウィンドウから流し込めます (使う項目だけでOK):</p>
-        <table class="manual-kbd">
-          <tr><th>ウィンドウ</th><th>binding</th></tr>
-          <tr><td>スコアボード</td><td>homeShort/awayShort, home1..home9, away1..away9, homeR/awayR, status</td></tr>
-          <tr><td>BSO</td><td>balls / strikes / outs (「●●○」等)</td></tr>
-          <tr><td>走者</td><td>base1 / base2 / base3 (◆=走者あり / ◇=なし)</td></tr>
-          <tr><td>得点(大)</td><td>homeShort/awayShort, homeScore/awayScore, status, title</td></tr>
-          <tr><td>タイトル</td><td>title / sub</td></tr>
-          <tr><td>選手紹介</td><td>pOrder / pPos / pNo / pName</td></tr>
-          <tr><td>汎用バー</td><td>homeName/awayName, homeScore/awayScore, period, clock, homeSets/awaySets</td></tr>
-        </table>
-        <div class="manual-tip">💡 2台運用時: 試合状態・ウィンドウ配置は両PCに同期されますが、スポーツの操作は<b>出力担当PC上で</b>行ってください (コマンド委譲は今後対応)。</div>`,
     },
     {
       id: 'design', title: 'デザインエディタ', html: `

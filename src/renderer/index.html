@@ -26,7 +26,6 @@
   <nav class="tab-bar">
     <button class="tab-btn active" data-tab="home">ホーム</button>
     <button class="tab-btn" data-tab="onair">送出</button>
-    <button class="tab-btn" data-tab="sports">スポーツ</button>
     <button class="tab-btn" data-tab="design">デザイン</button>
     <button class="tab-btn" data-tab="manual">マニュアル</button>
     <button class="tab-btn tab-btn--settings" data-tab="settings">設定</button>
@@ -59,11 +58,6 @@
           <span class="home-mode-icon">🖼</span>
           <span class="home-mode-title">電テロ送出</span>
           <span class="home-mode-desc">作画した1枚絵や静止画ファイルを並べて静的に送出。ドラッグ&amp;ドロップで流し込み。</span>
-        </button>
-        <button class="home-mode home-mode--sports" data-mode="sports">
-          <span class="home-mode-icon">🏆</span>
-          <span class="home-mode-title">スポーツ送出</span>
-          <span class="home-mode-desc">スコア・ピリオド・試合時計・野球カウントを操作盤でライブ操作し、スコアバグへ即時反映。</span>
         </button>
       </div>
 
@@ -196,191 +190,6 @@
     </div>
     <datalist id="od-namepool"></datalist>
   </div>
-
-  <!-- ===== スポーツタブ (スポーツコーダー操作盤) ===== -->
-  <!-- ===== スポーツタブ (スポーツシーン・コンポーザー) ===== -->
-  <div class="tab-content" id="tab-sports">
-    <div class="sp-layout">
-      <div class="sp-topbar">
-        <span class="sp-context" id="sp-context">-</span>
-        <button class="btn btn--small od-btn" id="sp-reselect" title="番組/試合の選択画面に戻る">☰ 選び直す</button>
-        <span class="od-sep"></span>
-        <label class="od-bar-label">競技
-          <select id="sp-sport" class="input input--small od-select"></select>
-        </label>
-        <span class="od-sep"></span>
-        <label class="od-bar-label">大会 <input type="text" id="sp-meta-tournament" class="input input--small sp-meta"></label>
-        <label class="od-bar-label">試合 <input type="text" id="sp-meta-game" class="input input--small sp-meta"></label>
-        <label class="od-bar-label">場所 <input type="text" id="sp-meta-place" class="input input--small sp-meta"></label>
-        <label class="od-bar-label">日付 <input type="text" id="sp-meta-date" class="input input--small sp-meta sp-meta--s"></label>
-        <label class="od-bar-label">時間 <input type="text" id="sp-meta-time" class="input input--small sp-meta sp-meta--s"></label>
-      </div>
-
-      <!-- 汎用/セット制: 簡易バー送出 -->
-      <div class="sp-generic hidden" id="sp-generic">
-        <div class="sp-teams">
-          <div class="sp-team-card">
-            <div class="sp-team-head"><input type="text" id="g-home-name" class="input sp-team-name"></div>
-            <div class="sp-score" id="g-home-score">0</div>
-            <div class="sp-score-keys">
-              <button class="sp-key sp-key--big" data-team="home" data-score-delta="1">+1</button>
-              <button class="sp-key" data-team="home" data-score-delta="2">+2</button>
-              <button class="sp-key" data-team="home" data-score-delta="3">+3</button>
-              <button class="sp-key sp-key--minus" data-team="home" data-score-delta="-1">−1</button>
-            </div>
-          </div>
-          <div class="sp-center">
-            <div class="sp-period-label" id="g-period">第1ピリオド</div>
-            <div class="sp-period-keys"><button class="btn" id="g-period-up">▲ 進める</button><button class="btn" id="g-period-down">▼ 戻す</button></div>
-            <div class="sp-clock-display" id="g-clock-display">00:00</div>
-            <div class="sp-period-keys"><button class="sp-key sp-key--big" id="g-clock-toggle">▶ 開始/停止</button><button class="btn" id="g-clock-reset">リセット</button></div>
-          </div>
-          <div class="sp-team-card">
-            <div class="sp-team-head"><input type="text" id="g-away-name" class="input sp-team-name"></div>
-            <div class="sp-score" id="g-away-score">0</div>
-            <div class="sp-score-keys">
-              <button class="sp-key sp-key--big" data-team="away" data-score-delta="1">+1</button>
-              <button class="sp-key" data-team="away" data-score-delta="2">+2</button>
-              <button class="sp-key" data-team="away" data-score-delta="3">+3</button>
-              <button class="sp-key sp-key--minus" data-team="away" data-score-delta="-1">−1</button>
-            </div>
-          </div>
-        </div>
-        <div class="sp-generic-send">
-          <button class="od-col-take" id="g-take">TAKE <span class="od-take-arrow">⬆</span></button>
-          <button class="od-obtn od-obtn-clear" id="g-clear">CLEAR<span class="od-obtn-jp">消去</span></button>
-          <span class="sp-onair-pill" id="g-onair">OFF AIR</span>
-        </div>
-      </div>
-
-      <!-- 野球コンソール -->
-      <div class="sp-baseball" id="sp-baseball">
-        <div class="sp-bb-top">
-          <div class="sp-bb-linescore" id="bb-linescore"></div>
-          <div class="sp-bb-status">
-            <span class="sp-bb-status-label" id="bb-status">1回表</span>
-            <button class="btn btn--small" id="bb-inn-up" title="イニングを進める (表→ウラ→次の回)">▲ 進める</button>
-            <button class="btn btn--small" id="bb-inn-down" title="イニングを戻す">▼ 戻す</button>
-            <button class="btn btn--small" id="bb-change" title="チェンジ (BSO・走者クリア)">チェンジ</button>
-          </div>
-        </div>
-        <div class="sp-bb-main">
-          <div class="sp-bb-team">
-            <div class="sp-bb-team-head">HOME <input type="text" id="bb-short-home" class="input input--small sp-short" title="短縮名"></div>
-            <div class="sp-bb-roster" id="bb-roster-home"></div>
-            <button class="btn btn--small" id="bb-roster-add-home">＋ 選手追加</button>
-          </div>
-          <div class="sp-bb-center">
-            <div class="sp-bb-diamond">
-              <button class="sp-base" data-base="1" title="2塁">2</button>
-              <button class="sp-base" data-base="0" title="1塁">1</button>
-              <button class="sp-base" data-base="2" title="3塁">3</button>
-              <button class="btn btn--small sp-diamond-clear" id="bb-clear-runners">全走者クリア</button>
-            </div>
-            <div class="sp-bb-count">
-              <button class="sp-key" id="bb-ball">BALL <span class="sp-bb-dots" id="bb-balls">○○○</span></button>
-              <button class="sp-key" id="bb-strike">STRIKE <span class="sp-bb-dots" id="bb-strikes">○○</span></button>
-              <button class="sp-key" id="bb-out">OUT <span class="sp-bb-dots" id="bb-outs">○○</span></button>
-            </div>
-            <div class="sp-bb-count-actions">
-              <button class="btn btn--small" id="bb-batter-change">打者交代 (BSクリア)</button>
-              <button class="btn btn--small" id="bb-count-reset">カウントリセット</button>
-            </div>
-            <div class="sp-bb-run">
-              <span class="sp-bb-run-label">得点 (現イニング)</span>
-              <button class="sp-key sp-key--big" id="bb-run-plus">＋</button>
-              <button class="sp-key sp-key--minus" id="bb-run-minus">−</button>
-            </div>
-          </div>
-          <div class="sp-bb-team">
-            <div class="sp-bb-team-head">AWAY <input type="text" id="bb-short-away" class="input input--small sp-short" title="短縮名"></div>
-            <div class="sp-bb-roster" id="bb-roster-away"></div>
-            <button class="btn btn--small" id="bb-roster-add-away">＋ 選手追加</button>
-          </div>
-        </div>
-        <div class="sp-bb-windows">
-          <div class="sp-windows-title">オンエアウィンドウ (ONで送出 / 位置・サイズでプレビュー上をドラッグ配置)</div>
-          <div class="sp-windows-list" id="sp-windows"></div>
-        </div>
-      </div>
-
-      <!-- ドラッグ配置コンポーザー -->
-      <div class="sp-composer hidden" id="sp-composer">
-        <div class="sp-composer-bar">
-          <span id="sp-composer-title">位置・サイズ</span>
-          <span class="od-spacer"></span>
-          <label class="od-bar-label">X <input type="number" id="sp-c-x" class="input input--small sp-c-num"></label>
-          <label class="od-bar-label">Y <input type="number" id="sp-c-y" class="input input--small sp-c-num"></label>
-          <label class="od-bar-label">サイズ% <input type="number" id="sp-c-scale" class="input input--small sp-c-num"></label>
-          <button class="btn btn--small btn--primary" id="sp-composer-close">閉じる</button>
-        </div>
-        <div class="sp-composer-stage" id="sp-composer-stage">
-          <iframe id="sp-composer-frame" src="about:blank" sandbox="allow-scripts allow-same-origin" allow="autoplay"></iframe>
-          <div class="sp-composer-box" id="sp-composer-box">ウィンドウ<span class="sp-composer-handle" id="sp-composer-handle"></span></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- テンプレート追加ダイアログ -->
-  <dialog id="de-tpl-dialog" class="de-dialog">
-    <h3>テンプレートを追加</h3>
-    <div class="settings-row">
-      <label for="de-tpl-name">名前</label>
-      <input type="text" id="de-tpl-name" class="input" maxlength="30" placeholder="例: スコア表示">
-    </div>
-    <div class="settings-row">
-      <label for="de-tpl-channel">チャンネル</label>
-      <select id="de-tpl-channel" class="input input--small"></select>
-    </div>
-    <div class="settings-row">
-      <label for="de-tpl-base">作成元</label>
-      <select id="de-tpl-base" class="input input--small">
-        <option value="copy">現在のテンプレートをコピー</option>
-        <option value="blank">空のテンプレート</option>
-      </select>
-    </div>
-    <div class="de-dialog-actions">
-      <button class="btn btn--small" id="de-tpl-cancel">キャンセル</button>
-      <button class="btn btn--small btn--primary" id="de-tpl-ok">OK</button>
-    </div>
-  </dialog>
-
-  <!-- ページ追加 / Excel取込 ダイアログ -->
-  <dialog id="od-page-dialog" class="de-dialog">
-    <h3 id="od-page-dialog-title">ページ追加</h3>
-    <p class="de-props-hint" id="od-page-dialog-hint"></p>
-    <div class="settings-row">
-      <label for="od-page-template">テンプレート</label>
-      <select id="od-page-template" class="input"></select>
-    </div>
-    <div class="de-dialog-actions">
-      <button class="btn btn--small" id="od-page-dialog-cancel">キャンセル</button>
-      <button class="btn btn--small btn--primary" id="od-page-dialog-ok">OK</button>
-    </div>
-  </dialog>
-
-  <!-- 電テロ追加ダイアログ (静的送出: デザイン or 静止画ファイル) -->
-  <dialog id="od-telop-dialog" class="de-dialog">
-    <h3>電テロを追加 (静的)</h3>
-    <p class="de-props-hint">アプリ内で作画したデザインを1枚絵として追加するか、別ソフトで作った静止画ファイルを取り込みます。列へ画像ファイルを直接ドラッグ&amp;ドロップしても追加できます。</p>
-    <div class="settings-row">
-      <label for="od-telop-source">追加元</label>
-      <select id="od-telop-source" class="input input--small">
-        <option value="design">デザインから (アプリ内で作画)</option>
-        <option value="still">静止画ファイル (別ソフト)</option>
-      </select>
-    </div>
-    <div class="settings-row" id="od-telop-design-row">
-      <label for="od-telop-design">デザイン</label>
-      <select id="od-telop-design" class="input"></select>
-    </div>
-    <div class="de-dialog-actions">
-      <button class="btn btn--small" id="od-telop-cancel">キャンセル</button>
-      <button class="btn btn--small btn--primary" id="od-telop-ok">OK</button>
-    </div>
-  </dialog>
 
   <!-- ===== デザイン タブ ===== -->
   <div class="tab-content" id="tab-design">
@@ -761,7 +570,6 @@
   <script src="js/home-ui.js"></script>
   <script src="js/manual-ui.js"></script>
   <script src="js/start-wizard.js"></script>
-  <script src="js/sports-ui.js"></script>
   <script src="js/tab-controller.js"></script>
   <script src="js/drag-drop.js"></script>
   <script src="js/broadcast.js"></script>
