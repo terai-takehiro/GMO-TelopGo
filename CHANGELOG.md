@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- デザインのフォント一覧で日本語名が文字化けする問題を修正 (Windows の PowerShell 出力を UTF-8 に)
+
+### Changed
+- フォント一覧を **日本語フォントのみ** に (「あ」のグリフを持つフォントだけを列挙)。
+  Webフォント取得の候補からも欧文フォント (Roboto / Oswald / Montserrat) を除外
+
 ## [3.0.0] - 2026-09-28
 
 ### Changed (UI の整理 — 機能を絞り、画面構成を再設計)

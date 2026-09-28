@@ -56,39 +56,69 @@ function appendOnairLog(action, detail) {
   } catch (_) { /* ログ失敗は送出を妨げない */ }
 }
 
-/** インストール済みフォントのファミリー名一覧 (初回のみ取得しキャッシュ) */
+/** インストール済みの日本語フォントのファミリー名一覧 (初回のみ取得しキャッシュ) */
 let systemFontsCache = null;
+
+/**
+ * Windows: WPF で各フォントが「あ」(U+3042) のグリフを持つかを調べ、日本語フォントだけを列挙する。
+ * 名前は日本語名 (ja-jp) があればそれを、無ければ既定名を使う。
+ * PowerShell の既定出力は Shift_JIS のため、UTF-8 に切り替えてから出力する (文字化け対策)。
+ */
+const WIN_JA_FONTS_SCRIPT = [
+  '[Console]::OutputEncoding = [Text.Encoding]::UTF8',
+  'Add-Type -AssemblyName PresentationCore',
+  "$ja = [Windows.Markup.XmlLanguage]::GetLanguage('ja-jp')",
+  'foreach ($f in [Windows.Media.Fonts]::SystemFontFamilies) {',
+  '  $ok = $false',
+  '  foreach ($t in $f.GetTypefaces()) {',
+  '    $g = $null',
+  '    if ($t.TryGetGlyphTypeface([ref]$g)) { $ok = $g.CharacterToGlyphMap.ContainsKey(0x3042); break }',
+  '  }',
+  '  if ($ok) {',
+  '    $n = $f.FamilyNames[$ja]',
+  "    if (-not $n) { $n = ($f.Source -split '#')[-1] }",
+  '    $n',
+  '  }',
+  '}',
+].join('\n');
+
+/** WPF が使えない環境向けのフォールバック (日本語判定なし・名前の文字化けのみ対策) */
+const WIN_ALL_FONTS_SCRIPT = '[Console]::OutputEncoding = [Text.Encoding]::UTF8;'
+  + '[void][Reflection.Assembly]::LoadWithPartialName("System.Drawing");'
+  + '(New-Object System.Drawing.Text.InstalledFontCollection).Families | ForEach-Object { $_.Name }';
+
+function runPowerShell(script) {
+  return new Promise((resolve) => {
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script],
+      { maxBuffer: 4 * 1024 * 1024, timeout: 30000, encoding: 'utf8' }, (err, stdout) => {
+        resolve(err ? [] : String(stdout).replace(/^﻿/, '').split(/\r?\n/));
+      });
+  });
+}
 
 function listSystemFonts() {
   if (systemFontsCache) return Promise.resolve(systemFontsCache);
 
+  const finish = (names) => {
+    const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'ja'));
+    systemFontsCache = unique;
+    return unique;
+  };
+
+  if (process.platform === 'win32') {
+    return runPowerShell(WIN_JA_FONTS_SCRIPT).then(async (names) => {
+      if (names.some((n) => n.trim())) return finish(names);
+      return finish(await runPowerShell(WIN_ALL_FONTS_SCRIPT));
+    });
+  }
+
+  // Linux/macOS (開発環境用): fontconfig で日本語対応フォントのみ
   return new Promise((resolve) => {
-    const finish = (names) => {
-      const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b, 'ja'));
-      systemFontsCache = unique;
-      resolve(unique);
-    };
-
-    if (process.platform === 'win32') {
-      // System.Drawing でインストール済みフォントファミリーを列挙 (追加依存なし)
-      const script = '[void][Reflection.Assembly]::LoadWithPartialName("System.Drawing");'
-        + '(New-Object System.Drawing.Text.InstalledFontCollection).Families | ForEach-Object { $_.Name }';
-      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script],
-        { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
-          finish(err ? [] : stdout.split(/\r?\n/));
-        });
-      return;
-    }
-
-    // Linux/macOS (開発環境用): fontconfig があれば使用
-    execFile('fc-list', [':', 'family'], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
-      if (err) {
-        finish([]);
-        return;
-      }
+    execFile('fc-list', [':lang=ja', 'family'], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      if (err) { resolve(finish([])); return; }
       // "FamilyA,FamilyB" 形式は先頭を採用、エスケープ文字を除去
-      finish(stdout.split(/\r?\n/).map((line) => line.split(',')[0].replace(/\\/g, '')));
+      resolve(finish(stdout.split(/\r?\n/).map((line) => line.split(',')[0].replace(/\\/g, ''))));
     });
   });
 }

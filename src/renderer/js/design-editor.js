@@ -26,7 +26,7 @@ const DesignEditor = {
   ],
   ANIM_DIRECTIONS: [['up', '上へ'], ['down', '下へ'], ['left', '左へ'], ['right', '右へ']],
 
-  /** Webフォント取得の候補 (Google Fontsの日本語対応+定番、[ファミリー, 取得ウェイト]) */
+  /** Webフォント取得の候補 (Google Fontsの日本語フォントのみ、[ファミリー, 取得ウェイト]) */
   GOOGLE_FONTS: [
     ['LINE Seed JP', [400, 700, 800]],
     ['Noto Sans JP', [400, 700, 900]],
@@ -49,9 +49,6 @@ const DesignEditor = {
     ['Mochiy Pop One', [400]],
     ['Train One', [400]],
     ['Reggae One', [400]],
-    ['Roboto', [400, 700]],
-    ['Oswald', [400, 700]],
-    ['Montserrat', [400, 700, 800]],
   ],
 
   TEMPLATE_LABELS: {
@@ -675,7 +672,7 @@ const DesignEditor = {
 
     if (this.systemFonts.length > 0) {
       const group = document.createElement('optgroup');
-      group.label = 'システムフォント';
+      group.label = '日本語フォント (このPC)';
       this.systemFonts.forEach((name) => addOption(group, `"${name}"`, name, name));
       sel.appendChild(group);
     } else {
@@ -1351,7 +1348,7 @@ const DesignEditor = {
     }
     if (this.systemFonts.length > 0) {
       const group = document.createElement('optgroup');
-      group.label = 'システムフォント';
+      group.label = '日本語フォント (このPC)';
       this.systemFonts.forEach((name) => addOption(group, `"${name}"`, name, name));
       to.appendChild(group);
     }
