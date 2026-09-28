@@ -442,9 +442,19 @@ const DesignEditor = {
       '-',
       { label: 'JP のレイアウトを EN へコピー', action: () => this.copyJpToEn() },
       { label: 'PNG で保存…', action: () => this.exportPng() },
+      { label: '入力用 Excel テンプレを書き出し…', action: () => this.exportExcelTemplate(key) },
       '-',
       { label: 'テンプレートを削除', danger: true, disabled: Object.keys(this.project.templates).length <= 1, action: () => this.deleteTemplate() },
     ];
+  },
+
+  /** 入力用Excelテンプレ (列見出し+見本行)。未保存の変更を含めるため先に保存する */
+  async exportExcelTemplate(key) {
+    if (this.dirty) await this.save();
+    const result = await window.api.downloadTemplate(key);
+    if (!result) return;
+    if (result.success) App.setStatus(`Excelテンプレを書き出しました: ${result.filePath}`, 'success');
+    else if (result.error) App.setStatus(`Excelテンプレの書き出しエラー: ${result.error}`, 'error');
   },
 
   setZoomValue(v) {

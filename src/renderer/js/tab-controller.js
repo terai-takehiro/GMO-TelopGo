@@ -52,13 +52,26 @@
   });
 })();
 
+// ヘッダーの時計 (放送運用の基準時刻)
+(function () {
+  const el = document.getElementById('hdr-clock');
+  if (!el) return;
+  const pad = (n) => String(n).padStart(2, '0');
+  const tick = () => {
+    const d = new Date();
+    el.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  };
+  tick();
+  setInterval(tick, 250);
+})();
+
 /** ヘッダー右側の状態ピル (出力サーバ / 2台運用) */
 const HeaderStatus = {
   setOutput(running, port) {
     const el = document.getElementById('hdr-output');
     if (!el) return;
     el.classList.toggle('ok', !!running);
-    el.querySelector('.hdr-pill-text').textContent = running ? `出力 稼働中 :${port}` : '出力 停止';
+    el.querySelector('.hdr-pill-text').textContent = running ? `OUTPUT :${port}` : 'OUTPUT 停止';
   },
   setRemote(role, connected, count) {
     const el = document.getElementById('hdr-remote');
@@ -67,8 +80,8 @@ const HeaderStatus = {
     el.classList.toggle('ok', !!connected);
     el.classList.toggle('warn', !connected);
     const label = role === 'host'
-      ? `2台運用 ホスト${connected ? ` (${count}台)` : ' (待機)'}`
-      : `2台運用 クライアント${connected ? '' : ' (再接続中)'}`;
+      ? `LINK HOST${connected ? ` · ${count}` : ' (待機)'}`
+      : `LINK CLIENT${connected ? '' : ' (再接続中)'}`;
     el.querySelector('.hdr-pill-text').textContent = label;
   },
 };

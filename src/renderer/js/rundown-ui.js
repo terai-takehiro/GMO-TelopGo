@@ -99,6 +99,10 @@ const RundownUI = {
     // ページ操作
     document.getElementById('od-add-page').addEventListener('click', () => this.addPageForChannel(this.activeChannelId));
     document.getElementById('od-import-excel').addEventListener('click', () => this.openPageDialog('excel'));
+    document.getElementById('od-export-excel-template').addEventListener('click', () => this.openPageDialog('template', this.activeChannelId));
+    document.getElementById('od-page-dialog-template').addEventListener('click', () => {
+      this.exportExcelTemplate(document.getElementById('od-page-template').value);
+    });
     document.getElementById('od-import-pool').addEventListener('click', () => this.importNamePool());
     document.getElementById('od-page-dialog-cancel').addEventListener('click', () => document.getElementById('od-page-dialog').close());
     document.getElementById('od-page-dialog-ok').addEventListener('click', () => this.submitPageDialog());
@@ -611,6 +615,8 @@ const RundownUI = {
     // 電テロモードでは Excel取込 (変数代入) は無関係なので隠す
     const excelBtn = document.getElementById('od-import-excel');
     if (excelBtn) excelBtn.classList.toggle('hidden', telopMode);
+    const excelTplBtn = document.getElementById('od-export-excel-template');
+    if (excelTplBtn) excelTplBtn.classList.toggle('hidden', telopMode);
 
     App.channels.forEach((ch) => {
       const col = document.createElement('div');
@@ -1159,12 +1165,16 @@ const RundownUI = {
       const firstForCh = Object.keys(App.templates).find((k) => App.templates[k].region === preferChannelId);
       if (firstForCh) sel.value = firstForCh;
     }
-    document.getElementById('od-page-dialog-title').textContent =
-      mode === 'excel' ? 'Excel取込 — テンプレートを選択' : 'ページ追加 — テンプレートを選択';
-    document.getElementById('od-page-dialog-hint').textContent =
-      mode === 'excel'
-        ? '選んだテンプレートの列順 (フィールド順) でExcelを読み込みます。「テンプレDL」で列見本を出力できます'
-        : '追加するページのテンプレートを選んでください';
+    document.getElementById('od-page-dialog-title').textContent = {
+      excel: 'Excel取込 — テンプレートを選択',
+      template: 'Excelテンプレ書き出し — テンプレートを選択',
+    }[mode] || 'ページ追加 — テンプレートを選択';
+    document.getElementById('od-page-dialog-hint').textContent = {
+      excel: '選んだテンプレートの列順 (フィールド順) でExcelを読み込みます (1行目は見出しとして読み飛ばし、2行目以降の1行=1ページ)。列の見本は「Excelテンプレを書き出し…」で出力できます',
+      template: '選んだテンプレートの入力用Excelを書き出します。1行目=見出し (レイヤー名と項目名)、2行目=見本。2行目以降に入力して「Excel取込」で読み込めます',
+    }[mode] || '追加するページのテンプレートを選んでください';
+    document.getElementById('od-page-dialog-template').classList.toggle('hidden', mode !== 'excel');
+    document.getElementById('od-page-dialog-ok').textContent = mode === 'template' ? '書き出し…' : mode === 'excel' ? '読み込む…' : 'OK';
     document.getElementById('od-page-dialog').showModal();
   },
 
@@ -1173,6 +1183,11 @@ const RundownUI = {
     document.getElementById('od-page-dialog').close();
     const corner = this.currentCorner();
     if (!corner || !templateKey) return;
+
+    if (this._pageDialogMode === 'template') {
+      await this.exportExcelTemplate(templateKey);
+      return;
+    }
 
     if (this._pageDialogMode === 'excel') {
       const result = await window.api.excelImportPages(templateKey);
@@ -1201,6 +1216,15 @@ const RundownUI = {
     this.selectedPageId = page.id;
     this.renderEditor();
     this.applyRowStates();
+  },
+
+  /** 入力用Excelテンプレ (列見出し+見本行) を書き出す */
+  async exportExcelTemplate(templateKey) {
+    if (!templateKey || !window.api.downloadTemplate) return;
+    const result = await window.api.downloadTemplate(templateKey);
+    if (!result) return;
+    if (result.success) App.setStatus(`Excelテンプレを書き出しました: ${result.filePath}`, 'success');
+    else if (result.error) App.setStatus(`Excelテンプレの書き出しエラー: ${result.error}`, 'error');
   },
 
   // ===== 電テロ (静的) ページの追加 =====
