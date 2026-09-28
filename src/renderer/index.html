@@ -191,6 +191,66 @@
     <datalist id="od-namepool"></datalist>
   </div>
 
+  <!-- テンプレート追加ダイアログ -->
+  <dialog id="de-tpl-dialog" class="de-dialog">
+    <h3>テンプレートを追加</h3>
+    <div class="settings-row">
+      <label for="de-tpl-name">名前</label>
+      <input type="text" id="de-tpl-name" class="input" maxlength="30" placeholder="例: スコア表示">
+    </div>
+    <div class="settings-row">
+      <label for="de-tpl-channel">チャンネル</label>
+      <select id="de-tpl-channel" class="input input--small"></select>
+    </div>
+    <div class="settings-row">
+      <label for="de-tpl-base">作成元</label>
+      <select id="de-tpl-base" class="input input--small">
+        <option value="copy">現在のテンプレートをコピー</option>
+        <option value="blank">空のテンプレート</option>
+      </select>
+    </div>
+    <div class="de-dialog-actions">
+      <button class="btn btn--small" id="de-tpl-cancel">キャンセル</button>
+      <button class="btn btn--small btn--primary" id="de-tpl-ok">OK</button>
+    </div>
+  </dialog>
+
+  <!-- ページ追加 / Excel取込 ダイアログ -->
+  <dialog id="od-page-dialog" class="de-dialog">
+    <h3 id="od-page-dialog-title">ページ追加</h3>
+    <p class="de-props-hint" id="od-page-dialog-hint"></p>
+    <div class="settings-row">
+      <label for="od-page-template">テンプレート</label>
+      <select id="od-page-template" class="input"></select>
+    </div>
+    <div class="de-dialog-actions">
+      <button class="btn btn--small" id="od-page-dialog-cancel">キャンセル</button>
+      <button class="btn btn--small btn--primary" id="od-page-dialog-ok">OK</button>
+    </div>
+  </dialog>
+
+  <!-- 電テロ追加ダイアログ (静的送出: デザイン or 静止画ファイル) -->
+  <dialog id="od-telop-dialog" class="de-dialog">
+    <h3>電テロを追加 (静的)</h3>
+    <p class="de-props-hint">アプリ内で作画したデザインを1枚絵として追加するか、別ソフトで作った静止画ファイルを取り込みます。列へ画像ファイルを直接ドラッグ&amp;ドロップしても追加できます。</p>
+    <div class="settings-row">
+      <label for="od-telop-source">追加元</label>
+      <select id="od-telop-source" class="input input--small">
+        <option value="design">デザインから (アプリ内で作画)</option>
+        <option value="still">静止画ファイル (別ソフト)</option>
+      </select>
+    </div>
+    <div class="settings-row" id="od-telop-design-row">
+      <label for="od-telop-design">デザイン</label>
+      <select id="od-telop-design" class="input"></select>
+    </div>
+    <div class="de-dialog-actions">
+      <button class="btn btn--small" id="od-telop-cancel">キャンセル</button>
+      <button class="btn btn--small btn--primary" id="od-telop-ok">OK</button>
+    </div>
+  </dialog>
+
+
   <!-- ===== デザイン タブ ===== -->
   <div class="tab-content" id="tab-design">
     <div class="de-layout">
