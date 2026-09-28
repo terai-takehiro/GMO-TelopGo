@@ -2987,3 +2987,39 @@ body {
 .de-selection--multi .de-handle { display: none; }
 #tab-design .de-tl-row--group .de-tl-name { font-weight: 700; color: #e7cf8f; }
 #tab-design .de-tl-row--member .de-tl-name { padding-left: 14px; }
+
+/* 右クリックメニュー (デザイン / Photoshop風) */
+.de-ctx {
+  position: fixed;
+  z-index: 1000;
+  min-width: 240px;
+  padding: 4px 0;
+  background: #3c3c3c;
+  border: 1px solid #1a1a1a;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font);
+}
+.de-ctx-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px 5px 6px;
+  border: none;
+  background: transparent;
+  color: #e2e2e2;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.de-ctx-item:hover:not(:disabled) { background: #2f6fdc; color: #fff; }
+.de-ctx-item:disabled { color: #777; cursor: default; }
+.de-ctx-item--danger { color: #ff8f86; }
+.de-ctx-check { width: 14px; text-align: center; font-size: 11px; }
+.de-ctx-label { flex: 1; white-space: nowrap; }
+.de-ctx-kbd { color: #9a9a9a; font-size: 11px; margin-left: 24px; white-space: nowrap; }
+.de-ctx-item:hover .de-ctx-kbd { color: #dce7ff; }
+.de-ctx-sep { height: 1px; background: #2a2a2a; margin: 4px 0; }

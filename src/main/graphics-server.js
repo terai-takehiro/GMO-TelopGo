@@ -105,6 +105,7 @@ function handleRequest(req, res) {
   if (p === '/static/telop-renderer.js') { sendFile(res, path.join(staticDir, 'telop-renderer.js')); return; }
   if (p === '/static/telop-animator.js') { sendFile(res, path.join(staticDir, 'telop-animator.js')); return; }
   if (p === '/static/output.css') { sendFile(res, path.join(staticDir, 'output.css')); return; }
+  if (p === '/favicon.ico' || p === '/static/favicon.png') { sendFile(res, path.join(staticDir, 'favicon.png')); return; }
 
   // 素材 (画像/フォント) — パストラバーサル対策にbasenameのみ許可
   // CORSを許可し、エディタのPNG書き出し(Canvas)で画像を扱えるようにする
