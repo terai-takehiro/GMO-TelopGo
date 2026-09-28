@@ -156,6 +156,233 @@ const DesignEditor = {
 
     // キーボード
     document.addEventListener('keydown', (e) => this.onKeyDown(e));
+
+    this.initChrome();
+  },
+
+  // ===== Photoshop風の外枠 (メニュー / ツール / パネルタブ / ドキュメントタブ / スタイル) =====
+
+  /** プロパティパネルのタブ ('props' | 'text' | 'anim') */
+  propsTab: 'props',
+
+  initChrome() {
+    const root = document.getElementById('tab-design');
+
+    // メニューバー: クリックで開閉、開いている間はホバーで隣のメニューへ移る
+    const menus = () => root.querySelectorAll('.de-menu');
+    const closeMenus = () => {
+      menus().forEach((m) => m.classList.add('hidden'));
+      root.querySelectorAll('.de-menu-btn').forEach((b) => b.classList.remove('open'));
+    };
+    const openMenu = (btn) => {
+      closeMenus();
+      const menu = document.getElementById(btn.dataset.demenu);
+      if (!menu) return;
+      menu.classList.remove('hidden');
+      btn.classList.add('open');
+    };
+    root.querySelectorAll('.de-menu-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (btn.classList.contains('open')) closeMenus(); else openMenu(btn);
+      });
+      btn.addEventListener('mouseenter', () => {
+        if (root.querySelector('.de-menu-btn.open') && !btn.classList.contains('open')) openMenu(btn);
+      });
+    });
+    root.querySelectorAll('.de-menu').forEach((m) => m.addEventListener('click', (e) => {
+      if (e.target.closest('.de-menu-item')) closeMenus();
+    }));
+    document.addEventListener('click', (e) => { if (!e.target.closest('.de-menu-wrap')) closeMenus(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenus(); });
+
+    // メニュー項目等から本体ボタンへの委譲 (data-click="<id>")
+    root.querySelectorAll('[data-click]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const target = document.getElementById(el.dataset.click);
+        if (target) target.click();
+      });
+    });
+
+    // ツール: 図形の種類つき追加
+    root.querySelectorAll('.de-tool[data-shape]').forEach((btn) => {
+      btn.addEventListener('click', () => this.addShapeLayer(btn.dataset.shape));
+    });
+
+    // プロパティパネルのタブ
+    root.querySelectorAll('#de-props-tabs .de-ptab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        this.propsTab = tab.dataset.ptab;
+        this.showPropsTab();
+      });
+    });
+
+    // テンプレート / スタイル パネルのタブ
+    root.querySelectorAll('#de-lib-tabs .de-ptab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        root.querySelectorAll('#de-lib-tabs .de-ptab').forEach((t) => t.classList.toggle('active', t === tab));
+        document.getElementById('de-lib-tpl').classList.toggle('hidden', tab.dataset.libtab !== 'tpl');
+        document.getElementById('de-lib-style').classList.toggle('hidden', tab.dataset.libtab !== 'style');
+      });
+    });
+
+    document.getElementById('de-style-add').addEventListener('click', () => this.registerStylePreset());
+  },
+
+  /** 図形ツール: 矩形を追加して形状を設定 */
+  addShapeLayer(shape) {
+    this.addLayer('rect');
+    const layer = this.selected();
+    if (!layer) return;
+    layer.shape = shape;
+    layer.name = { ellipse: '楕円', polygon: '多角形', star: '星形' }[shape] || layer.name;
+    if (shape === 'ellipse' || shape === 'star' || shape === 'polygon') { layer.w = 300; layer.h = 300; layer.x = 810; layer.y = 390; }
+    this.renderAll();
+  },
+
+  /** テンプレートを切り替える (ドキュメントタブ / テンプレート一覧から) */
+  selectTemplate(key) {
+    if (!this.project.templates[key] || key === this.templateKey) return;
+    this.templateKey = key;
+    this.selectedId = null;
+    document.getElementById('de-template').value = key;
+    this.renderAll();
+  },
+
+  /** ドキュメントタブ + テンプレート一覧パネル */
+  renderTemplateChrome() {
+    const keys = Object.keys(this.project.templates);
+    const zoomLabel = this.zoom ? `${Math.round(this.zoom * 100)}%` : '';
+    const tabs = document.getElementById('de-doc-tabs');
+    tabs.innerHTML = '';
+    keys.forEach((key) => {
+      const tab = document.createElement('button');
+      tab.className = `de-doc-tab${key === this.templateKey ? ' active' : ''}`;
+      tab.textContent = key === this.templateKey
+        ? `${this.templateLabel(key)} @ ${zoomLabel} (${this.lang.toUpperCase()})${this.dirty ? ' *' : ''}`
+        : this.templateLabel(key);
+      tab.title = this.templateLabel(key);
+      tab.addEventListener('click', () => this.selectTemplate(key));
+      tabs.appendChild(tab);
+    });
+
+    const list = document.getElementById('de-tpl-list');
+    list.innerHTML = '';
+    keys.forEach((key) => {
+      const tpl = this.project.templates[key];
+      const ch = (App.channels || []).find((c) => c.region === tpl.region || c.id === tpl.region);
+      const variant = (tpl.variants && (tpl.variants[this.lang] || tpl.variants.jp)) || { layers: [] };
+      const row = document.createElement('button');
+      row.className = `de-tpl-row${key === this.templateKey ? ' active' : ''}`;
+      const name = document.createElement('span');
+      name.className = 'de-tpl-name';
+      name.textContent = this.templateLabel(key);
+      const meta = document.createElement('span');
+      meta.className = 'de-tpl-meta';
+      meta.textContent = `${ch ? ch.label : tpl.region} · ${(variant.layers || []).length}レイヤー`;
+      row.append(name, meta);
+      row.addEventListener('click', () => this.selectTemplate(key));
+      list.appendChild(row);
+    });
+
+    // ステータスバー
+    const info = document.getElementById('de-sb-info');
+    if (info) {
+      const tpl = this.project.templates[this.templateKey];
+      const anim = (this.variant().animation || {});
+      const fmt = (a) => (a ? `${this.ANIM_PRESET_LABELS[a.preset] || a.preset} ${a.duration || 0}ms` : '-');
+      info.textContent = `${tpl ? tpl.region.toUpperCase() : ''}  ·  IN ${fmt(anim.in)} / OUT ${fmt(anim.out)}`;
+    }
+  },
+
+  ANIM_PRESET_LABELS: {
+    none: 'なし', fade: 'フェード', slide: 'スライド', wipe: 'ワイプ', zoom: 'ズーム', flip: 'フリップ', typewriter: '文字送り',
+  },
+
+  /** スタイルパネル: 登録済み装飾を見本付きで一覧 (クリックで選択中の文字レイヤーへ適用) */
+  renderStylePanel() {
+    const grid = document.getElementById('de-style-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const layer = this.selected();
+    const canApply = !!(layer && layer.type === 'text');
+    document.getElementById('de-style-hint').textContent = canApply
+      ? 'クリックで適用 / 右クリックで削除' : '文字レイヤーを選択すると適用できます';
+    document.getElementById('de-style-add').disabled = !canApply;
+    if (!this.stylePresets.length) {
+      const empty = document.createElement('div');
+      empty.className = 'de-panel-empty';
+      empty.textContent = 'スタイルは未登録です。文字レイヤーを選んで「＋ 登録」';
+      grid.appendChild(empty);
+      return;
+    }
+    this.stylePresets.forEach((preset) => {
+      const cell = document.createElement('button');
+      cell.className = 'de-style-cell';
+      cell.title = preset.name;
+      cell.disabled = !canApply;
+      const sw = document.createElement('span');
+      sw.className = 'de-style-swatch';
+      const st = preset.style || {};
+      const sample = document.createElement('span');
+      sample.textContent = 'あA';
+      const fill = st.fill;
+      if (fill && fill.type === 'gradient') {
+        sample.style.backgroundImage = `linear-gradient(${fill.angle !== undefined ? fill.angle : 180}deg, ${fill.from}, ${fill.to})`;
+        sample.style.webkitBackgroundClip = 'text';
+        sample.style.color = 'transparent';
+      } else {
+        sample.style.color = (fill && fill.color) || (st.font && st.font.color) || '#ffffff';
+      }
+      if (st.font && st.font.family) sample.style.fontFamily = st.font.family;
+      // 縁取りは外側・ラウンド (出力と同じ多方向シャドウ方式)
+      const shadows = TelopRenderer.edgeOffsets((st.strokes || []).map((k) => ({ width: Math.min(k.width, 4), color: k.color })))
+        .map((o) => `${o.x}px ${o.y}px 0 ${o.color}`);
+      if (st.shadow) shadows.push(`${st.shadow.x || 0}px ${st.shadow.y || 0}px ${Math.min(st.shadow.blur || 0, 8)}px ${st.shadow.color || 'rgba(0,0,0,0.5)'}`);
+      if (shadows.length) sample.style.textShadow = shadows.join(', ');
+      if (st.board && st.board.color) sw.style.background = st.board.color;
+      sw.appendChild(sample);
+      const name = document.createElement('span');
+      name.className = 'de-style-name';
+      name.textContent = preset.name;
+      cell.append(sw, name);
+      cell.addEventListener('click', () => {
+        const target = this.selected();
+        if (!target || target.type !== 'text') return;
+        this.beginChange();
+        this.applyStyle(target, preset.style);
+        this.renderArtboard();
+        this.renderProps();
+        App.setStatus(`スタイル「${preset.name}」を適用しました`, 'success');
+      });
+      cell.addEventListener('contextmenu', async (e) => {
+        e.preventDefault();
+        if (!window.api.graphicsStylePresetDelete) return;
+        if (!confirm(`スタイル「${preset.name}」を削除しますか?`)) return;
+        await window.api.graphicsStylePresetDelete(preset.id);
+        await this.refreshStylePresets();
+        this.renderStylePanel();
+      });
+      grid.appendChild(cell);
+    });
+  },
+
+  async registerStylePreset() {
+    const layer = this.selected();
+    if (!layer || layer.type !== 'text' || !window.api.graphicsStylePresetAdd) return;
+    const name = await AppModal.prompt('スタイル名を入力してください', { value: '' });
+    if (!name) return;
+    await window.api.graphicsStylePresetAdd(name, this.captureStyle(layer));
+    await this.refreshStylePresets();
+    this.renderStylePanel();
+    App.setStatus(`スタイル「${name}」を登録しました`, 'success');
+  },
+
+  /** プロパティパネルのタブ表示を反映 */
+  showPropsTab(override) {
+    const tab = override || this.propsTab;
+    document.querySelectorAll('#de-props-tabs .de-ptab').forEach((t) => t.classList.toggle('active', t.dataset.ptab === tab));
+    document.querySelectorAll('#de-props .de-pane').forEach((p) => p.classList.toggle('hidden', p.dataset.pane !== tab));
   },
 
   systemFonts: [],
@@ -1361,6 +1588,8 @@ const DesignEditor = {
     this.renderProps();
     this.renderSelection();
     this.updateStatus();
+    this.renderTemplateChrome();
+    this.renderStylePanel();
     this.updateServerBanner(typeof GraphicsUI !== 'undefined' ? GraphicsUI.status : null);
   },
 
@@ -1795,16 +2024,44 @@ const DesignEditor = {
   // ===== プロパティパネル =====
 
   renderProps() {
-    const panel = document.getElementById('de-props');
+    const root = document.getElementById('de-props');
     const layer = this.selected();
-    panel.innerHTML = '';
+    root.innerHTML = '';
+    // タブごとのペイン (プロパティ / 文字 / アニメーション)
+    const panes = {};
+    ['props', 'text', 'anim'].forEach((key) => {
+      const pane = document.createElement('div');
+      pane.className = 'de-pane';
+      pane.dataset.pane = key;
+      root.appendChild(pane);
+      panes[key] = pane;
+    });
+    const emptyMsg = (pane, msg) => {
+      const el = document.createElement('div');
+      el.className = 'de-props-empty';
+      el.textContent = msg;
+      pane.appendChild(el);
+    };
+    const textTab = document.querySelector('#de-props-tabs [data-ptab="text"]');
+    if (textTab) textTab.classList.toggle('dim', !(layer && layer.type === 'text'));
+
     if (!layer) {
       // レイヤー未選択時はテンプレートのアニメーション設定を表示
-      this.renderAnimationProps(panel);
+      emptyMsg(panes.props, 'レイヤーを選択してください');
+      emptyMsg(panes.text, '文字レイヤーを選択すると、フォント・塗り・縁取りなどを編集できます');
+      this.renderAnimationProps(panes.anim);
+      this.showPropsTab('anim'); // 未選択時はテンプレートのアニメーション設定を表示 (ユーザーのタブ選択は保持)
       return;
     }
+    if (layer.type !== 'text') emptyMsg(panes.text, '文字レイヤーを選択すると、フォント・塗り・縁取りなどを編集できます');
 
+    // セクションの振り分け先 (文字の装飾系は「文字」タブ、アニメーションは「アニメーション」タブ)
+    const TEXT_SECTIONS = ['フォント', '塗り', '縁取り (外側・内→外の順)', '影 (ドロップシャドウ)', '座布団 (文字の背景)', '装飾スタイル'];
+    let panel = panes.props;
     const section = (title) => {
+      if (title === 'アニメーション') panel = panes.anim;
+      else if (layer.type === 'text' && TEXT_SECTIONS.includes(title)) panel = panes.text;
+      else panel = panes.props;
       const h = document.createElement('div');
       h.className = 'de-props-section';
       h.textContent = title;
@@ -2104,60 +2361,10 @@ const DesignEditor = {
       });
       row('', copyBtn, pasteBtn);
 
-      // スタイルパレット: 名前を付けて保存し、どのデザインセットでも使い回せる
-      const presetSel = document.createElement('select');
-      presetSel.className = 'input input--small de-style-preset-select';
-      const noneOpt = document.createElement('option');
-      noneOpt.value = '';
-      noneOpt.textContent = this.stylePresets.length ? '(スタイルを選択)' : '(登録なし)';
-      presetSel.appendChild(noneOpt);
-      this.stylePresets.forEach((p) => {
-        const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = p.name;
-        presetSel.appendChild(opt);
-      });
-      const applyPresetBtn = document.createElement('button');
-      applyPresetBtn.className = 'btn btn--small';
-      applyPresetBtn.textContent = '適用';
-      applyPresetBtn.title = '選択したスタイルをこのレイヤーへ適用';
-      applyPresetBtn.addEventListener('click', () => {
-        const preset = this.stylePresets.find((p) => p.id === presetSel.value);
-        if (!preset) return;
-        this.beginChange();
-        this.applyStyle(layer, preset.style);
-        this.renderArtboard();
-        this.renderProps();
-        App.setStatus(`スタイル「${preset.name}」を適用しました`, 'success');
-      });
-      row('スタイル集', presetSel, applyPresetBtn);
-
-      const regBtn = document.createElement('button');
-      regBtn.className = 'btn btn--small';
-      regBtn.textContent = 'このレイヤーの装飾を登録...';
-      regBtn.title = '現在の装飾をスタイル集に登録 (全デザインセット共通で使えます)';
-      regBtn.addEventListener('click', async () => {
-        if (!window.api.graphicsStylePresetAdd) return;
-        const name = prompt('スタイル名を入力してください (例: 金グラデ二重縁)');
-        if (!name) return;
-        await window.api.graphicsStylePresetAdd(name, this.captureStyle(layer));
-        await this.refreshStylePresets();
-        this.renderProps();
-        App.setStatus(`スタイル「${name}」を登録しました`, 'success');
-      });
-      const delPresetBtn = document.createElement('button');
-      delPresetBtn.className = 'btn btn--small';
-      delPresetBtn.textContent = '削除';
-      delPresetBtn.title = '選択中のスタイルをスタイル集から削除';
-      delPresetBtn.addEventListener('click', async () => {
-        const preset = this.stylePresets.find((p) => p.id === presetSel.value);
-        if (!preset || !window.api.graphicsStylePresetDelete) return;
-        if (!confirm(`スタイル「${preset.name}」を削除しますか?`)) return;
-        await window.api.graphicsStylePresetDelete(preset.id);
-        await this.refreshStylePresets();
-        this.renderProps();
-      });
-      row('', regBtn, delPresetBtn);
+      const styleHint = document.createElement('div');
+      styleHint.className = 'de-props-hint';
+      styleHint.textContent = '登録済みの装飾は右の「スタイル」パネルから適用・登録できます';
+      panel.appendChild(styleHint);
     }
 
     // --- 矩形 ---
@@ -2259,6 +2466,7 @@ const DesignEditor = {
       hint.textContent = '「開始」はTAKEからの時間です。全レイヤーのタイミングは、選択を解除するとタイムラインで確認できます。';
       panel.appendChild(hint);
     }
+    this.showPropsTab();
   },
 
   /**
@@ -2305,8 +2513,28 @@ const DesignEditor = {
       return bind(sel, (i) => { i.value = getter(); }, (i) => setter(i.value), rerender);
     };
 
-    // プリセット (変更時はパネルを再描画して関連パラメータを出し分け)
-    row('プリセット', select(this.ANIM_PRESETS, () => anim.preset || 'fade', (v) => { anim.preset = v; }, true));
+    // プリセット: 単語ボタンのグリッド (変更時はパネルを再描画して関連パラメータを出し分け)
+    const presetGrid = document.createElement('div');
+    presetGrid.className = 'de-preset-grid';
+    const current = anim.preset || 'fade';
+    this.ANIM_PRESETS.forEach(([value, label]) => {
+      const btn = document.createElement('button');
+      btn.className = `de-preset-btn${value === current ? ' active' : ''}`;
+      btn.textContent = label.replace(/ \(.*\)$/, '');
+      btn.title = label;
+      btn.addEventListener('click', () => {
+        if (anim.preset === value) return;
+        this.beginChange();
+        anim.preset = value;
+        this.renderProps();
+        this.renderTemplateChrome();
+      });
+      presetGrid.appendChild(btn);
+    });
+    const presetHead = document.createElement('div');
+    presetHead.className = 'de-prop-label';
+    presetHead.textContent = 'プリセット';
+    panel.append(presetHead, presetGrid);
 
     // 開始タイミング (レイヤー個別設定ではカット=「指定時刻に出現」なので常に表示)
     if (opts.includeDelay) {
