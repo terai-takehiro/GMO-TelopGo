@@ -986,6 +986,8 @@ body {
 }
 /* JS側のインライン色 (緑) は暗背景でも読める明るめの緑へ */
 .status-bar [style*="--green"] { color: #5fd48e !important; }
+.status-bar [style*="--red"] { color: #ff8a80 !important; }
+.status-bar [style*="--text-muted"] { color: #c9ced6 !important; }
 .status-item { white-space: nowrap; }
 
 /* === Utility === */
