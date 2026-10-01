@@ -926,6 +926,31 @@ const RundownUI = {
     return this.templateLabel(page.templateKey);
   },
 
+  /**
+   * 氏名テロップ系テンプレート(name-*)が持つ人物枠一覧を返す (このテンプレートに実在するbindingのみ)。
+   * 名前テロップ以外のテンプレートでは空配列。
+   */
+  namePersonsFor(templateKey) {
+    if (!templateKey || !templateKey.startsWith('name-')) return [];
+    const tplInfo = App.templates[templateKey];
+    if (!tplInfo) return [];
+    const bindings = new Set(tplInfo.bindings);
+    const persons = [];
+    ['', '2nd', '3rd', '4th'].forEach((prefix) => {
+      const nameJp = prefix ? `${prefix}NameJp` : 'nameJp';
+      if (!bindings.has(nameJp)) return;
+      const titleJp = prefix ? `${prefix}TitleJp` : 'titleJp';
+      persons.push({
+        nameJp,
+        nameEn: prefix ? `${prefix}NameEn` : 'nameEn',
+        titleJp,
+        titleEn: prefix ? `${prefix}TitleEn` : 'titleEn',
+        hasTitle: bindings.has(titleJp),
+      });
+    });
+    return persons;
+  },
+
   renderEditor() {
     const panel = document.getElementById('od-editor');
     panel.innerHTML = '';
@@ -936,6 +961,13 @@ const RundownUI = {
     }
     const { page, corner } = found;
     const tplInfo = App.templates[page.templateKey] || { bindings: [] };
+    // 名前プールから選択中の人物 (pi番目。該当なしはnull=手入力)
+    const namePool = (App.rundown && App.rundown.namePool) || [];
+    const personsInfo = this.namePersonsFor(page.templateKey);
+    const poolSelEntries = personsInfo.map((_person, pi) => {
+      const selected = page.namePoolSel && page.namePoolSel[pi];
+      return (selected && namePool.find((p) => p.nameJp === selected)) || null;
+    });
 
     const head = document.createElement('div');
     head.className = 'od-editor-head';
@@ -1004,6 +1036,57 @@ const RundownUI = {
       }
     }
 
+    // 名前プールから選択 (氏名テロップ系テンプレートで、名前プール読込済みの場合のみ表示)
+    if (personsInfo.length && namePool.length) {
+      const hint = document.createElement('div');
+      hint.className = 'od-namepool-hint';
+      hint.textContent = `名前プールから選択 (${namePool.length}名読込済み) — 選ぶと肩書・名前(日英)が自動入力されます。下の欄へ直接入力したい場合は「手入力」を選んでください`;
+      panel.appendChild(hint);
+
+      personsInfo.forEach((person, pi) => {
+        const sel = document.createElement('select');
+        sel.className = 'input input--small';
+        const manualOpt = document.createElement('option');
+        manualOpt.value = 'manual';
+        manualOpt.textContent = '— 手入力 —';
+        sel.appendChild(manualOpt);
+        namePool.forEach((p) => {
+          const opt = document.createElement('option');
+          opt.value = p.nameJp;
+          opt.textContent = p.titleJp ? `${p.nameJp}（${p.titleJp}）` : p.nameJp;
+          sel.appendChild(opt);
+        });
+        sel.value = poolSelEntries[pi] ? poolSelEntries[pi].nameJp : 'manual';
+        sel.addEventListener('change', () => {
+          this.mutate(() => {
+            page.namePoolSel = page.namePoolSel || [];
+            if (sel.value === 'manual') {
+              page.namePoolSel[pi] = null;
+            } else {
+              const entry = namePool.find((p) => p.nameJp === sel.value) || {};
+              page.namePoolSel[pi] = sel.value;
+              page.values = page.values || {};
+              if (person.hasTitle) page.values[person.titleJp] = entry.titleJp || '';
+              page.values[person.nameJp] = entry.nameJp || '';
+              if (person.hasTitle) page.values[person.titleEn] = entry.titleEn || '';
+              page.values[person.nameEn] = entry.nameEn || '';
+            }
+            this._thumbCache.delete(this.thumbKey(page));
+          });
+        });
+        row(`${pi + 1}人目 名前選択`, sel);
+      });
+    }
+
+    // プールから選択中の人物が占有しているbinding (編集不可にする)
+    const lockedBindings = new Set();
+    personsInfo.forEach((person, pi) => {
+      if (!poolSelEntries[pi]) return;
+      lockedBindings.add(person.nameJp);
+      lockedBindings.add(person.nameEn);
+      if (person.hasTitle) { lockedBindings.add(person.titleJp); lockedBindings.add(person.titleEn); }
+    });
+
     // フィールド (テンプレートのbinding)
     tplInfo.bindings.forEach((binding) => {
       // 改行が必要なフィールドはtextarea、名前系は名前プール補完付きinput
@@ -1013,13 +1096,19 @@ const RundownUI = {
       if (multiline) input.rows = 2;
       else if (/nameJp$/i.test(binding)) input.setAttribute('list', 'od-namepool');
       input.value = (page.values && page.values[binding]) || '';
-      input.addEventListener('change', () => {
-        page.values = page.values || {};
-        page.values[binding] = input.value;
-        this._thumbCache.delete(this.thumbKey(page));
-        App.saveRundown();
-        this.renderColumns();
-      });
+      if (lockedBindings.has(binding)) {
+        input.readOnly = true;
+        input.classList.add('od-field-locked');
+        input.title = '名前プールから選択中のため編集できません (上のプルダウンで「手入力」を選ぶと編集できます)';
+      } else {
+        input.addEventListener('change', () => {
+          page.values = page.values || {};
+          page.values[binding] = input.value;
+          this._thumbCache.delete(this.thumbKey(page));
+          App.saveRundown();
+          this.renderColumns();
+        });
+      }
       row(binding, input);
     });
 
