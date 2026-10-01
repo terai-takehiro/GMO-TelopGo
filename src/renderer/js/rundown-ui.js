@@ -104,6 +104,9 @@ const RundownUI = {
       this.exportExcelTemplate(document.getElementById('od-page-template').value);
     });
     document.getElementById('od-import-pool').addEventListener('click', () => this.importNamePool());
+    document.getElementById('od-export-pool-template').addEventListener('click', () => this.exportPoolTemplate());
+    document.getElementById('od-import-name-batch').addEventListener('click', () => this.importNameBatch());
+    document.getElementById('od-export-name-batch-template').addEventListener('click', () => this.exportNameBatchTemplate());
     document.getElementById('od-page-dialog-cancel').addEventListener('click', () => document.getElementById('od-page-dialog').close());
     document.getElementById('od-page-dialog-ok').addEventListener('click', () => this.submitPageDialog());
 
@@ -1660,6 +1663,61 @@ const RundownUI = {
     // オンエアが変わったらオートフォロー履歴を掃除
     const onAirIds = new Set(Object.values(App.broadcast).map((st) => st.onAirPageId).filter(Boolean));
     [...this._autoFired].forEach((id) => { if (!onAirIds.has(id)) this._autoFired.delete(id); });
+  },
+
+  /**
+   * 氏名テロップをExcelから一括取込む。
+   * 1行目は見出しとして読み飛ばし、2行目以降の1行=1ページ。
+   * 1列目「テンプレ」の値 (1S/2S/3S/4S/nameOnly等) で、その行が使う名前テンプレート
+   * (name-1S 等) を自動判定し、続く1st〜4th分の肩書/名前(日英)列から該当する人数分だけを読み取る。
+   */
+  async importNameBatch() {
+    const result = await window.api.excelImportNamePages();
+    if (!result) return;
+    if (!result.success) {
+      App.setStatus(`氏名テロップ一括取込エラー: ${result.error}`, 'error');
+      return;
+    }
+    const corner = this.currentCorner();
+    if (!corner) return;
+
+    const skipped = result.skipped || [];
+    const skippedMsg = skipped.length
+      ? ` (${skipped.length}行スキップ: ${skipped.map((s) => `${s.row}行目「${s.shotType}」`).join(', ')})`
+      : '';
+
+    if (result.pages.length === 0) {
+      App.setStatus(`氏名テロップ一括取込: 有効な行がありませんでした${skippedMsg}`, 'error');
+      return;
+    }
+
+    this.mutate(() => {
+      result.pages.forEach(({ templateKey, values }) => {
+        corner.pages.push({
+          id: this.uid('pg'), pageNo: this.nextPageNo(corner), templateKey,
+          values, note: '', duration: 0, locked: false,
+        });
+      });
+    });
+    App.setStatus(`Excelから${result.pages.length}ページを取り込みました${skippedMsg}`, skipped.length ? 'error' : 'success');
+  },
+
+  /** 氏名テロップ一括取込用の入力Excel (テンプレ列+1st〜4th分の列) を1ファイルで書き出す */
+  async exportNameBatchTemplate() {
+    if (!window.api.downloadNameBatchTemplate) return;
+    const result = await window.api.downloadNameBatchTemplate();
+    if (!result) return;
+    if (result.success) App.setStatus(`氏名テロップ一括用Excelテンプレを書き出しました: ${result.filePath}`, 'success');
+    else if (result.error) App.setStatus(`Excelテンプレの書き出しエラー: ${result.error}`, 'error');
+  },
+
+  /** 名前プール取込用の入力Excel (肩書/名前 日英4列) を書き出す */
+  async exportPoolTemplate() {
+    if (!window.api.downloadTemplate) return;
+    const result = await window.api.downloadTemplate('name');
+    if (!result) return;
+    if (result.success) App.setStatus(`名前プール用Excelテンプレを書き出しました: ${result.filePath}`, 'success');
+    else if (result.error) App.setStatus(`Excelテンプレの書き出しエラー: ${result.error}`, 'error');
   },
 
   /** 名前プールをExcelから読込 (肩書JP/名前JP/肩書EN/名前EN の4列) */

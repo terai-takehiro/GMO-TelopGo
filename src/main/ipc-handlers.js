@@ -50,6 +50,64 @@ function templateFields(templateKey) {
   return fields;
 }
 
+/** 氏名テロップ系テンプレート (name-*) の人数ごとの項目 (binding 名の接頭辞) */
+const NAME_BATCH_PREFIXES = ['', '2nd', '3rd', '4th'];
+const NAME_BATCH_LABELS = ['1st', '2nd', '3rd', '4th'];
+
+/** binding名 (例: 'titleJp' / '2ndNameEn') を人数インデックス pi・接頭辞から組み立てる */
+function nameBinding(prefix, field, lang) {
+  // field: 'Title' | 'Name'。接頭辞なし(1人目)は先頭を小文字化 (titleJp / nameJp)
+  return prefix ? `${prefix}${field}${lang}` : `${field.charAt(0).toLowerCase()}${field.slice(1)}${lang}`;
+}
+
+/**
+ * 氏名テロップ系テンプレート (name-*) のショットタイプ一覧。
+ * 'nameOnly' を先頭に、以降は人数の昇順で並べる。
+ */
+function nameShotTypes() {
+  const project = graphicsStore.getProject();
+  const keys = Object.keys((project && project.templates) || {})
+    .filter((k) => k.startsWith('name-'))
+    .map((k) => k.slice('name-'.length));
+  return keys.sort((a, b) => {
+    const order = (t) => (t === 'nameOnly' ? -1 : parseInt(t, 10) || 999);
+    return order(a) - order(b);
+  });
+}
+
+/**
+ * 「テンプレ」列の値(行)から、氏名テロップ一括取込用のページ群を組み立てる。
+ * テンプレート自体に存在する binding にのみ値を詰め、存在しないテンプレ値の行はスキップする。
+ */
+function buildNameBatchPages(dataRows) {
+  const pages = [];
+  const skipped = [];
+  dataRows.forEach((row, i) => {
+    const shotType = String(row[0] || '').trim();
+    const templateKey = `name-${shotType}`;
+    const bindings = new Set(templateBindings(templateKey));
+    if (!shotType || bindings.size === 0) {
+      skipped.push({ row: i + 2, shotType, reason: `テンプレ「${shotType}」に対応するテンプレートが見つかりません` });
+      return;
+    }
+    const values = {};
+    NAME_BATCH_PREFIXES.forEach((prefix, pi) => {
+      const nameBindJp = nameBinding(prefix, 'Name', 'Jp');
+      if (!bindings.has(nameBindJp)) return; // このテンプレートにはこの人数分の枠がない
+      const base = 1 + pi * 4;
+      const titleBindJp = nameBinding(prefix, 'Title', 'Jp');
+      const titleBindEn = nameBinding(prefix, 'Title', 'En');
+      const nameBindEn = nameBinding(prefix, 'Name', 'En');
+      if (bindings.has(titleBindJp)) values[titleBindJp] = String(row[base] || '');
+      values[nameBindJp] = String(row[base + 1] || '');
+      if (bindings.has(titleBindEn)) values[titleBindEn] = String(row[base + 2] || '');
+      values[nameBindEn] = String(row[base + 3] || '');
+    });
+    pages.push({ templateKey, values });
+  });
+  return { pages, skipped };
+}
+
 /** テンプレートの出力リージョン(チャンネル)を解決 */
 function templateRegion(templateKey) {
   const project = graphicsStore.getProject();
@@ -326,6 +384,72 @@ function registerIpcHandlers() {
         return values;
       });
       return { success: true, pages, filePath: result.filePaths[0] };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // --- Excel取込 (氏名テロップ一括: 「テンプレ」列の値から行ごとに使用テンプレートを自動判定) ---
+  ipcMain.handle('excel-import-name-pages', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Excelファイルを選択 (氏名テロップ一括取込)',
+      filters: [{ name: 'Excel', extensions: ['xlsx', 'xls', 'csv'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    try {
+      const workbook = XLSX.readFile(result.filePaths[0]);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      const dataRows = rows.slice(1).filter((row) => row.some((cell) => String(cell).trim() !== ''));
+      const { pages, skipped } = buildNameBatchPages(dataRows);
+      return { success: true, pages, skipped, filePath: result.filePaths[0] };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // --- Excelテンプレ書き出し (氏名テロップ一括: テンプレ列 + 1st〜4th分の列を1ファイルにまとめる) ---
+  ipcMain.handle('download-name-batch-template', async () => {
+    const shotTypes = nameShotTypes();
+    if (shotTypes.length === 0) {
+      return { success: false, error: '氏名テロップ系のテンプレートが見つかりません。' };
+    }
+    const header = [`テンプレ [${shotTypes.join('/')}]`];
+    NAME_BATCH_LABELS.forEach((label) => {
+      header.push(`${label}肩書(JP)`, `${label}名前(JP)`, `${label}肩書(EN)`, `${label}名前(EN)`);
+    });
+    const wsData = [header];
+    shotTypes.forEach((shotType) => {
+      const templateKey = `name-${shotType}`;
+      const fieldSamples = {};
+      templateFields(templateKey).forEach((f) => { fieldSamples[f.binding] = f.sample; });
+      const row = [shotType];
+      NAME_BATCH_PREFIXES.forEach((prefix) => {
+        row.push(
+          fieldSamples[nameBinding(prefix, 'Title', 'Jp')] || '',
+          fieldSamples[nameBinding(prefix, 'Name', 'Jp')] || '',
+          fieldSamples[nameBinding(prefix, 'Title', 'En')] || '',
+          fieldSamples[nameBinding(prefix, 'Name', 'En')] || '',
+        );
+      });
+      wsData.push(row);
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = header.map(() => ({ wch: 20 }));
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+
+    const saveResult = await dialog.showSaveDialog({
+      title: 'テンプレートを保存',
+      defaultPath: 'name-telop-batch-template.xlsx',
+      filters: [{ name: 'Excel', extensions: ['xlsx'] }],
+    });
+    if (saveResult.canceled || !saveResult.filePath) return { success: false };
+    try {
+      XLSX.writeFile(wb, saveResult.filePath);
+      return { success: true, filePath: saveResult.filePath };
     } catch (err) {
       return { success: false, error: err.message };
     }
