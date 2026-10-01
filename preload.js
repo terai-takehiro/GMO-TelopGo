@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('api', {
   rundownSet: (data) => ipcRenderer.invoke('rundown-set', data),
   templateBindings: (templateKey) => ipcRenderer.invoke('template-bindings', templateKey),
   excelImportPages: (templateKey) => ipcRenderer.invoke('excel-import-pages', templateKey),
+  // 氏名テロップ一括 (「テンプレ」列の値から行ごとに使用テンプレートを自動判定)
+  excelImportNamePages: () => ipcRenderer.invoke('excel-import-name-pages'),
+  downloadNameBatchTemplate: () => ipcRenderer.invoke('download-name-batch-template'),
 
   // 出力サーバ管理
   graphicsServerStart: (port) => ipcRenderer.invoke('graphics-server-start', port),
