@@ -1,5 +1,22 @@
 const Store = require('electron-store');
 
+/** 氏名テロップの「1人目の肩書(JP)」等のスロット一覧 (内部キー。ユーザーには見えない) */
+const NAME_FIELD_SLOTS = [];
+['', '2nd', '3rd', '4th'].forEach((prefix) => {
+  ['Title', 'Name'].forEach((kind) => {
+    ['Jp', 'En'].forEach((lang) => {
+      NAME_FIELD_SLOTS.push(prefix ? `${prefix}${kind}${lang}` : `${kind.toLowerCase()}${lang}`);
+    });
+  });
+});
+
+/** 既定値はスロット名そのもの (titleJp, nameJp, 2ndTitleJp, ...) */
+function buildDefaultNameFields() {
+  const out = {};
+  NAME_FIELD_SLOTS.forEach((slot) => { out[slot] = slot; });
+  return out;
+}
+
 const store = new Store({
   defaults: {
     graphics: {
@@ -54,6 +71,10 @@ const store = new Store({
       hostAddress: '',    // クライアント時の接続先ホストIP
       outputSide: 'host', // 出力担当PC (vMixが参照する出力サーバを動かすPC): 'host' | 'client'
     },
+    // 氏名テロップ (name-*テンプレート) が「1人目の肩書(JP)」等をどのbinding名で
+    // 認識するかのマッピング。名前プールのプルダウン判定・Excel一括取込/書き出しの
+    // 両方がこれを参照する。デザインエディタで変数名を変えた場合はここも合わせて変更する。
+    nameFields: buildDefaultNameFields(),
   },
 });
 
@@ -96,6 +117,7 @@ function getSettings() {
     gpio: store.get('gpio'),
     remote,
     liveData: store.get('liveData'),
+    nameFields: getNameFields(),
   };
 }
 
@@ -114,6 +136,7 @@ function saveSettings(settings) {
   if (settings.gpio) store.set('gpio', settings.gpio);
   if (settings.remote) store.set('remote', settings.remote);
   if (settings.liveData) store.set('liveData', settings.liveData);
+  if (settings.nameFields) store.set('nameFields', sanitizeNameFields(settings.nameFields));
 }
 
 /** 出力チャンネル一覧 (region重複や不正スラッグを除去) */
@@ -191,6 +214,22 @@ function getOutputGroups() {
   return Array.isArray(groups) ? groups : [];
 }
 
+/** 氏名テロップの項目名マッピングを正規化 (全スロットを補完し、半角英数字_のみに) */
+function sanitizeNameFields(nf) {
+  const out = {};
+  NAME_FIELD_SLOTS.forEach((slot) => {
+    // デザインエディタの変数名入力に文字制限がないため、ここでも制限しない (trimのみ)
+    const raw = nf && typeof nf[slot] === 'string' ? nf[slot].trim() : '';
+    out[slot] = raw || slot;
+  });
+  return out;
+}
+
+/** 氏名テロップの項目名マッピングを取得 (名前プールのプルダウン判定・Excel一括取込/書き出しで使用) */
+function getNameFields() {
+  return sanitizeNameFields(store.get('nameFields'));
+}
+
 /** GPIOリモートボタン設定を取得 */
 function getGpioConfig() {
   return store.get('gpio');
@@ -201,4 +240,7 @@ function getGraphicsConfig() {
   return store.get('graphics');
 }
 
-module.exports = { getSettings, saveSettings, getGpioConfig, getGraphicsConfig, getChannels, getOutputGroups, getTelopPresets, migrateChannelList };
+module.exports = {
+  getSettings, saveSettings, getGpioConfig, getGraphicsConfig, getChannels, getOutputGroups, getTelopPresets,
+  migrateChannelList, getNameFields, NAME_FIELD_SLOTS,
+};

@@ -574,6 +574,7 @@
         <button class="settings-nav-btn" data-section="channels">系統 (TL) とプリセット</button>
         <button class="settings-nav-btn" data-section="groups">出力グループ</button>
         <button class="settings-nav-btn" data-section="operation">操作</button>
+        <button class="settings-nav-btn" data-section="namefields">氏名テロップの項目名</button>
         <div class="settings-nav-group">連携</div>
         <button class="settings-nav-btn" data-section="remote">2台運用</button>
         <button class="settings-nav-btn" data-section="gpio">GPIO 物理ボタン</button>
@@ -656,6 +657,23 @@
           <label for="op-dbltake">ダブルクリックで即TAKE</label>
           <label class="od-bar-label"><input type="checkbox" id="op-dbltake" checked> 送出リストのページをダブルクリックしたとき、確認なしで即送出する (誤操作が心配な場合はOFF)</label>
         </div>
+      </fieldset>
+      </section>
+      <section class="settings-section" data-section="namefields">
+        <div class="settings-section-head">
+          <h2>氏名テロップの項目名</h2>
+          <p>名前プールのプルダウン表示・氏名テロップのExcel一括取込/書き出しが「1人目の肩書(JP)」等をどの変数名で認識するかを設定します。</p>
+        </div>
+      <fieldset class="settings-group">
+        <legend>項目名マッピング</legend>
+        <div class="settings-row">
+          <label>変数名</label>
+          <div class="nf-table" id="namefields-table"></div>
+        </div>
+        <p class="gpio-hint">
+          デザインエディタのテキストレイヤーで「変数名」を既定(titleJp / nameJpなど)から変更した場合は、ここも同じ名前に変更してください。
+          一致していないと、名前プールのプルダウンが表示されなくなったり、氏名テロップのExcel一括取込/書き出しが正しく動かなくなります。
+        </p>
       </fieldset>
       </section>
       <section class="settings-section" data-section="remote">

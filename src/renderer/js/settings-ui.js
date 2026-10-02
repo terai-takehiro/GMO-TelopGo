@@ -321,6 +321,68 @@ const TelopPresetsUI = {
   },
 };
 
+/**
+ * 氏名テロップ(name-*テンプレート)の項目名マッピングUI。
+ * 「1人目の肩書(JP)」等のスロットが実際にどのbinding(変数名)を指すかを設定する。
+ * 名前プールのプルダウン判定・Excel一括取込/書き出しの両方がこれを参照する。
+ */
+const NameFieldsUI = {
+  SLOTS: [
+    { person: '1人目', titleJp: 'titleJp', nameJp: 'nameJp', titleEn: 'titleEn', nameEn: 'nameEn' },
+    { person: '2人目', titleJp: '2ndTitleJp', nameJp: '2ndNameJp', titleEn: '2ndTitleEn', nameEn: '2ndNameEn' },
+    { person: '3人目', titleJp: '3rdTitleJp', nameJp: '3rdNameJp', titleEn: '3rdTitleEn', nameEn: '3rdNameEn' },
+    { person: '4人目', titleJp: '4thTitleJp', nameJp: '4thNameJp', titleEn: '4thTitleEn', nameEn: '4thNameEn' },
+  ],
+  values: {},
+
+  populate(nameFields) {
+    this.values = { ...nameFields };
+    this.render();
+  },
+
+  render() {
+    const wrap = document.getElementById('namefields-table');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+
+    const head = document.createElement('div');
+    head.className = 'nf-row nf-row--head';
+    ['', '肩書(JP)', '名前(JP)', '肩書(EN)', '名前(EN)'].forEach((label) => {
+      const cell = document.createElement('span');
+      cell.textContent = label;
+      head.appendChild(cell);
+    });
+    wrap.appendChild(head);
+
+    this.SLOTS.forEach((row) => {
+      const div = document.createElement('div');
+      div.className = 'nf-row';
+      const personLabel = document.createElement('span');
+      personLabel.className = 'nf-person';
+      personLabel.textContent = row.person;
+      div.appendChild(personLabel);
+      ['titleJp', 'nameJp', 'titleEn', 'nameEn'].forEach((kind) => {
+        const slot = row[kind];
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'input input--small';
+        input.value = this.values[slot] || slot;
+        input.addEventListener('change', () => {
+          // デザインエディタの変数名入力に文字制限がないため、ここでも制限しない (trimのみ)
+          this.values[slot] = input.value.trim() || slot;
+          input.value = this.values[slot];
+        });
+        div.appendChild(input);
+      });
+      wrap.appendChild(div);
+    });
+  },
+
+  collect() {
+    return { ...this.values };
+  },
+};
+
 const SettingsUI = {
   async init() {
     // 保存済み設定を読み込み
@@ -374,6 +436,10 @@ const SettingsUI = {
 
     // ライブデータ連携
     if (typeof LiveDataUI !== 'undefined') LiveDataUI.populateConfig(settings.liveData);
+
+    // 氏名テロップの項目名マッピング (名前プールのプルダウン判定・Excel一括取込/書き出しで使用)
+    App.nameFields = settings.nameFields || {};
+    NameFieldsUI.populate(App.nameFields);
   },
 
   async save() {
@@ -386,9 +452,11 @@ const SettingsUI = {
       App.outputGroups = settings.outputGroups || [];
       App.telopPresets = settings.telopPresets || [];
       App.operation = settings.operation || App.operation;
+      App.nameFields = settings.nameFields || App.nameFields;
       TelopPresetsUI.populate(App.telopPresets);
       ChannelsUI.populate(App.channels);
       OutputGroupsUI.populate(App.outputGroups);
+      NameFieldsUI.populate(App.nameFields);
       if (typeof GpioRemote !== 'undefined') GpioRemote.populateConfig(GpioRemote.collectConfig());
       if (typeof LiveDataUI !== 'undefined') LiveDataUI.renderRegionOptions();
       if (typeof RundownUI !== 'undefined' && RundownUI.loaded) RundownUI.renderAll();
@@ -418,6 +486,7 @@ const SettingsUI = {
       gpio: GpioRemote.collectConfig(),
       remote: RemoteSync.collectConfig(),
       liveData: typeof LiveDataUI !== 'undefined' ? LiveDataUI.collectConfig() : undefined,
+      nameFields: NameFieldsUI.collect(),
     };
   },
 
