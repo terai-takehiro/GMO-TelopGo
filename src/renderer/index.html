@@ -397,7 +397,8 @@
               <div class="de-canvas" id="de-canvas"></div>
               <div class="de-overlay" id="de-overlay">
                 <div class="de-grid-layer hidden" id="de-grid-layer"></div>
-                <div class="de-safety-box hidden" id="de-safety-box"></div>
+                <div class="de-safety-box de-safety-box--98 hidden" id="de-safety-box-98"></div>
+                <div class="de-safety-box de-safety-box--95 hidden" id="de-safety-box-95"></div>
                 <div class="de-guide de-guide-v hidden" id="de-guide-v"></div>
                 <div class="de-guide de-guide-h hidden" id="de-guide-h"></div>
                 <div class="de-selection hidden" id="de-selection"></div>
@@ -423,7 +424,14 @@
                 <option value="50">50px</option>
               </select>
             </label>
-            <label class="de-sb-item" title="セーフティエリア (90%) を表示"><input type="checkbox" id="de-safety"> セーフティ</label>
+            <label class="de-sb-item" title="16:9セーフティゾーンを表示 (98%=アクションセーフ / 95%=タイトルセーフ)">セーフティ
+              <select id="de-safety" class="de-dark-select">
+                <option value="off">なし</option>
+                <option value="98">98%</option>
+                <option value="95">95%</option>
+                <option value="both">98% + 95%</option>
+              </select>
+            </label>
             <span class="de-spacer"></span>
             <span class="de-sb-item" id="de-sb-info"></span>
           </div>

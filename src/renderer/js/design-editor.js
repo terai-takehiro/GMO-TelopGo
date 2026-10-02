@@ -71,7 +71,7 @@ const DesignEditor = {
   redoStack: [],
   drag: null,          // 進行中のドラッグ {kind:'move'|'resize', ...}
   gridSize: 0,         // グリッド間隔 (px, 0=非表示)
-  safety: false,       // セーフティエリア表示
+  safetyMode: 'off',    // セーフティゾーン表示 'off' | '98' | '95' | 'both'
   loaded: false,
 
   init() {
@@ -135,7 +135,7 @@ const DesignEditor = {
       this.updateOverlayAids();
     });
     document.getElementById('de-safety').addEventListener('change', (e) => {
-      this.safety = e.target.checked;
+      this.safetyMode = e.target.value;
       this.updateOverlayAids();
     });
     document.getElementById('de-add-text').addEventListener('click', () => this.addLayer('text'));
@@ -427,7 +427,7 @@ const DesignEditor = {
           { label: '100%', action: () => this.setZoomValue('1') },
           { label: '50%', action: () => this.setZoomValue('0.5') },
           '-',
-          { label: 'セーフティエリア', checked: document.getElementById('de-safety').checked, action: () => { const c = document.getElementById('de-safety'); c.checked = !c.checked; c.dispatchEvent(new Event('change')); } },
+          { label: 'セーフティゾーン (98%+95%)', checked: this.safetyMode !== 'off', action: () => { const c = document.getElementById('de-safety'); c.value = this.safetyMode === 'off' ? 'both' : 'off'; c.dispatchEvent(new Event('change')); } },
         ],
       },
     ];
@@ -2265,8 +2265,10 @@ const DesignEditor = {
         grid.style.backgroundSize = `${cell}px ${cell}px`;
       }
     }
-    const safety = document.getElementById('de-safety-box');
-    if (safety) safety.classList.toggle('hidden', !this.safety);
+    const safety98 = document.getElementById('de-safety-box-98');
+    if (safety98) safety98.classList.toggle('hidden', !(this.safetyMode === '98' || this.safetyMode === 'both'));
+    const safety95 = document.getElementById('de-safety-box-95');
+    if (safety95) safety95.classList.toggle('hidden', !(this.safetyMode === '95' || this.safetyMode === 'both'));
   },
 
   renderAll() {
