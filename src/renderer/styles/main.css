@@ -1708,17 +1708,33 @@ body {
 }
 .de-safety-box {
   position: absolute;
-  inset: 5%;
   pointer-events: none;
+}
+/* 98% = アクションセーフ (外側) */
+.de-safety-box--98 {
+  inset: 1%;
   border: 1px dashed rgba(255, 210, 80, 0.85);
 }
-.de-safety-box::after {
-  content: 'SAFETY 90%';
+.de-safety-box--98::after {
+  content: 'SAFETY 98%';
   position: absolute;
   top: 2px;
   left: 4px;
   font-size: 9px;
   color: rgba(255, 210, 80, 0.9);
+}
+/* 95% = タイトルセーフ (内側) */
+.de-safety-box--95 {
+  inset: 2.5%;
+  border: 1px dashed rgba(255, 120, 190, 0.85);
+}
+.de-safety-box--95::after {
+  content: 'SAFETY 95%';
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 9px;
+  color: rgba(255, 120, 190, 0.9);
 }
 
 /* ライブデータ連携 (v1.18.0) */

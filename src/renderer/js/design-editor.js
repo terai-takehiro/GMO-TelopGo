@@ -71,7 +71,7 @@ const DesignEditor = {
   redoStack: [],
   drag: null,          // 進行中のドラッグ {kind:'move'|'resize', ...}
   gridSize: 0,         // グリッド間隔 (px, 0=非表示)
-  safety: false,       // セーフティエリア表示
+  safetyMode: 'off',    // セーフティゾーン表示 'off' | '98' | '95' | 'both'
   loaded: false,
 
   init() {
@@ -135,7 +135,7 @@ const DesignEditor = {
       this.updateOverlayAids();
     });
     document.getElementById('de-safety').addEventListener('change', (e) => {
-      this.safety = e.target.checked;
+      this.safetyMode = e.target.value;
       this.updateOverlayAids();
     });
     document.getElementById('de-add-text').addEventListener('click', () => this.addLayer('text'));
@@ -427,7 +427,7 @@ const DesignEditor = {
           { label: '100%', action: () => this.setZoomValue('1') },
           { label: '50%', action: () => this.setZoomValue('0.5') },
           '-',
-          { label: 'セーフティエリア', checked: document.getElementById('de-safety').checked, action: () => { const c = document.getElementById('de-safety'); c.checked = !c.checked; c.dispatchEvent(new Event('change')); } },
+          { label: 'セーフティゾーン (98%+95%)', checked: this.safetyMode !== 'off', action: () => { const c = document.getElementById('de-safety'); c.value = this.safetyMode === 'off' ? 'both' : 'off'; c.dispatchEvent(new Event('change')); } },
         ],
       },
     ];
@@ -754,6 +754,32 @@ const DesignEditor = {
       alignBtn('top', '上端へ', (bb) => shift(0, -bb.y)),
       alignBtn('vcenter', '垂直中央へ', (bb) => shift(0, Math.round((this.CANVAS_H - bb.h) / 2) - bb.y)),
       alignBtn('bottom', '下端へ', (bb) => shift(0, this.CANVAS_H - bb.h - bb.y)));
+
+    // オブジェクト同士を揃える (キャンバスではなく、選択内の他オブジェクトの位置が基準)
+    if (members.length >= 2) {
+      panel.appendChild(mk('div', 'de-props-section', 'オブジェクトを揃える (選択内の中央・端で揃う)'));
+      const alignEachOtherBtn = (kind, title, fn) => {
+        const btn = mk('button', 'btn btn--small de-align-btn');
+        btn.innerHTML = this.alignIconSvg(kind);
+        btn.title = title;
+        btn.addEventListener('click', () => {
+          this.beginChange();
+          const bb = this.boundsOf(members);
+          members.forEach((l) => fn(l, bb));
+          this.renderArtboard();
+          this.renderProps();
+        });
+        return btn;
+      };
+      row('揃える (横)',
+        alignEachOtherBtn('left', '左端をお互いに揃える', (l, bb) => { l.x = Math.round(bb.x); }),
+        alignEachOtherBtn('hcenter', '水平中央をお互いに揃える (シンメトリー)', (l, bb) => { l.x = Math.round(bb.x + (bb.w - l.w) / 2); }),
+        alignEachOtherBtn('right', '右端をお互いに揃える', (l, bb) => { l.x = Math.round(bb.x + bb.w - l.w); }));
+      row('揃える (縦)',
+        alignEachOtherBtn('top', '上端をお互いに揃える', (l, bb) => { l.y = Math.round(bb.y); }),
+        alignEachOtherBtn('vcenter', '垂直中央をお互いに揃える (シンメトリー)', (l, bb) => { l.y = Math.round(bb.y + (bb.h - l.h) / 2); }),
+        alignEachOtherBtn('bottom', '下端をお互いに揃える', (l, bb) => { l.y = Math.round(bb.y + bb.h - l.h); }));
+    }
 
     const actions = mk('div', 'de-prop-row');
     if (group) {
@@ -2239,8 +2265,10 @@ const DesignEditor = {
         grid.style.backgroundSize = `${cell}px ${cell}px`;
       }
     }
-    const safety = document.getElementById('de-safety-box');
-    if (safety) safety.classList.toggle('hidden', !this.safety);
+    const safety98 = document.getElementById('de-safety-box-98');
+    if (safety98) safety98.classList.toggle('hidden', !(this.safetyMode === '98' || this.safetyMode === 'both'));
+    const safety95 = document.getElementById('de-safety-box-95');
+    if (safety95) safety95.classList.toggle('hidden', !(this.safetyMode === '95' || this.safetyMode === 'both'));
   },
 
   renderAll() {
@@ -2669,15 +2697,22 @@ const DesignEditor = {
     e.preventDefault();
   },
 
+  /** リサイズ開始 (単体/複数選択/グループいずれも対応。各レイヤーの元の位置・サイズ・文字変体率を記録) */
   startResize(e, handle) {
-    const layer = this.selected();
-    if (!layer || this.targets().length > 1) return;
+    const targets = this.targets();
+    if (!targets.length) return;
     const pt = this.canvasPoint(e);
     this.beginChange();
     this.drag = {
-      kind: 'resize', handle, layer,
+      kind: 'resize', handle,
+      layers: targets,
+      groupOrig: this.boundsOf(targets),
+      origs: targets.map((l) => ({
+        x: l.x, y: l.y, w: l.w, h: l.h,
+        fontScaleX: l.font ? (l.font.scaleX !== undefined ? l.font.scaleX : 1) : 1,
+        fontScaleY: l.font ? (l.font.scaleY !== undefined ? l.font.scaleY : 1) : 1,
+      })),
       startX: pt.x, startY: pt.y,
-      orig: { x: layer.x, y: layer.y, w: layer.w, h: layer.h },
     };
     e.preventDefault();
     e.stopPropagation();
@@ -2709,17 +2744,46 @@ const DesignEditor = {
       this.drag.moved = true;
       this.renderSelection();
     } else {
-      const { handle, layer, orig } = this.drag;
-      let { x, y, w, h } = orig;
-      if (handle.includes('e')) w = orig.w + dx;
-      if (handle.includes('s')) h = orig.h + dy;
-      if (handle.includes('w')) { x = orig.x + dx; w = orig.w - dx; }
-      if (handle.includes('n')) { y = orig.y + dy; h = orig.h - dy; }
-      layer.x = Math.round(w < 10 ? orig.x : x);
-      layer.y = Math.round(h < 10 ? orig.y : y);
-      layer.w = Math.round(Math.max(10, w));
-      layer.h = Math.round(Math.max(10, h));
-      this.updateLayerElement(layer);
+      // リサイズ: 外接矩形(groupOrig)をハンドル方向に伸縮し、各レイヤーをその拡大率で
+      // 相対位置・サイズを保ったまま追従させる (対象が1枚のときは従来通りの単体リサイズと同じ結果になる)
+      const { handle, layers, groupOrig, origs } = this.drag;
+      let { x, y, w, h } = groupOrig;
+      if (handle.includes('e')) w = groupOrig.w + dx;
+      if (handle.includes('s')) h = groupOrig.h + dy;
+      if (handle.includes('w')) { x = groupOrig.x + dx; w = groupOrig.w - dx; }
+      if (handle.includes('n')) { y = groupOrig.y + dy; h = groupOrig.h - dy; }
+
+      // Shift: 角ハンドルは元の縦横比を保ったまま拡大縮小 (大きく動かした辺を基準にする)
+      const isCorner = handle.length === 2;
+      if (e.shiftKey && isCorner && groupOrig.w > 0 && groupOrig.h > 0) {
+        const ratio = groupOrig.w / groupOrig.h;
+        if (Math.abs(w - groupOrig.w) / ratio > Math.abs(h - groupOrig.h)) h = w / ratio;
+        else w = h * ratio;
+        if (handle.includes('w')) x = groupOrig.x + groupOrig.w - w;
+        if (handle.includes('n')) y = groupOrig.y + groupOrig.h - h;
+      }
+
+      const newX = w < 10 ? groupOrig.x : x;
+      const newY = h < 10 ? groupOrig.y : y;
+      const newW = Math.max(10, w);
+      const newH = Math.max(10, h);
+      const scaleX = groupOrig.w > 0 ? newW / groupOrig.w : 1;
+      const scaleY = groupOrig.h > 0 ? newH / groupOrig.h : 1;
+
+      layers.forEach((l, i) => {
+        const o = origs[i];
+        l.x = Math.round(newX + (o.x - groupOrig.x) * scaleX);
+        l.y = Math.round(newY + (o.y - groupOrig.y) * scaleY);
+        l.w = Math.round(Math.max(10, o.w * scaleX));
+        l.h = Math.round(Math.max(10, o.h * scaleY));
+        // 複数/グループのリサイズのみ、文字の変体率も箱の拡縮に追従させる
+        // (単体レイヤーの従来のリサイズ挙動は変えない)
+        if (layers.length > 1 && l.type === 'text' && l.font) {
+          l.font.scaleX = Math.max(0.1, o.fontScaleX * scaleX);
+          l.font.scaleY = Math.max(0.1, o.fontScaleY * scaleY);
+        }
+        this.updateLayerElement(l);
+      });
       this.renderSelection();
       this.renderPropsValues();
     }
