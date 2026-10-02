@@ -704,7 +704,13 @@ const DesignEditor = {
   },
 
   /** グループ / 複数グループ / 複数選択のプロパティ (名前・位置・整列・グループ化/解除) */
-  renderGroupProps(panel, group, members, groupCount) {
+  renderGroupProps(panel, group, members, groupsList) {
+    const groupCount = groupsList ? groupsList.length : 0;
+    // 揃える操作の単位: 複数グループ選択中はグループ1個 = 1ユニット (メンバーごと一体で動かす)。
+    // それ以外 (単一グループの内部メンバー/フラットな複数選択) はレイヤー1個 = 1ユニット (従来通り)。
+    const units = groupCount
+      ? groupsList.map((g) => this.groupMembers(g.id))
+      : members.map((l) => [l]);
     const mk = (tag, cls, text) => {
       const el = document.createElement(tag);
       if (cls) el.className = cls;
@@ -773,7 +779,8 @@ const DesignEditor = {
       alignBtn('bottom', '下端へ', (bb) => shift(0, this.CANVAS_H - bb.h - bb.y)));
 
     // オブジェクト同士を揃える (キャンバスではなく、選択内の他オブジェクトの位置が基準)
-    if (members.length >= 2) {
+    // 複数グループ選択中はグループ単位 (unit = グループの全メンバー) で動かし、グループ内のレイアウトは保つ。
+    if (units.length >= 2) {
       panel.appendChild(mk('div', 'de-props-section', 'オブジェクトを揃える (選択内の中央・端で揃う)'));
       const alignEachOtherBtn = (kind, title, fn) => {
         const btn = mk('button', 'btn btn--small de-align-btn');
@@ -782,20 +789,25 @@ const DesignEditor = {
         btn.addEventListener('click', () => {
           this.beginChange();
           const bb = this.boundsOf(members);
-          members.forEach((l) => fn(l, bb));
+          units.forEach((unit) => {
+            const ub = this.boundsOf(unit);
+            const [dx, dy] = fn(ub, bb);
+            if (!dx && !dy) return;
+            unit.forEach((l) => { l.x += dx; l.y += dy; this.updateLayerElement(l); });
+          });
           this.renderArtboard();
           this.renderProps();
         });
         return btn;
       };
       row('揃える (横)',
-        alignEachOtherBtn('left', '左端をお互いに揃える', (l, bb) => { l.x = Math.round(bb.x); }),
-        alignEachOtherBtn('hcenter', '水平中央をお互いに揃える (シンメトリー)', (l, bb) => { l.x = Math.round(bb.x + (bb.w - l.w) / 2); }),
-        alignEachOtherBtn('right', '右端をお互いに揃える', (l, bb) => { l.x = Math.round(bb.x + bb.w - l.w); }));
+        alignEachOtherBtn('left', '左端をお互いに揃える', (ub, bb) => [Math.round(bb.x) - ub.x, 0]),
+        alignEachOtherBtn('hcenter', '水平中央をお互いに揃える (シンメトリー)', (ub, bb) => [Math.round(bb.x + (bb.w - ub.w) / 2) - ub.x, 0]),
+        alignEachOtherBtn('right', '右端をお互いに揃える', (ub, bb) => [Math.round(bb.x + bb.w - ub.w) - ub.x, 0]));
       row('揃える (縦)',
-        alignEachOtherBtn('top', '上端をお互いに揃える', (l, bb) => { l.y = Math.round(bb.y); }),
-        alignEachOtherBtn('vcenter', '垂直中央をお互いに揃える (シンメトリー)', (l, bb) => { l.y = Math.round(bb.y + (bb.h - l.h) / 2); }),
-        alignEachOtherBtn('bottom', '下端をお互いに揃える', (l, bb) => { l.y = Math.round(bb.y + bb.h - l.h); }));
+        alignEachOtherBtn('top', '上端をお互いに揃える', (ub, bb) => [0, Math.round(bb.y) - ub.y]),
+        alignEachOtherBtn('vcenter', '垂直中央をお互いに揃える (シンメトリー)', (ub, bb) => [0, Math.round(bb.y + (bb.h - ub.h) / 2) - ub.y]),
+        alignEachOtherBtn('bottom', '下端をお互いに揃える', (ub, bb) => [0, Math.round(bb.y + bb.h - ub.h) - ub.y]));
     }
 
     const actions = mk('div', 'de-prop-row');
@@ -2780,9 +2792,11 @@ const DesignEditor = {
     if (e.shiftKey) {
       if (layer.groupId) this.toggleGroupInMultiSelect(layer.groupId); // Shift: グループごと複数選択に追加/解除
       else this.selectLayer(layer.id, true);   // Shift: 複数選択に追加/解除
+    } else if (layer.groupId && (e.ctrlKey || e.metaKey)) {
+      this.selectLayer(layer.id);              // Ctrl+クリック: グループが選択済みでもメンバー単体へ必ず切り替える
     } else if (inTargets && this.targets().length > 1) {
       // 選択中の複数/グループをそのままドラッグ
-    } else if (layer.groupId && !(e.ctrlKey || e.metaKey)) {
+    } else if (layer.groupId) {
       this.selectGroup(layer.groupId);          // グループのメンバーはグループごと選択 (Ctrl+クリックで単体)
     } else {
       this.selectLayer(layer.id);
@@ -3115,7 +3129,7 @@ const DesignEditor = {
       const members = group ? this.groupMembers(group.id)
         : multiGroups.length ? multiGroups.flatMap((g) => this.groupMembers(g.id))
           : multi;
-      this.renderGroupProps(panes.props, group, members, multiGroups.length);
+      this.renderGroupProps(panes.props, group, members, multiGroups);
       emptyMsg(panes.text, '文字レイヤーを1つ選択すると、フォント・塗り・縁取りなどを編集できます');
       if (group) this.renderGroupAnim(panes.anim, group);
       else emptyMsg(panes.anim, 'グループ化するとグループ単位のアニメーションを設定できます');
