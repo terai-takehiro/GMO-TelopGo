@@ -59,6 +59,7 @@ function buildDefault() {
     cg: defaultTree('cg'),
     telop: defaultTree('telop'),
     namePool: [],
+    pools: {},
   };
 }
 
@@ -149,6 +150,7 @@ function normalize(rd) {
     if (!rd[mode].activeBroadcastId && first.broadcasts[0]) rd[mode].activeBroadcastId = first.broadcasts[0].id;
   });
   if (!Array.isArray(rd.namePool)) rd.namePool = [];
+  if (!rd.pools || typeof rd.pools !== 'object' || Array.isArray(rd.pools)) rd.pools = {};
   return rd;
 }
 
@@ -196,6 +198,7 @@ function save() {
 function migrateLegacy(legacy) {
   const rd = buildDefault();
   rd.namePool = legacy.namePool || [];
+  rd.pools = legacy.pools || {};
   const program = rd.cg.programs[0];
   program.name = '移行された番組';
   const broadcast = program.broadcasts[0];

@@ -739,20 +739,21 @@ const DesignEditor = {
       num(b.x, 'x', (v) => shift(v - this.boundsOf(members).x, 0)),
       num(b.y, 'y', (v) => shift(0, v - this.boundsOf(members).y)));
     row('W / H', mk('span', 'de-prop-file', `${Math.round(b.w)} × ${Math.round(b.h)}`));
-    const alignBtn = (label, title, fn) => {
-      const btn = mk('button', 'btn btn--small de-align-btn', label);
+    const alignBtn = (kind, title, fn) => {
+      const btn = mk('button', 'btn btn--small de-align-btn');
+      btn.innerHTML = this.alignIconSvg(kind);
       btn.title = title;
       btn.addEventListener('click', () => { this.beginChange(); const bb = this.boundsOf(members); fn(bb); this.renderArtboard(); this.renderProps(); });
       return btn;
     };
     row('整列 (横)',
-      alignBtn('左', '左端へ', (bb) => shift(-bb.x, 0)),
-      alignBtn('中央', '水平中央へ', (bb) => shift(Math.round((this.CANVAS_W - bb.w) / 2) - bb.x, 0)),
-      alignBtn('右', '右端へ', (bb) => shift(this.CANVAS_W - bb.w - bb.x, 0)));
+      alignBtn('left', '左端へ', (bb) => shift(-bb.x, 0)),
+      alignBtn('hcenter', '水平中央へ', (bb) => shift(Math.round((this.CANVAS_W - bb.w) / 2) - bb.x, 0)),
+      alignBtn('right', '右端へ', (bb) => shift(this.CANVAS_W - bb.w - bb.x, 0)));
     row('整列 (縦)',
-      alignBtn('上', '上端へ', (bb) => shift(0, -bb.y)),
-      alignBtn('中央', '垂直中央へ', (bb) => shift(0, Math.round((this.CANVAS_H - bb.h) / 2) - bb.y)),
-      alignBtn('下', '下端へ', (bb) => shift(0, this.CANVAS_H - bb.h - bb.y)));
+      alignBtn('top', '上端へ', (bb) => shift(0, -bb.y)),
+      alignBtn('vcenter', '垂直中央へ', (bb) => shift(0, Math.round((this.CANVAS_H - bb.h) / 2) - bb.y)),
+      alignBtn('bottom', '下端へ', (bb) => shift(0, this.CANVAS_H - bb.h - bb.y)));
 
     const actions = mk('div', 'de-prop-row');
     if (group) {
@@ -2089,6 +2090,35 @@ const DesignEditor = {
     return list;
   },
 
+  /** 新規バインドのデフォルト変数名 (レイヤー名から生成、既存と衝突しなければそのまま) */
+  suggestBindingName(base) {
+    const used = new Set(this.bindings());
+    const slug = String(base || '').replace(/[^a-zA-Z0-9_]/g, '') || 'field';
+    if (!used.has(slug)) return slug;
+    let i = 2;
+    while (used.has(`${slug}${i}`)) i += 1;
+    return `${slug}${i}`;
+  },
+
+  /** 利用可能なプール一覧 (送出タブで取込済みのもの。Excelから取込んだ候補リスト) */
+  availablePools() {
+    return (App.rundown && App.rundown.pools) || {};
+  },
+
+  /** 整列ボタンのアイコン (Photoshop風の「ガイド線+バー」) */
+  ALIGN_ICON_PATHS: {
+    left: '<path d="M4 3v18"/><rect x="6" y="6" width="12" height="4"/><rect x="6" y="14" width="7" height="4"/>',
+    hcenter: '<path d="M12 3v18"/><rect x="5" y="6" width="14" height="4"/><rect x="8" y="14" width="8" height="4"/>',
+    right: '<path d="M20 3v18"/><rect x="6" y="6" width="12" height="4"/><rect x="11" y="14" width="7" height="4"/>',
+    top: '<path d="M3 4h18"/><rect x="6" y="6" width="4" height="12"/><rect x="14" y="6" width="4" height="7"/>',
+    vcenter: '<path d="M3 12h18"/><rect x="6" y="5" width="4" height="14"/><rect x="14" y="8" width="4" height="8"/>',
+    bottom: '<path d="M3 20h18"/><rect x="6" y="6" width="4" height="12"/><rect x="14" y="11" width="4" height="7"/>',
+  },
+  alignIconSvg(kind) {
+    const path = this.ALIGN_ICON_PATHS[kind] || '';
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+  },
+
   newLayerId() {
     return `ly_${Math.random().toString(36).slice(2, 9)}`;
   },
@@ -2252,6 +2282,37 @@ const DesignEditor = {
       return b;
     };
 
+    // レイヤー/グループ行のドラッグ&ドロップ並べ替え (重ね順)
+    const attachDrag = (el, key) => {
+      el.draggable = true;
+      el.addEventListener('dragstart', (e) => {
+        this._dragKey = key;
+        el.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', '');
+      });
+      el.addEventListener('dragend', () => {
+        el.classList.remove('dragging');
+        list.querySelectorAll('.drag-over-above, .drag-over-below').forEach((n) => n.classList.remove('drag-over-above', 'drag-over-below'));
+        this._dragKey = null;
+      });
+      el.addEventListener('dragover', (e) => {
+        if (!this._dragKey) return;
+        e.preventDefault();
+        const rect = el.getBoundingClientRect();
+        const above = (e.clientY - rect.top) < rect.height / 2;
+        list.querySelectorAll('.drag-over-above, .drag-over-below').forEach((n) => n.classList.remove('drag-over-above', 'drag-over-below'));
+        el.classList.add(above ? 'drag-over-above' : 'drag-over-below');
+      });
+      el.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const above = el.classList.contains('drag-over-above');
+        el.classList.remove('drag-over-above', 'drag-over-below');
+        if (this._dragKey) this.dropReorder(this._dragKey, key, above);
+        this._dragKey = null;
+      });
+    };
+
     [...layers].reverse().forEach((layer) => {
       const g = this.groupById(layer.groupId);
       if (g && !renderedGroups.has(g.id)) {
@@ -2283,6 +2344,7 @@ const DesignEditor = {
           if (!(this.activeGroup() && this.activeGroup().id === g.id)) { this.selectGroup(g.id); this.refreshSelectionUI(); }
           this.showContextMenu(e.clientX, e.clientY, this.layerMenuItems());
         });
+        attachDrag(gi, { kind: 'group', id: g.id });
         list.appendChild(gi);
       }
       if (g && g.collapsed) return;
@@ -2323,6 +2385,7 @@ const DesignEditor = {
         if (!this.targets().includes(layer) || this.activeGroup()) { this.selectLayer(layer.id); this.refreshSelectionUI(); }
         this.showContextMenu(e.clientX, e.clientY, this.layerMenuItems());
       });
+      attachDrag(li, { kind: 'layer', id: layer.id });
       list.appendChild(li);
     });
   },
@@ -2490,6 +2553,63 @@ const DesignEditor = {
       layers.splice(0, layers.length, ...units.flat());
     }
     this.renderAll();
+  },
+
+  /**
+   * レイヤーパネルのドラッグ&ドロップで重ね順を変更する。
+   * key: { kind: 'layer'|'group', id }。above: ドロップ先行の上半分(=前面側)にドロップしたか。
+   * グループ内のレイヤーは同じグループ内でのみ移動できる (グループを跨いだ移動は不可)。
+   */
+  dropReorder(draggedKey, targetKey, above) {
+    if (draggedKey.kind === targetKey.kind && draggedKey.id === targetKey.id) return;
+    const layers = this.layers();
+
+    if (draggedKey.kind === 'layer') {
+      const draggedLayer = layers.find((l) => l.id === draggedKey.id);
+      if (!draggedLayer) return;
+      if (draggedLayer.groupId) {
+        if (targetKey.kind !== 'layer') return; // グループ内メンバーはグループの外へドロップできない
+        const targetLayer = layers.find((l) => l.id === targetKey.id);
+        if (!targetLayer || targetLayer.groupId !== draggedLayer.groupId) return;
+        const members = this.groupMembers(draggedLayer.groupId);
+        if (!this.moveWithinArray(members, draggedLayer, targetLayer, above)) return;
+        this.beginChange();
+        const start = layers.findIndex((l) => l.groupId === draggedLayer.groupId);
+        layers.splice(start, members.length, ...members);
+        this.renderAll();
+        return;
+      }
+    } else if (targetKey.kind === 'layer') {
+      const targetLayer = layers.find((l) => l.id === targetKey.id);
+      if (targetLayer && targetLayer.groupId) return; // グループメンバーへの直接ドロップは不可 (グループ全体として扱う)
+    }
+
+    // トップレベル (素のレイヤー/グループ) 同士の並べ替え
+    const units = this.reorderUnits(layers);
+    const unitKey = (u) => (u[0].groupId ? { kind: 'group', id: u[0].groupId } : { kind: 'layer', id: u[0].id });
+    const draggedUnit = units.find((u) => { const k = unitKey(u); return k.kind === draggedKey.kind && k.id === draggedKey.id; });
+    const targetUnit = units.find((u) => { const k = unitKey(u); return k.kind === targetKey.kind && k.id === targetKey.id; });
+    if (!draggedUnit || !targetUnit || draggedUnit === targetUnit) return;
+    if (!this.moveWithinArray(units, draggedUnit, targetUnit, above)) return;
+    this.beginChange();
+    layers.splice(0, layers.length, ...units.flat());
+    this.renderAll();
+  },
+
+  /**
+   * 配列(添字0=背面, 末尾=前面)内で dragged を target の位置へ移動する。
+   * above: 画面表示(上=前面)で target の上半分にドロップしたか。
+   */
+  moveWithinArray(arr, dragged, target, above) {
+    const from = arr.indexOf(dragged);
+    const targetIdx = arr.indexOf(target);
+    if (from < 0 || targetIdx < 0) return false;
+    let to = above ? targetIdx + 1 : targetIdx;
+    if (from < to) to -= 1;
+    if (from === to) return false;
+    arr.splice(from, 1);
+    arr.splice(to, 0, dragged);
+    return true;
   },
 
   // ===== アートボード操作 =====
@@ -2883,6 +3003,15 @@ const DesignEditor = {
       return bind(input, (i) => { i.value = getter() || ''; }, (i) => setter(i.value), opts);
     };
 
+    /** 複数行テキスト入力 (固定テキスト・見本など、改行を含められる項目用) */
+    const textarea = (getter, setter, opts = {}) => {
+      const input = document.createElement('textarea');
+      input.className = 'input de-prop-textarea';
+      input.rows = opts.rows || 2;
+      if (opts.placeholder) input.placeholder = opts.placeholder;
+      return bind(input, (i) => { i.value = getter() || ''; }, (i) => setter(i.value), opts);
+    };
+
     const color = (getter, setter) => {
       const input = document.createElement('input');
       input.type = 'color';
@@ -2916,10 +3045,10 @@ const DesignEditor = {
       num(() => Math.round((layer.opacity !== undefined ? layer.opacity : 1) * 100), (v) => { layer.opacity = Math.max(0, Math.min(100, v)) / 100; }, { min: 0, max: 100 }));
 
     // キャンバス基準の整列ボタン
-    const alignBtn = (label, title, apply) => {
+    const alignBtn = (kind, title, apply) => {
       const btn = document.createElement('button');
       btn.className = 'btn btn--small de-align-btn';
-      btn.textContent = label;
+      btn.innerHTML = this.alignIconSvg(kind);
       btn.title = title;
       btn.addEventListener('click', () => {
         this.beginChange();
@@ -2931,21 +3060,83 @@ const DesignEditor = {
       return btn;
     };
     row('整列 (横)',
-      alignBtn('左', '左端へ', () => { layer.x = 0; }),
-      alignBtn('中央', '水平中央へ', () => { layer.x = Math.round((this.CANVAS_W - layer.w) / 2); }),
-      alignBtn('右', '右端へ', () => { layer.x = this.CANVAS_W - layer.w; }));
+      alignBtn('left', '左端へ', () => { layer.x = 0; }),
+      alignBtn('hcenter', '水平中央へ', () => { layer.x = Math.round((this.CANVAS_W - layer.w) / 2); }),
+      alignBtn('right', '右端へ', () => { layer.x = this.CANVAS_W - layer.w; }));
     row('整列 (縦)',
-      alignBtn('上', '上端へ', () => { layer.y = 0; }),
-      alignBtn('中央', '垂直中央へ', () => { layer.y = Math.round((this.CANVAS_H - layer.h) / 2); }),
-      alignBtn('下', '下端へ', () => { layer.y = this.CANVAS_H - layer.h; }));
+      alignBtn('top', '上端へ', () => { layer.y = 0; }),
+      alignBtn('vcenter', '垂直中央へ', () => { layer.y = Math.round((this.CANVAS_H - layer.h) / 2); }),
+      alignBtn('bottom', '下端へ', () => { layer.y = this.CANVAS_H - layer.h; }));
 
     // --- テキスト ---
     if (layer.type === 'text') {
       section('テキスト');
-      const bindOptions = [['', '(固定テキスト)']].concat(this.bindings().map((b) => [b, b]));
-      row('バインド', select(bindOptions, () => layer.binding || '', (v) => { layer.binding = v; }));
-      row('固定テキスト', text(() => layer.text, (v) => { layer.text = v; }));
-      row('サンプル', text(() => layer.sample, (v) => { layer.sample = v; }));
+      // 固定テキスト / データ連動(変数) の切替
+      const modeRow = row('内容');
+      const modeSeg = document.createElement('div');
+      modeSeg.className = 'de-seg';
+      const fixedBtn = document.createElement('button');
+      fixedBtn.type = 'button';
+      fixedBtn.className = `de-seg-btn${layer.binding ? '' : ' active'}`;
+      fixedBtn.textContent = '固定テキスト';
+      fixedBtn.addEventListener('click', () => {
+        if (!layer.binding) return;
+        this.beginChange();
+        layer.binding = '';
+        layer.poolKey = '';
+        layer.poolColumn = '';
+        this.renderProps();
+      });
+      const bindBtn = document.createElement('button');
+      bindBtn.type = 'button';
+      bindBtn.className = `de-seg-btn${layer.binding ? ' active' : ''}`;
+      bindBtn.textContent = 'データ連動(変数)';
+      bindBtn.addEventListener('click', () => {
+        if (layer.binding) return;
+        this.beginChange();
+        layer.binding = this.suggestBindingName(layer.name);
+        this.renderProps();
+      });
+      modeSeg.append(fixedBtn, bindBtn);
+      modeRow.appendChild(modeSeg);
+
+      if (!layer.binding) {
+        row('固定テキスト', textarea(() => layer.text, (v) => { layer.text = v; }, { placeholder: 'テキストを入力 (Enterで改行できます)' }));
+      } else {
+        row('変数名', text(() => layer.binding, (v) => { layer.binding = v.trim() || layer.binding; }, { list: 'de-binding-suggest' }));
+        row('見本', textarea(() => layer.sample, (v) => { layer.sample = v; }, { placeholder: '送出前に確認するための見本テキスト' }));
+
+        const pools = this.availablePools();
+        const poolOptions = [['', 'なし (直接入力)']].concat(Object.entries(pools).map(([k, p]) => [k, p.label || k]));
+        row('プール連携', select(poolOptions, () => layer.poolKey || '', (v) => {
+          layer.poolKey = v;
+          const cols = v && pools[v] ? Object.keys(pools[v].columns || {}) : [];
+          layer.poolColumn = cols[0] || '';
+          this.renderProps();
+        }));
+        if (layer.poolKey && pools[layer.poolKey]) {
+          const colOptions = Object.entries(pools[layer.poolKey].columns || {});
+          row('プールの列', select(colOptions, () => layer.poolColumn || (colOptions[0] && colOptions[0][0]) || '', (v) => { layer.poolColumn = v; }));
+          const poolHint = document.createElement('div');
+          poolHint.className = 'de-props-hint';
+          poolHint.textContent = '送出のページ編集で、このプールからプルダウン選択できるようになります。同じプールを指定した他の変数とは1つのプルダウンにまとまります。';
+          panel.appendChild(poolHint);
+        }
+      }
+
+      // バインドの変数名サジェスト (既存テンプレート内で使われている名前)
+      let bindingSuggestList = document.getElementById('de-binding-suggest');
+      if (!bindingSuggestList) {
+        bindingSuggestList = document.createElement('datalist');
+        bindingSuggestList.id = 'de-binding-suggest';
+        document.body.appendChild(bindingSuggestList);
+      }
+      bindingSuggestList.innerHTML = '';
+      this.bindings().forEach((b) => {
+        const opt = document.createElement('option');
+        opt.value = b;
+        bindingSuggestList.appendChild(opt);
+      });
       row('縦書き', select([['off', '横書き'], ['on', '縦書き']],
         () => (layer.vertical ? 'on' : 'off'),
         (v) => { layer.vertical = v === 'on'; this.renderProps(); }));

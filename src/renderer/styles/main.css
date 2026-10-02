@@ -1261,6 +1261,10 @@ body {
   background: var(--accent-soft);
   border-color: var(--accent);
 }
+.de-layer-item { cursor: grab; }
+.de-layer-item.dragging { opacity: 0.4; }
+.de-layer-item.drag-over-above { box-shadow: inset 0 2px 0 0 var(--accent); }
+.de-layer-item.drag-over-below { box-shadow: inset 0 -2px 0 0 var(--accent); }
 .de-layer-toggle--off { opacity: 0.3; }
 .de-layer-toggle--off:hover { opacity: 0.9; }
 .de-layer-toggle {
@@ -1454,8 +1458,35 @@ body {
   align-items: center;
 }
 
-/* 整列ボタン */
-.de-align-btn { padding: 3px 7px; font-size: 11px; }
+/* 整列ボタン (Photoshop風アイコン) */
+.de-align-btn {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.de-align-btn svg { width: 15px; height: 15px; }
+
+/* 固定テキスト/データ連動 セグメントボタン */
+.de-seg { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; flex: 1; }
+.de-seg-btn {
+  flex: 1;
+  padding: 6px 4px;
+  background: var(--bg-input);
+  color: var(--text-muted);
+  border: none;
+  font-size: 11px;
+  font-family: var(--font);
+  cursor: pointer;
+}
+.de-seg-btn + .de-seg-btn { border-left: 1px solid var(--border); }
+.de-seg-btn.active { background: var(--accent-soft); color: #fff; font-weight: 700; }
+.de-seg-btn:hover:not(.active) { background: var(--bg-hover); }
+
+/* 複数行テキスト入力 (改行対応) */
+.de-prop-textarea { resize: vertical; min-height: 44px; line-height: 1.4; width: 100%; max-width: none; }
 
 /* アニメーションタイムライン (PowerPoint風) */
 .de-tl-label {
