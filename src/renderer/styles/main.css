@@ -3046,7 +3046,6 @@ body {
 #tab-design .de-layer-type--group { background: transparent; border: none; color: #d9b86a; }
 #tab-design .de-layer-type--group svg { width: 16px; height: 16px; }
 .de-selection--multi { border-style: dashed; }
-.de-selection--multi .de-handle { display: none; }
 #tab-design .de-tl-row--group .de-tl-name { font-weight: 700; color: #e7cf8f; }
 #tab-design .de-tl-row--member .de-tl-name { padding-left: 14px; }
 

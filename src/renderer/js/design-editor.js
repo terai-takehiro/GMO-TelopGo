@@ -703,8 +703,8 @@ const DesignEditor = {
     App.setStatus(`スタイル「${name}」を登録しました`, 'success');
   },
 
-  /** グループ / 複数選択のプロパティ (名前・位置・整列・グループ化/解除) */
-  renderGroupProps(panel, group, members) {
+  /** グループ / 複数グループ / 複数選択のプロパティ (名前・位置・整列・グループ化/解除) */
+  renderGroupProps(panel, group, members, groupCount) {
     const mk = (tag, cls, text) => {
       const el = document.createElement(tag);
       if (cls) el.className = cls;
@@ -717,7 +717,10 @@ const DesignEditor = {
       inputs.forEach((i) => div.appendChild(i));
       panel.appendChild(div);
     };
-    panel.appendChild(mk('div', 'de-props-section', group ? 'グループ' : `${members.length}個のレイヤーを選択中`));
+    const headTitle = group ? 'グループ'
+      : groupCount ? `${groupCount}個のグループ (${members.length}個のレイヤー) を選択中`
+        : `${members.length}個のレイヤーを選択中`;
+    panel.appendChild(mk('div', 'de-props-section', headTitle));
     if (group) {
       const name = mk('input', 'input input--small');
       name.type = 'text';
@@ -801,14 +804,17 @@ const DesignEditor = {
       ungroup.addEventListener('click', () => this.ungroupSelection());
       actions.appendChild(ungroup);
     } else {
-      const grp = mk('button', 'btn btn--small btn--primary', 'グループ化 (Ctrl+G)');
+      const grp = mk('button', 'btn btn--small btn--primary', groupCount ? 'グループを統合 (Ctrl+G)' : 'グループ化 (Ctrl+G)');
+      grp.title = groupCount ? '選択中の複数グループを1つの新しいグループへまとめます' : '';
       grp.addEventListener('click', () => this.groupSelection());
       actions.appendChild(grp);
     }
     panel.appendChild(actions);
     panel.appendChild(mk('div', 'de-props-hint', group
       ? 'キャンバスでメンバーをクリックするとグループごと選択・移動します。Ctrl+クリックでメンバー単体を選択できます。'
-      : 'レイヤーパネルで Ctrl / Shift + クリック、キャンバスで Shift + クリックで選択を追加できます。'));
+      : groupCount
+        ? 'レイヤーパネルやキャンバスで、グループをShift+クリックすると複数グループの選択に追加/解除できます。'
+        : 'レイヤーパネルで Ctrl / Shift + クリック、キャンバスで Shift + クリックで選択を追加できます。'));
   },
 
   /**
@@ -1925,6 +1931,8 @@ const DesignEditor = {
   selectedGroupId: null,
   /** 複数選択中のレイヤーID (selectedId を含むときのみ有効) */
   selectedIds: [],
+  /** 複数選択中のグループID (2個以上のグループをShift選択したときのみ使う。selectedGroupIdとは排他) */
+  selectedGroupIds: [],
 
   groups() {
     const v = this.variant();
@@ -1962,8 +1970,32 @@ const DesignEditor = {
     return this.layers().filter((l) => ids.has(l.id));
   },
 
-  /** 操作対象のレイヤー群 (グループ / 複数選択 / 単体) */
+  /** Shiftで2個以上選択中のグループ一覧 (selectedId/selectedGroupIdが無いときのみ有効) */
+  multiGroups() {
+    if (this.selectedId || this.selectedGroupIds.length < 2) return [];
+    return this.selectedGroupIds.map((id) => this.groupById(id)).filter(Boolean);
+  },
+
+  /** グループをShift選択の多重選択に追加/解除する (単体のグループ選択中にShiftで別グループを押した場合も合流させる) */
+  toggleGroupInMultiSelect(gid) {
+    const current = new Set(this.selectedGroupIds.length ? this.selectedGroupIds : (this.selectedGroupId ? [this.selectedGroupId] : []));
+    if (current.has(gid)) current.delete(gid); else current.add(gid);
+    this.selectedId = null;
+    this.selectedIds = [];
+    if (current.size <= 1) {
+      // 1個だけになったら単体のグループ選択に戻す (グループ名編集などの専用UIを使えるように)
+      this.selectedGroupId = current.size ? [...current][0] : null;
+      this.selectedGroupIds = [];
+    } else {
+      this.selectedGroupId = null;
+      this.selectedGroupIds = [...current];
+    }
+  },
+
+  /** 操作対象のレイヤー群 (複数グループ / グループ / 複数選択 / 単体) */
   targets() {
+    const mg = this.multiGroups();
+    if (mg.length) return mg.flatMap((g) => this.groupMembers(g.id));
     const g = this.activeGroup();
     if (g) return this.groupMembers(g.id);
     const multi = this.multiSelected();
@@ -1975,6 +2007,7 @@ const DesignEditor = {
   clearSelection() {
     this.selectedId = null;
     this.selectedGroupId = null;
+    this.selectedGroupIds = [];
     this.selectedIds = [];
   },
 
@@ -2355,6 +2388,7 @@ const DesignEditor = {
     const layers = this.layers();
     const multi = new Set(this.multiSelected().map((l) => l.id));
     const activeGroup = this.activeGroup();
+    const multiGroupIds = new Set(this.multiGroups().map((g) => g.id));
     const renderedGroups = new Set();
 
     const toggleBtn = (on, onLabel, offLabel, onTitle, offTitle, handler) => {
@@ -2403,7 +2437,7 @@ const DesignEditor = {
         renderedGroups.add(g.id);
         const gi = document.createElement('li');
         gi.className = 'de-layer-item de-layer-group';
-        gi.classList.toggle('selected', !!activeGroup && activeGroup.id === g.id);
+        gi.classList.toggle('selected', (!!activeGroup && activeGroup.id === g.id) || multiGroupIds.has(g.id));
         const caret = document.createElement('button');
         caret.className = 'de-layer-caret';
         caret.textContent = g.collapsed ? '▸' : '▾';
@@ -2422,10 +2456,15 @@ const DesignEditor = {
         const lock = toggleBtn(!!g.locked, '🔒', '🔓', 'グループをロック中 — クリックで解除', 'クリックでグループをロック',
           () => { g.locked = !g.locked; });
         gi.append(caret, vis, icon, name, lock);
-        gi.addEventListener('click', () => { this.selectGroup(g.id); this.refreshSelectionUI(); });
+        gi.addEventListener('click', (e) => {
+          if (e.shiftKey) this.toggleGroupInMultiSelect(g.id);
+          else this.selectGroup(g.id);
+          this.refreshSelectionUI();
+        });
         gi.addEventListener('contextmenu', (e) => {
           e.preventDefault();
-          if (!(this.activeGroup() && this.activeGroup().id === g.id)) { this.selectGroup(g.id); this.refreshSelectionUI(); }
+          const alreadyTargeted = (this.activeGroup() && this.activeGroup().id === g.id) || multiGroupIds.has(g.id);
+          if (!alreadyTargeted) { this.selectGroup(g.id); this.refreshSelectionUI(); }
           this.showContextMenu(e.clientX, e.clientY, this.layerMenuItems());
         });
         attachDrag(gi, { kind: 'group', id: g.id });
@@ -2437,7 +2476,7 @@ const DesignEditor = {
       li.className = 'de-layer-item';
       if (g) li.classList.add('de-layer-member');
       li.classList.toggle('selected', layer.id === this.selectedId || multi.has(layer.id));
-      li.classList.toggle('in-group-selected', !!activeGroup && layer.groupId === activeGroup.id);
+      li.classList.toggle('in-group-selected', (!!activeGroup && layer.groupId === activeGroup.id) || (!!layer.groupId && multiGroupIds.has(layer.groupId)));
 
       const visBtn = toggleBtn(layer.visible !== false, '👁', '‐', '表示中 — クリックで非表示', '非表示中 — クリックで表示',
         () => { layer.visible = layer.visible === false; });
@@ -2455,9 +2494,16 @@ const DesignEditor = {
         () => { layer.locked = !layer.locked; });
 
       li.append(visBtn, typeBadge, name, lockBtn);
-      li.title = 'Ctrl / Shift + クリックで複数選択';
+      li.title = 'クリックでグループごと選択 / Ctrl+クリックでメンバー単体 / Shift+クリックで複数選択';
       li.addEventListener('click', (e) => {
-        this.selectLayer(layer.id, e.ctrlKey || e.metaKey || e.shiftKey);
+        if (e.shiftKey) {
+          if (layer.groupId) this.toggleGroupInMultiSelect(layer.groupId);
+          else this.selectLayer(layer.id, true);
+        } else if (layer.groupId && !(e.ctrlKey || e.metaKey)) {
+          this.selectGroup(layer.groupId);
+        } else {
+          this.selectLayer(layer.id);
+        }
         this.refreshSelectionUI();
       });
       li.addEventListener('dblclick', (e) => {
@@ -2465,8 +2511,12 @@ const DesignEditor = {
       });
       li.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        // 複数選択中のレイヤー上なら選択を保ったまま、それ以外はそのレイヤーを選択
-        if (!this.targets().includes(layer) || this.activeGroup()) { this.selectLayer(layer.id); this.refreshSelectionUI(); }
+        // 複数選択中のレイヤー上なら選択を保ったまま、それ以外はグループごと(または単体)選択
+        if (!this.targets().includes(layer) || this.activeGroup()) {
+          if (layer.groupId && !(e.ctrlKey || e.metaKey)) this.selectGroup(layer.groupId);
+          else this.selectLayer(layer.id);
+          this.refreshSelectionUI();
+        }
         this.showContextMenu(e.clientX, e.clientY, this.layerMenuItems());
       });
       attachDrag(li, { kind: 'layer', id: layer.id });
@@ -2728,7 +2778,8 @@ const DesignEditor = {
     }
     const inTargets = this.targets().includes(layer);
     if (e.shiftKey) {
-      this.selectLayer(layer.id, true);        // Shift: 複数選択に追加/解除
+      if (layer.groupId) this.toggleGroupInMultiSelect(layer.groupId); // Shift: グループごと複数選択に追加/解除
+      else this.selectLayer(layer.id, true);   // Shift: 複数選択に追加/解除
     } else if (inTargets && this.targets().length > 1) {
       // 選択中の複数/グループをそのままドラッグ
     } else if (layer.groupId && !(e.ctrlKey || e.metaKey)) {
@@ -2967,7 +3018,7 @@ const DesignEditor = {
     }
 
     // Escで選択解除 (アニメーション設定パネルに戻る)
-    if (e.key === 'Escape' && (this.selectedId || this.selectedGroupId)) {
+    if (e.key === 'Escape' && (this.selectedId || this.selectedGroupId || this.selectedGroupIds.length)) {
       e.preventDefault();
       this.clearSelection();
       this.renderAll();
@@ -3047,11 +3098,15 @@ const DesignEditor = {
     const textTab = document.querySelector('#de-props-tabs [data-ptab="text"]');
     if (textTab) textTab.classList.toggle('dim', !(layer && layer.type === 'text'));
 
-    // グループ / 複数選択
+    // グループ / 複数グループ / 複数選択
     const group = this.activeGroup();
+    const multiGroups = this.multiGroups();
     const multi = this.multiSelected();
-    if (group || multi.length) {
-      this.renderGroupProps(panes.props, group, group ? this.groupMembers(group.id) : multi);
+    if (group || multiGroups.length || multi.length) {
+      const members = group ? this.groupMembers(group.id)
+        : multiGroups.length ? multiGroups.flatMap((g) => this.groupMembers(g.id))
+          : multi;
+      this.renderGroupProps(panes.props, group, members, multiGroups.length);
       emptyMsg(panes.text, '文字レイヤーを1つ選択すると、フォント・塗り・縁取りなどを編集できます');
       if (group) this.renderGroupAnim(panes.anim, group);
       else emptyMsg(panes.anim, 'グループ化するとグループ単位のアニメーションを設定できます');
