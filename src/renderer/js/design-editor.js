@@ -738,7 +738,9 @@ const DesignEditor = {
     row('X / Y',
       num(b.x, 'x', (v) => shift(v - this.boundsOf(members).x, 0)),
       num(b.y, 'y', (v) => shift(0, v - this.boundsOf(members).y)));
-    row('W / H', mk('span', 'de-prop-file', `${Math.round(b.w)} × ${Math.round(b.h)}`));
+    row('W / H',
+      num(b.w, 'w', (v) => this.scaleTargets(Math.max(10, v), this.boundsOf(members).h)),
+      num(b.h, 'h', (v) => this.scaleTargets(this.boundsOf(members).w, Math.max(10, v))));
     const alignBtn = (kind, title, fn) => {
       const btn = mk('button', 'btn btn--small de-align-btn');
       btn.innerHTML = this.alignIconSvg(kind);
@@ -2077,6 +2079,35 @@ const DesignEditor = {
     this.targets().forEach((l) => {
       l.x += dx;
       l.y += dy;
+      this.updateLayerElement(l);
+    });
+    this.renderSelection();
+    this.renderPropsValues();
+  },
+
+  /**
+   * 操作対象(複数選択/グループ)の外接矩形の幅/高さを指定値に変更し、各メンバーの
+   * 相対位置・サイズをその拡大率で追従させる (外接矩形の左上を基点に拡縮する)。
+   * プロパティパネルのW/H数値入力から呼ばれる (ドラッグでのリサイズと同じ拡縮ロジック)。
+   */
+  scaleTargets(newW, newH) {
+    const targets = this.targets();
+    if (!targets.length) return;
+    const bounds = this.boundsOf(targets);
+    const scaleX = bounds.w > 0 && newW > 0 ? newW / bounds.w : 1;
+    const scaleY = bounds.h > 0 && newH > 0 ? newH / bounds.h : 1;
+    if (scaleX === 1 && scaleY === 1) return;
+    targets.forEach((l) => {
+      l.x = Math.round(bounds.x + (l.x - bounds.x) * scaleX);
+      l.y = Math.round(bounds.y + (l.y - bounds.y) * scaleY);
+      l.w = Math.round(Math.max(10, l.w * scaleX));
+      l.h = Math.round(Math.max(10, l.h * scaleY));
+      if (targets.length > 1 && l.type === 'text' && l.font) {
+        const fsx = l.font.scaleX !== undefined ? l.font.scaleX : 1;
+        const fsy = l.font.scaleY !== undefined ? l.font.scaleY : 1;
+        l.font.scaleX = Math.max(0.1, fsx * scaleX);
+        l.font.scaleY = Math.max(0.1, fsy * scaleY);
+      }
       this.updateLayerElement(l);
     });
     this.renderSelection();
@@ -3821,7 +3852,7 @@ const DesignEditor = {
   renderPropsValues() {
     if (this.targets().length > 1) {
       const b = this.boundsOf(this.targets());
-      ['x', 'y'].forEach((prop) => {
+      ['x', 'y', 'w', 'h'].forEach((prop) => {
         const input = document.querySelector(`#de-props [data-gprop="${prop}"]`);
         if (input && document.activeElement !== input) input.value = Math.round(b[prop]);
       });
