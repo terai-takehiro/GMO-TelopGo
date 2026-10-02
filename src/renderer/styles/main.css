@@ -2943,6 +2943,9 @@ body {
 }
 .de-icon-btn svg { width: 14px; height: 14px; }
 .de-icon-btn:hover { background: #474747; color: #fff; }
+.de-aspect-lock { flex: 0 0 auto; }
+.de-aspect-lock.active { background: var(--accent-soft); color: #cfe0ff; }
+.de-aspect-lock.active:hover { background: #4a5f82; color: #fff; }
 .de-lib-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .de-tpl-list { flex: 1; overflow-y: auto; padding: 4px 0; }
 .de-tpl-row {

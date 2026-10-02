@@ -72,6 +72,7 @@ const DesignEditor = {
   drag: null,          // 進行中のドラッグ {kind:'move'|'resize', ...}
   gridSize: 0,         // グリッド間隔 (px, 0=非表示)
   safetyMode: 'off',    // セーフティゾーン表示 'off' | '98' | '95' | 'both'
+  aspectLocked: false,  // プロパティパネルのW/H数値入力で縦横比を固定するか
   loaded: false,
 
   init() {
@@ -739,8 +740,19 @@ const DesignEditor = {
       num(b.x, 'x', (v) => shift(v - this.boundsOf(members).x, 0)),
       num(b.y, 'y', (v) => shift(0, v - this.boundsOf(members).y)));
     row('W / H',
-      num(b.w, 'w', (v) => this.scaleTargets(Math.max(10, v), this.boundsOf(members).h)),
-      num(b.h, 'h', (v) => this.scaleTargets(this.boundsOf(members).w, Math.max(10, v))));
+      num(b.w, 'w', (v) => {
+        const bb = this.boundsOf(members);
+        const newW = Math.max(10, v);
+        const newH = this.aspectLocked && bb.w > 0 ? Math.max(10, Math.round(bb.h * (newW / bb.w))) : bb.h;
+        this.scaleTargets(newW, newH);
+      }),
+      num(b.h, 'h', (v) => {
+        const bb = this.boundsOf(members);
+        const newH = Math.max(10, v);
+        const newW = this.aspectLocked && bb.h > 0 ? Math.max(10, Math.round(bb.w * (newH / bb.h))) : bb.w;
+        this.scaleTargets(newW, newH);
+      }),
+      this.aspectLockBtn(() => this.renderProps()));
     const alignBtn = (kind, title, fn) => {
       const btn = mk('button', 'btn btn--small de-align-btn');
       btn.innerHTML = this.alignIconSvg(kind);
@@ -2176,6 +2188,19 @@ const DesignEditor = {
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
   },
 
+  /** W/H入力の横に置く「縦横比を固定」トグルボタン (南京錠アイコン、押すたびON/OFF) */
+  aspectLockBtn(onToggle) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `de-icon-btn de-aspect-lock${this.aspectLocked ? ' active' : ''}`;
+    btn.title = this.aspectLocked ? '縦横比を固定中 (クリックで解除)' : '縦横比を固定する (W/H入力に連動)';
+    btn.innerHTML = this.aspectLocked
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7-2.6"/></svg>';
+    btn.addEventListener('click', () => { this.aspectLocked = !this.aspectLocked; onToggle(); });
+    return btn;
+  },
+
   newLayerId() {
     return `ly_${Math.random().toString(36).slice(2, 9)}`;
   },
@@ -3133,8 +3158,19 @@ const DesignEditor = {
       num(() => layer.x, (v) => { layer.x = v; }, { 'data-prop': 'x' }),
       num(() => layer.y, (v) => { layer.y = v; }, { 'data-prop': 'y' }));
     row('W / H',
-      num(() => layer.w, (v) => { layer.w = Math.max(10, v); }, { 'data-prop': 'w' }),
-      num(() => layer.h, (v) => { layer.h = Math.max(10, v); }, { 'data-prop': 'h' }));
+      num(() => layer.w, (v) => {
+        const newW = Math.max(10, v);
+        if (this.aspectLocked && layer.w > 0) layer.h = Math.max(10, Math.round(layer.h * (newW / layer.w)));
+        layer.w = newW;
+        this.renderPropsValues();
+      }, { 'data-prop': 'w' }),
+      num(() => layer.h, (v) => {
+        const newH = Math.max(10, v);
+        if (this.aspectLocked && layer.h > 0) layer.w = Math.max(10, Math.round(layer.w * (newH / layer.h)));
+        layer.h = newH;
+        this.renderPropsValues();
+      }, { 'data-prop': 'h' }),
+      this.aspectLockBtn(() => this.renderProps()));
     row('回転 / 不透明',
       num(() => layer.rotation || 0, (v) => { layer.rotation = v; }),
       num(() => Math.round((layer.opacity !== undefined ? layer.opacity : 1) * 100), (v) => { layer.opacity = Math.max(0, Math.min(100, v)) / 100; }, { min: 0, max: 100 }));
