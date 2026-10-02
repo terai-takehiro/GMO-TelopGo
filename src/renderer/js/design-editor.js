@@ -3062,10 +3062,19 @@ const DesignEditor = {
     this.beginChange();
     const template = this.project.templates[this.templateKey];
     const copy = JSON.parse(JSON.stringify(template.variants.jp));
-    // バインドをEN側フィールドへ変換 (titleJp→titleEn, textJp→textEn など)
+    // バインドをEN側フィールドへ変換 (titleJp→titleEn, textJp→textEn など)。
+    // 自由入力の変数名 (末尾が大文字のJP等) にも対応するため大小文字を区別せず判定し、
+    // 変換後も元の大小文字のパターンを保つ。「Jp」系で終わらない変数名はJPと同じ
+    // binding になって区別できなくなるのを避けるため、末尾に _en を付けて区別する。
     copy.layers.forEach((layer) => {
-      if (layer.type === 'text' && layer.binding) {
-        layer.binding = layer.binding.replace(/Jp$/, 'En');
+      if (layer.type !== 'text' || !layer.binding) return;
+      const b = layer.binding;
+      if (/jp$/i.test(b)) {
+        const suffix = b.slice(-2);
+        const replacement = suffix === suffix.toUpperCase() ? 'EN' : (suffix === suffix.toLowerCase() ? 'en' : 'En');
+        layer.binding = b.slice(0, -2) + replacement;
+      } else {
+        layer.binding = `${b}_en`;
       }
     });
     template.variants.en = copy;
