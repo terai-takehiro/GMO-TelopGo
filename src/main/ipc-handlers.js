@@ -11,7 +11,7 @@ const graphicsStore = require('./graphics-store');
 const graphicsServer = require('./graphics-server');
 const liveData = require('./live-data');
 const googleFonts = require('./google-fonts');
-const { getSettings, saveSettings, getGpioConfig, getGraphicsConfig, getChannels, getOutputGroups } = require('./settings-store');
+const { getSettings, saveSettings, getGpioConfig, getGraphicsConfig, getChannels, getOutputGroups, getNameFields } = require('./settings-store');
 const rundownStore = require('./rundown-store');
 
 /** テンプレートのbindingフィールド一覧 (レイヤー順・重複なし) */
@@ -54,10 +54,15 @@ function templateFields(templateKey) {
 const NAME_BATCH_PREFIXES = ['', '2nd', '3rd', '4th'];
 const NAME_BATCH_LABELS = ['1st', '2nd', '3rd', '4th'];
 
-/** binding名 (例: 'titleJp' / '2ndNameEn') を人数インデックス pi・接頭辞から組み立てる */
+/**
+ * binding名 (例: 'titleJp' / '2ndNameEn') を人数インデックス pi・接頭辞から組み立てる。
+ * 設定タブの「氏名テロップの項目名」でスロットごとに変数名を変更していれば、それを優先する。
+ */
 function nameBinding(prefix, field, lang) {
   // field: 'Title' | 'Name'。接頭辞なし(1人目)は先頭を小文字化 (titleJp / nameJp)
-  return prefix ? `${prefix}${field}${lang}` : `${field.charAt(0).toLowerCase()}${field.slice(1)}${lang}`;
+  const slot = prefix ? `${prefix}${field}${lang}` : `${field.charAt(0).toLowerCase()}${field.slice(1)}${lang}`;
+  const nameFields = getNameFields();
+  return (nameFields && nameFields[slot]) || slot;
 }
 
 /**

@@ -935,16 +935,19 @@ const RundownUI = {
     const tplInfo = App.templates[templateKey];
     if (!tplInfo) return [];
     const bindings = new Set(tplInfo.bindings);
+    const nameFields = App.nameFields || {};
+    // 設定タブ「氏名テロップの項目名」でスロットごとに変数名を変更していれば、それを優先する
+    const slot = (key) => nameFields[key] || key;
     const persons = [];
     ['', '2nd', '3rd', '4th'].forEach((prefix) => {
-      const nameJp = prefix ? `${prefix}NameJp` : 'nameJp';
+      const nameJp = slot(prefix ? `${prefix}NameJp` : 'nameJp');
       if (!bindings.has(nameJp)) return;
-      const titleJp = prefix ? `${prefix}TitleJp` : 'titleJp';
+      const titleJp = slot(prefix ? `${prefix}TitleJp` : 'titleJp');
       persons.push({
         nameJp,
-        nameEn: prefix ? `${prefix}NameEn` : 'nameEn',
+        nameEn: slot(prefix ? `${prefix}NameEn` : 'nameEn'),
         titleJp,
-        titleEn: prefix ? `${prefix}TitleEn` : 'titleEn',
+        titleEn: slot(prefix ? `${prefix}TitleEn` : 'titleEn'),
         hasTitle: bindings.has(titleJp),
       });
     });
