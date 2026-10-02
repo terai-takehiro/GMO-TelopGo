@@ -1,6 +1,6 @@
 {
   "name": "gmo-telopgo",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "GMO TelopGo - HTML5テロップ送出アプリ",
   "main": "main.js",
   "author": "GMOインターネットグループ株式会社",
