@@ -810,6 +810,39 @@ const DesignEditor = {
         alignEachOtherBtn('bottom', '下端をお互いに揃える', (ub, bb) => [0, Math.round(bb.y + bb.h - ub.h) - ub.y]));
     }
 
+    // 余白を均等に配置 (両端はそのまま、間を等間隔に。3個以上でないと意味がない)
+    if (units.length >= 3) {
+      panel.appendChild(mk('div', 'de-props-section', '余白を均等に配置 (両端は固定し、間の余白を揃える)'));
+      const distributeBtn = (kind, title, prop, sizeProp) => {
+        const btn = mk('button', 'btn btn--small de-align-btn');
+        btn.innerHTML = this.alignIconSvg(kind);
+        btn.title = title;
+        btn.addEventListener('click', () => {
+          this.beginChange();
+          const sorted = units
+            .map((unit) => ({ unit, b: this.boundsOf(unit) }))
+            .sort((a, c) => a.b[prop] - c.b[prop]);
+          const first = sorted[0].b;
+          const last = sorted[sorted.length - 1].b;
+          const span = (last[prop] + last[sizeProp]) - first[prop];
+          const totalSize = sorted.reduce((s, u) => s + u.b[sizeProp], 0);
+          const gap = (span - totalSize) / (sorted.length - 1);
+          let cursor = first[prop];
+          sorted.forEach(({ unit, b: ub }) => {
+            const d = Math.round(cursor) - ub[prop];
+            if (d) unit.forEach((l) => { l[prop === 'x' ? 'x' : 'y'] += d; this.updateLayerElement(l); });
+            cursor += ub[sizeProp] + gap;
+          });
+          this.renderArtboard();
+          this.renderProps();
+        });
+        return btn;
+      };
+      row('余白を均等に',
+        distributeBtn('hdistribute', '左右の余白を均等にする (両端のオブジェクトは固定)', 'x', 'w'),
+        distributeBtn('vdistribute', '上下の余白を均等にする (両端のオブジェクトは固定)', 'y', 'h'));
+    }
+
     const actions = mk('div', 'de-prop-row');
     if (group) {
       const ungroup = mk('button', 'btn btn--small', 'グループ解除 (Ctrl+Shift+G)');
@@ -2227,6 +2260,8 @@ const DesignEditor = {
     top: '<path d="M3 4h18"/><rect x="6" y="6" width="4" height="12"/><rect x="14" y="6" width="4" height="7"/>',
     vcenter: '<path d="M3 12h18"/><rect x="6" y="5" width="4" height="14"/><rect x="14" y="8" width="4" height="8"/>',
     bottom: '<path d="M3 20h18"/><rect x="6" y="6" width="4" height="12"/><rect x="14" y="11" width="4" height="7"/>',
+    hdistribute: '<rect x="2" y="5" width="4" height="14"/><rect x="10" y="5" width="4" height="14"/><rect x="18" y="5" width="4" height="14"/><path d="M6.5 12h3M14.5 12h3" stroke-dasharray="1.6 1.6"/>',
+    vdistribute: '<rect x="5" y="2" width="14" height="4"/><rect x="5" y="10" width="14" height="4"/><rect x="5" y="18" width="14" height="4"/><path d="M12 6.5v3M12 14.5v3" stroke-dasharray="1.6 1.6"/>',
   },
   alignIconSvg(kind) {
     const path = this.ALIGN_ICON_PATHS[kind] || '';
