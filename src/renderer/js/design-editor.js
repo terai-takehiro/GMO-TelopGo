@@ -2211,9 +2211,10 @@ const DesignEditor = {
   /** 使用可能なバインドフィールド一覧 (リージョン既定候補 + テンプレート内で使用中のもの) */
   bindings() {
     let list;
-    if (this.region() === 'side') {
+    // 系統は tl1/tl2 等の汎用枠に移行済みのため、既定候補はテンプレートキーで判定する
+    if (this.templateKey === 'side') {
       list = ['textJp', 'textEn'];
-    } else if (this.region() === 'name') {
+    } else if (this.templateKey.startsWith('name-')) {
       list = [];
       ['', '2nd', '3rd', '4th'].forEach((prefix) => {
         ['Title', 'Name'].forEach((kind) => {
@@ -3132,6 +3133,115 @@ const DesignEditor = {
     this.updateStatus();
   },
 
+  // ===== 変数/Excel (テンプレートの変数をExcel列としてまとめる設定) =====
+
+  /**
+   * Excelの列になる変数の一覧 (無効な列も含む)。template.excelColumns の順序・見出し・有効/無効に従い、
+   * 無くなった変数は除外、増えた変数は末尾に有効で追加する。main の templateExcelColumns と同じ規則。
+   */
+  excelColumns(templateKey = this.templateKey) {
+    const template = this.project.templates[templateKey];
+    const fields = [];
+    ['jp', 'en'].forEach((lang) => {
+      const variant = template.variants && template.variants[lang];
+      ((variant && variant.layers) || []).forEach((layer) => {
+        if (layer.type !== 'text' || !layer.binding || fields.some((f) => f.binding === layer.binding)) return;
+        fields.push({ binding: layer.binding, label: layer.name || '', sample: layer.sample || layer.text || '' });
+      });
+    });
+    const byBinding = new Map(fields.map((f) => [f.binding, f]));
+    const cols = [];
+    const seen = new Set();
+    (Array.isArray(template.excelColumns) ? template.excelColumns : []).forEach((c) => {
+      const f = c && byBinding.get(c.binding);
+      if (!f || seen.has(c.binding)) return;
+      seen.add(c.binding);
+      cols.push({ ...f, header: String(c.header || ''), enabled: c.enabled !== false });
+    });
+    fields.forEach((f) => { if (!seen.has(f.binding)) cols.push({ ...f, header: '', enabled: true }); });
+    return cols;
+  },
+
+  /** 列設定をテンプレートへ保存 (undo対象)。cols=null で初期状態 (レイヤー順・全列有効) に戻す */
+  setExcelColumns(cols) {
+    this.beginChange();
+    const template = this.project.templates[this.templateKey];
+    if (cols) template.excelColumns = cols.map((c) => ({ binding: c.binding, header: c.header || '', enabled: c.enabled !== false }));
+    else delete template.excelColumns;
+    this.renderProps();
+  },
+
+  renderVarsPane(pane) {
+    const mk = (tag, cls, txt) => {
+      const el = document.createElement(tag);
+      if (cls) el.className = cls;
+      if (txt !== undefined) el.textContent = txt;
+      return el;
+    };
+    pane.appendChild(mk('div', 'de-props-section', 'Excelの列 (変数のまとめ)'));
+    pane.appendChild(mk('div', 'de-props-hint',
+      'このテンプレートの変数を、Excelの列として並べる順序・見出し・使用有無を設定します。「Excel取込」と「Excelテンプレ書き出し」の両方がこの設定に従います (上から順に左の列)。変数は文字レイヤーの「データ連動(変数)」で追加できます。'));
+
+    const cols = this.excelColumns();
+    if (cols.length === 0) {
+      pane.appendChild(mk('div', 'de-props-empty', '変数がありません。文字レイヤーを「データ連動(変数)」にすると、ここに列として並びます'));
+      return;
+    }
+
+    cols.forEach((c, i) => {
+      const row = mk('div', 'de-var-row');
+      const on = mk('input');
+      on.type = 'checkbox';
+      on.checked = c.enabled;
+      on.title = 'Excelの列として使う';
+      on.addEventListener('change', () => {
+        const next = this.excelColumns();
+        next[i].enabled = on.checked;
+        this.setExcelColumns(next);
+      });
+      const name = mk('div', 'de-var-name');
+      name.append(mk('code', '', c.binding), mk('span', 'de-var-label', c.label ? ` ${c.label}` : ''));
+      const head = mk('input', 'input input--small de-var-header');
+      head.type = 'text';
+      head.value = c.header;
+      head.placeholder = c.label && c.label !== c.binding ? `${c.label} [${c.binding}]` : c.binding;
+      head.title = 'Excelの見出し (空欄=レイヤー名 [変数名])';
+      head.addEventListener('change', () => {
+        const next = this.excelColumns();
+        next[i].header = head.value.trim();
+        this.setExcelColumns(next);
+      });
+      const move = (d) => {
+        const next = this.excelColumns();
+        const j = i + d;
+        if (j < 0 || j >= next.length) return;
+        [next[i], next[j]] = [next[j], next[i]];
+        this.setExcelColumns(next);
+      };
+      const up = mk('button', 'btn btn--small de-var-move', '▲');
+      up.type = 'button';
+      up.disabled = i === 0;
+      up.addEventListener('click', () => move(-1));
+      const down = mk('button', 'btn btn--small de-var-move', '▼');
+      down.type = 'button';
+      down.disabled = i === cols.length - 1;
+      down.addEventListener('click', () => move(1));
+      row.append(on, name, head, up, down);
+      pane.appendChild(row);
+    });
+
+    const actions = mk('div', 'de-var-actions');
+    const reset = mk('button', 'btn btn--small', '初期状態に戻す');
+    reset.type = 'button';
+    reset.title = 'レイヤー順・全列有効・見出し自動に戻します';
+    reset.addEventListener('click', () => this.setExcelColumns(null));
+    const exp = mk('button', 'btn btn--small', 'Excelテンプレを書き出し…');
+    exp.type = 'button';
+    exp.addEventListener('click', () => this.exportExcelTemplate(this.templateKey));
+    actions.append(reset, exp);
+    pane.appendChild(actions);
+  },
+
   // ===== プロパティパネル =====
 
   renderProps() {
@@ -3140,13 +3250,14 @@ const DesignEditor = {
     root.innerHTML = '';
     // タブごとのペイン (プロパティ / 文字 / アニメーション)
     const panes = {};
-    ['props', 'text', 'anim'].forEach((key) => {
+    ['props', 'text', 'anim', 'vars'].forEach((key) => {
       const pane = document.createElement('div');
       pane.className = 'de-pane';
       pane.dataset.pane = key;
       root.appendChild(pane);
       panes[key] = pane;
     });
+    this.renderVarsPane(panes.vars); // 変数/Excel タブは選択状態に関わらず常にテンプレート単位
     const emptyMsg = (pane, msg) => {
       const el = document.createElement('div');
       el.className = 'de-props-empty';
@@ -3177,7 +3288,7 @@ const DesignEditor = {
       emptyMsg(panes.props, 'レイヤーを選択してください');
       emptyMsg(panes.text, '文字レイヤーを選択すると、フォント・塗り・縁取りなどを編集できます');
       this.renderAnimationProps(panes.anim);
-      this.showPropsTab('anim'); // 未選択時はテンプレートのアニメーション設定を表示 (ユーザーのタブ選択は保持)
+      this.showPropsTab(this.propsTab === 'vars' ? 'vars' : 'anim'); // 未選択時はテンプレートのアニメーション設定を表示 (変数/Excelタブ選択中は保持)
       return;
     }
     if (layer.type !== 'text') emptyMsg(panes.text, '文字レイヤーを選択すると、フォント・塗り・縁取りなどを編集できます');
