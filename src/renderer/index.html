@@ -179,24 +179,51 @@
         <div class="od-center">
           <div class="od-pages-toolbar">
             <button class="btn btn--small od-btn" id="od-add-page">＋ページ</button>
-            <button class="btn btn--small od-btn" id="od-import-excel">Excel取込</button>
-            <button class="btn btn--small od-btn" id="od-export-excel-template" title="選んだテンプレートの入力用Excel (列見出し+見本行) を書き出します">Excelテンプレ書き出し</button>
-            <button class="btn btn--small od-btn" id="od-import-name-batch" title="Excelの「テンプレ」列 (1S/2S/3S/4S等) の値から行ごとに使用するテンプレートを自動判定して、複数ページを一括取込します">氏名テロップ一括取込</button>
-            <button class="btn btn--small od-btn" id="od-export-name-batch-template" title="テンプレ列＋1st〜4th分の列を持つ、氏名テロップ一括取込用の入力Excelを1ファイルにまとめて書き出します">氏名テロップ一括テンプレ書き出し</button>
-            <button class="btn btn--small od-btn" id="od-import-pool" title="名前プールをExcelから読込 (ページ編集時の名前補完に使われます)">名前プール読込</button>
-            <button class="btn btn--small od-btn" id="od-export-pool-template" title="名前プール取込用の入力Excel (肩書/名前 日英4列) を書き出します">名前プールテンプレ書き出し</button>
+            <div class="od-pop-wrap" id="od-excel-wrap">
+              <button class="btn btn--small od-btn" data-pop="od-pop-excel" id="od-excel-menu-btn" title="Excelの取込・入力用Excelの書き出し">Excel ▾</button>
+              <div class="od-pop od-menu od-menu--wide hidden" id="od-pop-excel">
+                <div class="od-menu-label">ページ — テンプレートの列順で取り込む</div>
+                <button class="od-menu-item" id="od-import-excel">Excelから取込…</button>
+                <button class="od-menu-item" id="od-export-excel-template" title="選んだテンプレートの入力用Excel (列見出し+見本行) を書き出します">入力用Excelを書き出し…</button>
+                <div class="od-menu-sep"></div>
+                <div class="od-menu-label">氏名テロップ一括 — 1S〜4S を行ごとに自動判定</div>
+                <button class="od-menu-item" id="od-import-name-batch" title="Excelの「テンプレ」列 (1S/2S/3S/4S等) の値から行ごとに使用するテンプレートを自動判定して、複数ページを一括取込します">氏名テロップを一括取込…</button>
+                <button class="od-menu-item" id="od-export-name-batch-template" title="テンプレ列＋1st〜4th分の列を持つ、氏名テロップ一括取込用の入力Excelを1ファイルにまとめて書き出します">一括用Excelを書き出し…</button>
+                <div class="od-menu-sep"></div>
+                <div class="od-menu-label">名前プール — ページ編集での名前の補完候補</div>
+                <button class="od-menu-item" id="od-import-pool" title="名前プールをExcelから読込 (ページ編集時の名前補完に使われます)">名前プールを読込…</button>
+                <button class="od-menu-item" id="od-export-pool-template" title="名前プール取込用の入力Excel (肩書/名前 日英4列) を書き出します">読込用Excelを書き出し…</button>
+              </div>
+            </div>
             <span class="od-spacer"></span>
             <div class="od-countdown" id="od-countdown"></div>
             <span class="od-key-target" id="od-key-target" title="キーボード操作 (Space=TAKE / ←→=NEXT移動 など) が効く系統。列をクリックで切替">⌨ キー操作: -</span>
           </div>
           <div class="od-columns" id="od-columns"></div>
           <div class="od-standby hidden" id="od-standby">
-            <div class="od-standby-title">素材集 — 放送しない予備ページの待機エリア</div>
+            <div class="od-standby-title">
+              <span>素材集 — 放送しない予備ページの待機エリア</span>
+              <span class="od-spacer"></span>
+              <label class="od-standby-selall"><input type="checkbox" id="od-standby-selall"> すべて選択</label>
+              <span class="od-standby-selcount" id="od-standby-selcount"></span>
+              <button class="btn btn--small od-btn od-btn--danger" id="od-standby-del-sel" disabled>選択を削除</button>
+              <button class="btn btn--small od-btn" id="od-standby-del-all">すべて削除…</button>
+            </div>
             <div class="od-standby-list" id="od-standby-list"></div>
           </div>
         </div>
-        <div class="od-right">
+        <div class="od-right" id="od-right">
+          <div class="od-right-head">
+            <span class="od-right-title">ページ編集</span>
+            <span class="od-spacer"></span>
+            <button class="btn btn--small od-btn od-right-toggle" id="od-right-collapse" title="ページ編集を折りたたむ (送出中は列を広く使えます)" aria-label="ページ編集を折りたたむ">»</button>
+          </div>
+          <label class="od-right-auto" title="TAKEしたら自動でページ編集を折りたたみます (「«」でいつでも開けます)"><input type="checkbox" id="od-right-autoclose"> TAKEしたら自動で折りたたむ</label>
           <div class="od-editor" id="od-editor"></div>
+        </div>
+        <div class="od-right-rail hidden" id="od-right-rail">
+          <button class="btn btn--small od-btn od-right-toggle" id="od-right-expand" title="ページ編集を開く" aria-label="ページ編集を開く">«</button>
+          <span class="od-right-rail-label" id="od-right-rail-label">ページ編集</span>
         </div>
       </div>
     </div>
@@ -235,11 +262,41 @@
       <label for="od-page-template">テンプレート</label>
       <select id="od-page-template" class="input"></select>
     </div>
+    <div class="od-xl-cols hidden" id="od-page-dialog-cols">
+      <div class="od-xl-cols-head">
+        <span>Excelの列</span>
+        <span class="od-spacer"></span>
+        <button type="button" class="od-link-btn" id="od-page-dialog-colset" title="デザインの「変数/Excel」タブで、列の並び・見出し・使う/使わないを設定します">列の並び・見出しを設定する…</button>
+      </div>
+      <table class="od-xl-table" id="od-page-dialog-cols-table"></table>
+    </div>
+    <div class="settings-row hidden" id="od-page-dialog-dest-row">
+      <label for="od-page-dest">取込先</label>
+      <select id="od-page-dest" class="input">
+        <option value="pages">コーナーの末尾に追加</option>
+        <option value="standby">素材集に追加</option>
+      </select>
+    </div>
     <div class="de-dialog-actions">
-      <button class="btn btn--small hidden" id="od-page-dialog-template" title="このテンプレートの入力用Excelを書き出します">Excelテンプレを書き出し…</button>
+      <button class="btn btn--small hidden" id="od-page-dialog-template" title="このテンプレートの入力用Excelを書き出します">入力用Excelを書き出し…</button>
       <span class="od-spacer"></span>
       <button class="btn btn--small" id="od-page-dialog-cancel">キャンセル</button>
       <button class="btn btn--small btn--primary" id="od-page-dialog-ok">OK</button>
+    </div>
+  </dialog>
+
+  <!-- Excel取込: 読み込み内容の確認 -->
+  <dialog id="od-xl-preview" class="de-dialog od-xl-preview">
+    <h3>読み込み内容の確認</h3>
+    <p class="de-props-hint" id="od-xl-preview-summary"></p>
+    <div class="od-xl-preview-scroll">
+      <table class="od-xl-table" id="od-xl-preview-table"></table>
+    </div>
+    <p class="de-props-hint" id="od-xl-preview-more"></p>
+    <div class="de-dialog-actions">
+      <span class="od-spacer"></span>
+      <button class="btn btn--small" id="od-xl-preview-cancel">キャンセル</button>
+      <button class="btn btn--small btn--primary" id="od-xl-preview-ok">取り込む</button>
     </div>
   </dialog>
 
