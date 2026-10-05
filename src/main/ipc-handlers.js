@@ -812,7 +812,8 @@ function registerIpcHandlers() {
         ['代表取締役', '見本 太郎', 'CEO', 'Taro Mihon'],
       ];
       defaultFilename = 'name-telop-template.xlsx';
-    } else if (telopType === 'side') {
+    } else if (telopType === 'side' && templateFields('side').length === 0) {
+      // テンプレート 'side' が存在しない場合のみ旧固定列。存在すればデザインの変数 (binding) に従う
       wsData = [
         ['テキスト(JP)', 'テキスト(EN)'],
         ['サンプルテキスト', 'Sample text'],

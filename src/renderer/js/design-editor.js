@@ -2211,9 +2211,10 @@ const DesignEditor = {
   /** 使用可能なバインドフィールド一覧 (リージョン既定候補 + テンプレート内で使用中のもの) */
   bindings() {
     let list;
-    if (this.region() === 'side') {
+    // 系統は tl1/tl2 等の汎用枠に移行済みのため、既定候補はテンプレートキーで判定する
+    if (this.templateKey === 'side') {
       list = ['textJp', 'textEn'];
-    } else if (this.region() === 'name') {
+    } else if (this.templateKey.startsWith('name-')) {
       list = [];
       ['', '2nd', '3rd', '4th'].forEach((prefix) => {
         ['Title', 'Name'].forEach((kind) => {
