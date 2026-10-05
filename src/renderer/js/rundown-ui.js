@@ -109,6 +109,28 @@ const RundownUI = {
     document.getElementById('od-export-name-batch-template').addEventListener('click', () => this.exportNameBatchTemplate());
     document.getElementById('od-page-dialog-cancel').addEventListener('click', () => document.getElementById('od-page-dialog').close());
     document.getElementById('od-page-dialog-ok').addEventListener('click', () => this.submitPageDialog());
+    document.getElementById('od-page-template').addEventListener('change', () => this.renderExcelColumns());
+    document.getElementById('od-page-dialog-colset').addEventListener('click', () => {
+      document.getElementById('od-page-dialog').close();
+      this.openExcelColumnSettings(document.getElementById('od-page-template').value);
+    });
+    document.getElementById('od-xl-preview-cancel').addEventListener('click', () => {
+      this._pendingExcel = null;
+      document.getElementById('od-xl-preview').close();
+    });
+    document.getElementById('od-xl-preview-ok').addEventListener('click', () => this.commitExcelImport());
+
+    // 右サイドバー (ページ編集) の折りたたみ
+    this.initRightPanel();
+
+    // 素材集: 選択して一括削除
+    document.getElementById('od-standby-selall').addEventListener('change', (e) => {
+      const corner = this.currentCorner();
+      this.standbySel = new Set(e.target.checked && corner ? (corner.standby || []).map((pg) => pg.id) : []);
+      this.renderStandby();
+    });
+    document.getElementById('od-standby-del-sel').addEventListener('click', () => this.deleteStandby(false));
+    document.getElementById('od-standby-del-all').addEventListener('click', () => this.deleteStandby(true));
 
     // 電テロ追加ダイアログ (静的送出)
     document.getElementById('od-telop-cancel').addEventListener('click', () => document.getElementById('od-telop-dialog').close());
@@ -615,11 +637,9 @@ const RundownUI = {
     const telopMode = App.activeMode === 'telop';
 
     this.renderModeBanner();
-    // 電テロモードでは Excel取込 (変数代入) は無関係なので隠す
-    const excelBtn = document.getElementById('od-import-excel');
-    if (excelBtn) excelBtn.classList.toggle('hidden', telopMode);
-    const excelTplBtn = document.getElementById('od-export-excel-template');
-    if (excelTplBtn) excelTplBtn.classList.toggle('hidden', telopMode);
+    // 電テロモードでは Excel取込 (変数代入・氏名一括・名前プール) は無関係なのでメニューごと隠す
+    const excelWrap = document.getElementById('od-excel-wrap');
+    if (excelWrap) excelWrap.classList.toggle('hidden', telopMode);
 
     App.channels.forEach((ch) => {
       const col = document.createElement('div');
@@ -827,16 +847,116 @@ const RundownUI = {
     list.innerHTML = '';
     const corner = this.currentCorner();
     if (!corner) return;
-    (corner.standby || []).forEach((page) => {
-      list.appendChild(this.buildPageEl(page, corner, 'standby'));
+    const standby = corner.standby || [];
+    // 選択 (一括削除用): 無くなったページは選択から外す
+    const ids = new Set(standby.map((pg) => pg.id));
+    this.standbySel = new Set([...(this.standbySel || [])].filter((id) => ids.has(id)));
+    standby.forEach((page) => {
+      const el = this.buildPageEl(page, corner, 'standby');
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.className = 'od-standby-check';
+      check.checked = this.standbySel.has(page.id);
+      check.title = '選択 (一括削除用)';
+      check.setAttribute('aria-label', `P${page.pageNo} を選択`);
+      check.addEventListener('click', (e) => e.stopPropagation());
+      check.addEventListener('mousedown', (e) => e.stopPropagation());
+      check.addEventListener('change', () => {
+        if (check.checked) this.standbySel.add(page.id);
+        else this.standbySel.delete(page.id);
+        this.updateStandbySelection(standby.length);
+      });
+      el.classList.toggle('od-standby-selected', check.checked);
+      el.insertBefore(check, el.firstChild);
+      list.appendChild(el);
     });
-    if ((corner.standby || []).length === 0) {
+    if (standby.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'od-empty';
       empty.textContent = '(素材集は空です — ページを右クリック→「素材集へ」で退避できます)';
       list.appendChild(empty);
     }
-    document.getElementById('od-standby-count').textContent = (corner.standby || []).length;
+    document.getElementById('od-standby-count').textContent = standby.length;
+    this.updateStandbySelection(standby.length);
+  },
+
+  /** 素材集の選択数・一括操作ボタンの状態を更新 */
+  updateStandbySelection(total) {
+    const n = this.standbySel ? this.standbySel.size : 0;
+    document.getElementById('od-standby-selcount').textContent = n ? `${n} 件を選択中` : '';
+    document.getElementById('od-standby-del-sel').disabled = n === 0;
+    document.getElementById('od-standby-del-all').disabled = total === 0;
+    const all = document.getElementById('od-standby-selall');
+    all.checked = total > 0 && n === total;
+    all.indeterminate = n > 0 && n < total;
+    all.disabled = total === 0;
+    document.querySelectorAll('#od-standby-list .od-page').forEach((el) => {
+      el.classList.toggle('od-standby-selected', !!(this.standbySel && this.standbySel.has(el.dataset.pageId)));
+    });
+  },
+
+  /** 素材集のページを削除 (all=true: すべて / false: 選択したもの)。コーナーのページは削除しない */
+  async deleteStandby(all) {
+    const corner = this.currentCorner();
+    if (!corner || !(corner.standby || []).length) return;
+    const targets = all ? corner.standby.map((pg) => pg.id) : [...(this.standbySel || [])];
+    if (!targets.length) return;
+    const ok = await AppModal.confirm(
+      all ? '素材集をすべて削除' : '選択したページを削除',
+      `素材集から ${targets.length} 件のページを削除します。コーナーのページは削除されません。よろしいですか?`,
+      { danger: true },
+    );
+    if (!ok) return;
+    const del = new Set(targets);
+    this.mutate(() => {
+      corner.standby = corner.standby.filter((pg) => !del.has(pg.id));
+    });
+    this.standbySel = new Set();
+    if (this.selectedPageId && del.has(this.selectedPageId)) {
+      this.selectedPageId = null;
+      this.renderEditor();
+    }
+    App.setStatus(`素材集から ${targets.length} 件を削除しました`, 'success');
+  },
+
+  // ===== 右サイドバー (ページ編集) の折りたたみ =====
+
+  RIGHT_COLLAPSED_KEY: 'telopgo.onairEditorCollapsed',
+  RIGHT_AUTOCLOSE_KEY: 'telopgo.onairEditorAutoClose',
+
+  _pref(key, value) {
+    try {
+      if (value === undefined) return localStorage.getItem(key);
+      localStorage.setItem(key, value);
+    } catch (_) { /* 保存できない環境 */ }
+    return null;
+  },
+
+  initRightPanel() {
+    document.getElementById('od-right-collapse').addEventListener('click', () => this.setRightCollapsed(true));
+    document.getElementById('od-right-expand').addEventListener('click', () => this.setRightCollapsed(false));
+    const auto = document.getElementById('od-right-autoclose');
+    auto.checked = this._pref(this.RIGHT_AUTOCLOSE_KEY) === '1';
+    auto.addEventListener('change', () => this._pref(this.RIGHT_AUTOCLOSE_KEY, auto.checked ? '1' : '0'));
+    this.setRightCollapsed(this._pref(this.RIGHT_COLLAPSED_KEY) === '1');
+  },
+
+  /** ページ編集を折りたたむ/開く (折りたたみ中は細い帯だけ残し、系統の列を広く使う) */
+  setRightCollapsed(collapsed) {
+    this.rightCollapsed = !!collapsed;
+    document.getElementById('od-right').classList.toggle('hidden', this.rightCollapsed);
+    document.getElementById('od-right-rail').classList.toggle('hidden', !this.rightCollapsed);
+    this._pref(this.RIGHT_COLLAPSED_KEY, this.rightCollapsed ? '1' : '0');
+    // 列幅が変わるのでOA/NEXTモニターの縮尺を合わせ直す
+    if (this.loaded) {
+      this.updateChannelMonitors();
+      this.renderNextPreviews();
+    }
+  },
+
+  /** TAKE後に呼ばれる: 設定がONならページ編集を折りたたむ */
+  afterTake() {
+    if (!this.rightCollapsed && document.getElementById('od-right-autoclose').checked) this.setRightCollapsed(true);
   },
 
   /** 状態色 (赤=ON AIR / 黄=NEXT / グレー=済み) をページ行へ反映 */
@@ -958,6 +1078,8 @@ const RundownUI = {
     const panel = document.getElementById('od-editor');
     panel.innerHTML = '';
     const found = this.selectedPageId ? App.findPage(this.selectedPageId) : null;
+    const railLabel = document.getElementById('od-right-rail-label');
+    if (railLabel) railLabel.textContent = found ? `ページ編集　P${found.page.pageNo}` : 'ページ編集';
     if (!found) {
       panel.innerHTML = '<div class="od-editor-empty">ページを選択すると内容を編集できます</div>';
       return;
@@ -1269,8 +1391,71 @@ const RundownUI = {
       template: '選んだテンプレートの入力用Excelを書き出します。1行目=見出し (レイヤー名と項目名)、2行目=見本。2行目以降に入力して「Excel取込」で読み込めます',
     }[mode] || '追加するページのテンプレートを選んでください';
     document.getElementById('od-page-dialog-template').classList.toggle('hidden', mode !== 'excel');
-    document.getElementById('od-page-dialog-ok').textContent = mode === 'template' ? '書き出し…' : mode === 'excel' ? '読み込む…' : 'OK';
+    document.getElementById('od-page-dialog-cols').classList.toggle('hidden', mode !== 'excel' && mode !== 'template');
+    document.getElementById('od-page-dialog-dest-row').classList.toggle('hidden', mode !== 'excel');
+    document.getElementById('od-page-dest').value = 'pages';
+    document.getElementById('od-page-dialog-ok').textContent = mode === 'template' ? '書き出し…' : mode === 'excel' ? 'ファイルを選んで読み込む…' : 'OK';
+    this.renderExcelColumns();
     document.getElementById('od-page-dialog').showModal();
+  },
+
+  /** ダイアログで選んだテンプレートの「Excelの列」(A=…, B=…) を表示 */
+  renderExcelColumns() {
+    const table = document.getElementById('od-page-dialog-cols-table');
+    if (!table) return;
+    const key = document.getElementById('od-page-template').value;
+    const cols = App.excelColumns(key);
+    table.innerHTML = '';
+    if (!cols.length) {
+      table.innerHTML = '<tr><td class="od-xl-empty">このテンプレートには Excel の列として使う文字フィールドがありません</td></tr>';
+      return;
+    }
+    const head = document.createElement('tr');
+    ['列', '見出し', '変数', '見本'].forEach((t) => {
+      const th = document.createElement('th');
+      th.textContent = t;
+      head.appendChild(th);
+    });
+    table.appendChild(head);
+    cols.forEach((c, i) => {
+      const tr = document.createElement('tr');
+      [this.excelColName(i), c.header || c.label || c.binding, c.binding, c.sample].forEach((t, ci) => {
+        const td = document.createElement('td');
+        td.textContent = t || '';
+        if (ci === 0) td.className = 'od-xl-colname';
+        if (ci === 2) td.className = 'od-xl-mono';
+        tr.appendChild(td);
+      });
+      table.appendChild(tr);
+    });
+  },
+
+  /** 0→A, 25→Z, 26→AA (Excelの列名) */
+  excelColName(i) {
+    let n = i + 1;
+    let s = '';
+    while (n > 0) {
+      const m = (n - 1) % 26;
+      s = String.fromCharCode(65 + m) + s;
+      n = Math.floor((n - 1) / 26);
+    }
+    return s;
+  },
+
+  /** デザインタブの「変数/Excel」でこのテンプレートの列を設定する */
+  async openExcelColumnSettings(templateKey) {
+    const btn = document.querySelector('.tab-btn[data-tab="design"]');
+    if (btn) btn.click();
+    if (typeof DesignEditor === 'undefined') return;
+    await DesignEditor.onShow();
+    if (DesignEditor.project && DesignEditor.project.templates[templateKey]) {
+      DesignEditor.templateKey = templateKey;
+      DesignEditor.clearSelection();
+      DesignEditor.refreshTemplateSelect();
+    }
+    DesignEditor.propsTab = 'vars';
+    DesignEditor.renderAll();
+    DesignEditor.showPropsTab('vars');
   },
 
   async submitPageDialog() {
@@ -1285,21 +1470,18 @@ const RundownUI = {
     }
 
     if (this._pageDialogMode === 'excel') {
+      const dest = document.getElementById('od-page-dest').value === 'standby' ? 'standby' : 'pages';
       const result = await window.api.excelImportPages(templateKey);
       if (!result) return;
       if (!result.success) {
         App.setStatus(`Excel取込エラー: ${result.error}`, 'error');
         return;
       }
-      this.mutate(() => {
-        result.pages.forEach((values) => {
-          corner.pages.push({
-            id: this.uid('pg'), pageNo: this.nextPageNo(corner), templateKey,
-            values, note: '', duration: 0, locked: false,
-          });
-        });
-      });
-      App.setStatus(`Excelから${result.pages.length}ページを取り込みました`, 'success');
+      if (!result.pages.length) {
+        App.setStatus('Excelに取り込める行がありません (1行目は見出しとして読み飛ばします)', 'error');
+        return;
+      }
+      this.openExcelPreview({ corner, templateKey, dest, pages: result.pages, filePath: result.filePath });
       return;
     }
 
@@ -1311,6 +1493,62 @@ const RundownUI = {
     this.selectedPageId = page.id;
     this.renderEditor();
     this.applyRowStates();
+  },
+
+  /** Excel取込: 読み込み内容 (先頭の行) を確認してから取り込む */
+  openExcelPreview(pending) {
+    this._pendingExcel = pending;
+    const cols = App.excelColumns(pending.templateKey);
+    const file = String(pending.filePath || '').split(/[\\/]/).pop();
+    const destLabel = pending.dest === 'standby' ? '素材集' : `コーナー「${pending.corner.name}」の末尾`;
+    document.getElementById('od-xl-preview-summary').textContent =
+      `${file} — ${pending.pages.length} ページ (テンプレート: ${this.templateLabel(pending.templateKey)} / 取込先: ${destLabel})`;
+    const table = document.getElementById('od-xl-preview-table');
+    table.innerHTML = '';
+    const head = document.createElement('tr');
+    ['行'].concat(cols.map((c, i) => `${this.excelColName(i)} ${c.header || c.label || c.binding}`)).forEach((t) => {
+      const th = document.createElement('th');
+      th.textContent = t;
+      head.appendChild(th);
+    });
+    table.appendChild(head);
+    const SHOW = 10;
+    pending.pages.slice(0, SHOW).forEach((values, ri) => {
+      const tr = document.createElement('tr');
+      const no = document.createElement('td');
+      no.className = 'od-xl-colname';
+      no.textContent = String(ri + 2); // 1行目は見出し
+      tr.appendChild(no);
+      cols.forEach((c) => {
+        const td = document.createElement('td');
+        td.textContent = values[c.binding] || '';
+        tr.appendChild(td);
+      });
+      table.appendChild(tr);
+    });
+    document.getElementById('od-xl-preview-more').textContent =
+      pending.pages.length > SHOW ? `ほか ${pending.pages.length - SHOW} 行` : '';
+    document.getElementById('od-xl-preview-ok').textContent = `${pending.pages.length} ページを取り込む`;
+    document.getElementById('od-xl-preview').showModal();
+  },
+
+  commitExcelImport() {
+    const pending = this._pendingExcel;
+    document.getElementById('od-xl-preview').close();
+    this._pendingExcel = null;
+    if (!pending) return;
+    const { corner, templateKey, dest, pages } = pending;
+    this.mutate(() => {
+      if (dest === 'standby') corner.standby = corner.standby || [];
+      pages.forEach((values) => {
+        corner[dest].push({
+          id: this.uid('pg'), pageNo: this.nextPageNo(corner), templateKey,
+          values, note: '', duration: 0, locked: false,
+        });
+      });
+    });
+    if (dest === 'standby') document.getElementById('od-standby').classList.remove('hidden');
+    App.setStatus(`Excelから${pages.length}ページを${dest === 'standby' ? '素材集' : 'コーナー'}へ取り込みました`, 'success');
   },
 
   /** 入力用Excelテンプレ (列見出し+見本行) を書き出す */

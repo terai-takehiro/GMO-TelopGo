@@ -3431,3 +3431,46 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.55); backdrop-filter: none; }
 .gpio-conn-status.connected { background: #1f3a2a; border-color: #1f9d55; color: #5fd48e; }
 .start-step { border-radius: 2px; }
 .start-new { border-radius: 2px; border-color: #4a4a4a; }
+
+/* ===== 送出: Excelメニュー / ページ編集の折りたたみ / 素材集の一括削除 / Excel取込の確認 ===== */
+.od-menu--wide { min-width: 300px; }
+.od-menu-sep { height: 1px; margin: 6px 0; background: #4f4f4f; }
+
+.od-right-head { display: flex; align-items: center; gap: 6px; }
+.od-right-title { font-size: 12px; font-weight: 700; color: #e2e2e2; }
+#tab-onair .od-right-toggle { min-width: 30px; height: 26px; padding: 0 6px; font-size: 14px; line-height: 1; border: 1px solid #4a4a4a; }
+.od-right-auto { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #a8a8a8; }
+.od-right-rail {
+  width: 40px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  background: #383838;
+}
+.od-right-rail.hidden { display: none; }
+.od-right-rail-label { writing-mode: vertical-rl; font-size: 11px; letter-spacing: 0.1em; color: #a8a8a8; white-space: nowrap; }
+
+#tab-onair .od-btn--danger { background: #b3261e; border-color: #d0473f; color: #fff; }
+#tab-onair .od-btn--danger:hover { background: #c9352c; }
+#tab-onair .od-btn:disabled { opacity: 0.45; cursor: default; }
+.od-standby-title { gap: 10px; height: auto; min-height: 30px; padding: 2px 10px; flex-wrap: wrap; }
+.od-standby-selall { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; color: #cfcfcf; }
+.od-standby-selcount { min-width: 80px; font-weight: 400; color: #a8a8a8; }
+.od-standby-check { flex-shrink: 0; margin: 0 6px 0 0; }
+.od-standby .od-page.od-standby-selected { outline: 2px solid #4d8dff; outline-offset: -2px; opacity: 1; }
+
+.od-xl-cols { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px; }
+.od-xl-cols-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
+.od-link-btn { padding: 0; background: none; border: none; color: #8ab4ff; font-size: 12px; cursor: pointer; text-decoration: underline; }
+.od-link-btn:hover { color: #b8d0ff; }
+.od-xl-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.od-xl-table th, .od-xl-table td { padding: 5px 8px; border: 1px solid #444; text-align: left; vertical-align: top; white-space: pre-line; }
+.od-xl-table th { background: #333; color: #a8a8a8; font-weight: 400; }
+.od-xl-colname { width: 36px; font-weight: 700; color: #cfcfcf; }
+.od-xl-mono { font-family: var(--font-mono); color: #b0b0b0; }
+.od-xl-empty { color: #a8a8a8; }
+.od-xl-preview { width: 720px; max-width: 90vw; }
+.od-xl-preview-scroll { max-height: 50vh; overflow: auto; }

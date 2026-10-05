@@ -76,6 +76,7 @@ const Broadcast = {
 
   async doTake(channelId) {
     if (typeof RemoteSync !== 'undefined' && RemoteSync.shouldDelegate()) {
+      if (typeof RundownUI !== 'undefined' && RundownUI.afterTake) RundownUI.afterTake();
       return RemoteSync.sendCommand('take', channelId);
     }
     const found = this.nextPage(channelId);
@@ -110,6 +111,7 @@ const Broadcast = {
 
     App.setStatus(`${App.rehearsal ? '[リハーサル] ' : ''}TAKE 完了 — P${page.pageNo} ON AIR`, 'success');
     this.notifyChanged();
+    if (typeof RundownUI !== 'undefined' && RundownUI.afterTake) RundownUI.afterTake();
   },
 
   /** UPDATE: NEXTをアニメなしで即時差し替え (旧CHANGE) */

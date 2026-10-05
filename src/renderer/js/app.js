@@ -162,6 +162,38 @@ const App = {
   },
 
   /**
+   * テンプレートのExcelの列 (有効な列のみ・取込/書き出しと同じ順序)。
+   * template.excelColumns の順序・見出し・有効/無効に従い、無くなった変数は除外、増えた変数は末尾に追加する
+   * (main の templateExcelColumns / デザインエディタの excelColumns と同じ規則)
+   */
+  excelColumns(templateKey) {
+    const tpl = this.graphicsProject && this.graphicsProject.templates && this.graphicsProject.templates[templateKey];
+    if (!tpl) return [];
+    const fields = [];
+    ['jp', 'en'].forEach((lang) => {
+      const variant = tpl.variants && tpl.variants[lang];
+      ((variant && variant.layers) || []).forEach((layer) => {
+        if (layer.type !== 'text' || !layer.binding || fields.some((f) => f.binding === layer.binding)) return;
+        fields.push({ binding: layer.binding, label: layer.name || '', sample: layer.sample || layer.text || '' });
+      });
+    });
+    const byBinding = new Map(fields.map((f) => [f.binding, f]));
+    const cols = [];
+    const seen = new Set();
+    (Array.isArray(tpl.excelColumns) ? tpl.excelColumns : []).forEach((c) => {
+      const f = c && byBinding.get(c.binding);
+      if (!f || seen.has(c.binding)) return;
+      seen.add(c.binding);
+      cols.push({ ...f, header: String(c.header || '').trim(), enabled: c.enabled !== false });
+    });
+    fields.forEach((f) => { if (!seen.has(f.binding)) cols.push({ ...f, header: '', enabled: true }); });
+    return cols.filter((c) => c.enabled).map((c) => ({
+      ...c,
+      title: c.header || (c.label && c.label !== c.binding ? `${c.label} [${c.binding}]` : c.binding),
+    }));
+  },
+
+  /**
    * ステータスバーにメッセージを表示
    */
   setStatus(message, type = 'info') {
