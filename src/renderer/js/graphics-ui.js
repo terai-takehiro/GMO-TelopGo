@@ -96,14 +96,39 @@ const GraphicsUI = {
   },
 
   URL_HOST_KEY: 'telopgo.outputUrlHost',
+  URL_HOST_CUSTOM_KEY: 'telopgo.outputUrlHostCustom',
+  CUSTOM_OPTION: '__custom__',
+
+  _store(key, value) {
+    try {
+      if (value === undefined) return localStorage.getItem(key) || '';
+      localStorage.setItem(key, value);
+    } catch (_) { /* 保存できない環境 */ }
+    return '';
+  },
 
   /** 出力URLに使うIP: 選択を保存していてまだ有効ならそれ、無ければ他PCから届きやすい順の先頭 */
   pickHost(status) {
     const list = (status && status.lanInterfaces) || [];
-    let saved = '';
-    try { saved = localStorage.getItem(this.URL_HOST_KEY) || ''; } catch (_) { /* 保存できない環境 */ }
-    if (saved && (saved === '127.0.0.1' || list.some((i) => i.address === saved))) return saved;
+    const saved = this._store(this.URL_HOST_KEY);
+    const custom = this._store(this.URL_HOST_CUSTOM_KEY);
+    if (saved && (saved === '127.0.0.1' || saved === custom || list.some((i) => i.address === saved))) return saved;
     return (list[0] && list[0].address) || (status && status.lanAddresses && status.lanAddresses[0]) || '127.0.0.1';
+  },
+
+  /** IP/ホスト名の手入力 (自動検出できない環境用)。入力値は保存して選択する */
+  async promptCustomHost() {
+    const cur = this._store(this.URL_HOST_CUSTOM_KEY);
+    const input = await AppModal.prompt('出力URLに使うIPアドレス (例: 10.19.21.141)', { value: cur, placeholder: '10.19.21.141' });
+    if (input === null || input === undefined) return false;
+    const v = String(input).trim();
+    if (!/^[A-Za-z0-9.-]+$/.test(v)) {
+      App.setStatus('IPアドレス/ホスト名は半角英数字・ドット・ハイフンで入力してください', 'error');
+      return false;
+    }
+    this._store(this.URL_HOST_CUSTOM_KEY, v);
+    this._store(this.URL_HOST_KEY, v);
+    return true;
   },
 
   /** URLのIP選択肢 (インターフェース名つき) と警告表示 */
@@ -121,18 +146,33 @@ const GraphicsUI = {
       opt.textContent = `${i.address}  (${i.name}${tag})`;
       sel.appendChild(opt);
     });
+    const custom = this._store(this.URL_HOST_CUSTOM_KEY);
+    if (custom && !list.some((i) => i.address === custom)) {
+      const opt = document.createElement('option');
+      opt.value = custom;
+      opt.textContent = `${custom}  (手動入力)`;
+      sel.appendChild(opt);
+    }
     const local = document.createElement('option');
     local.value = '127.0.0.1';
     local.textContent = '127.0.0.1  (このPCのみ)';
     sel.appendChild(local);
+    const manual = document.createElement('option');
+    manual.value = this.CUSTOM_OPTION;
+    manual.textContent = '手動入力...';
+    sel.appendChild(manual);
     sel.value = current;
-    sel.onchange = () => {
-      try { localStorage.setItem(this.URL_HOST_KEY, sel.value); } catch (_) { /* 保存できない環境 */ }
+    sel.onchange = async () => {
+      if (sel.value === this.CUSTOM_OPTION) {
+        await this.promptCustomHost();
+      } else {
+        this._store(this.URL_HOST_KEY, sel.value);
+      }
       this.renderUrls(this.status);
     };
 
     const chosen = list.find((i) => i.address === current);
-    if (list.length === 0) warn.textContent = 'ネットワークに接続されていません (他PCからは開けません)';
+    if (list.length === 0 && !custom) warn.textContent = 'このPCのIPを自動検出できませんでした。「手動入力...」で ipconfig の IPv4 アドレスを入力してください';
     else if (chosen && chosen.linkLocal) warn.textContent = '自動割当IPです。DHCP/ケーブル接続を確認してください';
     else if (chosen && chosen.virtual) warn.textContent = '仮想アダプタのIPです。他PCから届かない場合は別のIPを選んでください';
     else if (current === '127.0.0.1') warn.textContent = 'このPC内のvMixでのみ使えます';

@@ -8,6 +8,7 @@ const { readExcel } = require('./excel-reader');
 const gpioDio = require('./gpio-dio');
 const remoteLink = require('./remote-link');
 const designSync = require('./design-sync');
+const netInfo = require('./net-info');
 const graphicsStore = require('./graphics-store');
 const graphicsServer = require('./graphics-server');
 const liveData = require('./live-data');
@@ -259,36 +260,6 @@ async function ensureDefaultWebFont() {
   }
 }
 
-/** 仮想/トンネル系のネットワークアダプタ名 (他PCから届かないIPになりやすい) */
-const VIRTUAL_IFACE_RE = /vethernet|hyper-v|vmware|virtualbox|vbox|wsl|docker|loopback|bluetooth|tailscale|zerotier|vpn|tap-|tunnel|npcap|pseudo/i;
-
-/**
- * このPCのIPv4アドレス一覧 (インターフェース名つき)。
- * 他PCから届きやすい順 (実アダプタ → 仮想アダプタ → 自動割当 169.254.x.x) に並べる。
- */
-function lanInterfaces() {
-  const out = [];
-  Object.entries(os.networkInterfaces()).forEach(([name, ifaces]) => {
-    (ifaces || []).forEach((iface) => {
-      if (iface.family !== 'IPv4' || iface.internal) return;
-      out.push({
-        name,
-        address: iface.address,
-        netmask: iface.netmask,
-        linkLocal: iface.address.startsWith('169.254.'),
-        virtual: VIRTUAL_IFACE_RE.test(name),
-      });
-    });
-  });
-  const rank = (i) => (i.linkLocal ? 2 : i.virtual ? 1 : 0);
-  return out.sort((a, b) => rank(a) - rank(b));
-}
-
-/** LAN内のIPv4アドレス一覧 */
-function lanAddresses() {
-  return lanInterfaces().map((i) => i.address);
-}
-
 function registerIpcHandlers() {
   // --- グラフィックスエンジン初期化 ---
   graphicsStore.init(app.getPath('userData'));
@@ -524,7 +495,8 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('graphics-server-status', async () => {
-    return { ...graphicsServer.getStatus(), lanAddresses: lanAddresses(), lanInterfaces: lanInterfaces() };
+    const lanInterfaces = await netInfo.listIPv4();
+    return { ...graphicsServer.getStatus(), lanAddresses: lanInterfaces.map((i) => i.address), lanInterfaces };
   });
 
   // --- デザインエディタ ---
