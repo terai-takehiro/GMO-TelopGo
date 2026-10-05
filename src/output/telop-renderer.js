@@ -229,6 +229,7 @@
       ? layer.strokes.filter((s) => s && s.width > 0)
       : (layer.stroke && layer.stroke.width > 0 ? [layer.stroke] : []);
     const shadows = edgeShadows(strokes);
+    let shadowExtra = 0; // 影が枠の外へ出る量 (px)
     if (layer.shadow) {
       const s = layer.shadow;
       let dx = s.x || 0;
@@ -239,7 +240,12 @@
         dy = Math.sin(rad) * s.distance;
       }
       shadows.push(`${(+dx).toFixed(1)}px ${(+dy).toFixed(1)}px ${s.blur || 0}px ${s.color || 'rgba(0,0,0,0.6)'}`);
+      shadowExtra = Math.max(Math.abs(dx), Math.abs(dy)) + 1.5 * (+s.blur || 0);
     }
+    // 枠の外へはみ出す分 (縁取りの太さ + 影のずれ/ぼかし) も切らないよう、クリップ余白を広げる
+    const strokeExtra = strokes.reduce((sum, st) => sum + (+st.width || 0), 0);
+    const extra = Math.ceil(strokeExtra + shadowExtra);
+    if (extra > 0) el.style.overflowClipMargin = `calc(0.4em + ${extra}px)`;
 
     // 座布団 (文字にフィットする背景) — fitは文字サイズ追従、fixedはレイヤー枠全体
     if (layer.board && layer.board.enabled) {

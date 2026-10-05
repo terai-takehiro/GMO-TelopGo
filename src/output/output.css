@@ -47,6 +47,11 @@ html, body {
   white-space: pre-line;
   overflow: hidden;
 }
+/* 枠ぎりぎりの文字でも g/y/p の下端・縁取り・影が切れないよう、クリップ位置を枠の外側へ広げる
+   (レンダラーが縁取り/影に応じて overflow-clip-margin を上書きする)。未対応環境は上の hidden のまま */
+@supports (overflow-clip-margin: 1px) {
+  .tl-text { overflow: clip; overflow-clip-margin: 0.4em; }
+}
 
 .tl-text-inner {
   display: inline-block;
