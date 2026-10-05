@@ -50,6 +50,33 @@ function templateFields(templateKey) {
   return fields;
 }
 
+/**
+ * Excel の列として使う変数 (取込/書き出し共通)。
+ * template.excelColumns ([{binding, header, enabled}]) があればその順序・見出し・有効/無効に従い、
+ * テンプレートから無くなった変数は除外、後から増えた変数は末尾に有効で追加する。
+ * 設定が無ければ従来どおり全変数をレイヤー順で返す。
+ * (デザインエディタの excelColumns() と同じ規則)
+ */
+function templateExcelColumns(templateKey) {
+  const fields = templateFields(templateKey);
+  const project = graphicsStore.getProject();
+  const template = project && project.templates && project.templates[templateKey];
+  const conf = Array.isArray(template && template.excelColumns) ? template.excelColumns : [];
+  const byBinding = new Map(fields.map((f) => [f.binding, f]));
+  const cols = [];
+  const seen = new Set();
+  conf.forEach((c) => {
+    const f = c && byBinding.get(c.binding);
+    if (!f || seen.has(c.binding)) return;
+    seen.add(c.binding);
+    cols.push({ ...f, header: String(c.header || '').trim(), enabled: c.enabled !== false });
+  });
+  fields.forEach((f) => {
+    if (!seen.has(f.binding)) cols.push({ ...f, header: '', enabled: true });
+  });
+  return cols.filter((c) => c.enabled);
+}
+
 /** 氏名テロップ系テンプレート (name-*) の人数ごとの項目 (binding 名の接頭辞) */
 const NAME_BATCH_PREFIXES = ['', '2nd', '3rd', '4th'];
 const NAME_BATCH_LABELS = ['1st', '2nd', '3rd', '4th'];
@@ -368,9 +395,9 @@ function registerIpcHandlers() {
 
   // --- Excel取込 (ページ一括: テンプレートのbinding列順) ---
   ipcMain.handle('excel-import-pages', async (_event, templateKey) => {
-    const bindings = templateBindings(templateKey);
+    const bindings = templateExcelColumns(templateKey).map((c) => c.binding);
     if (bindings.length === 0) {
-      return { success: false, error: 'このテンプレートには文字フィールドがありません。' };
+      return { success: false, error: 'このテンプレートにはExcelの列として使う文字フィールドがありません。' };
     }
     const result = await dialog.showOpenDialog({
       title: 'Excelファイルを選択',
@@ -812,7 +839,7 @@ function registerIpcHandlers() {
         ['代表取締役', '見本 太郎', 'CEO', 'Taro Mihon'],
       ];
       defaultFilename = 'name-telop-template.xlsx';
-    } else if (telopType === 'side' && templateFields('side').length === 0) {
+    } else if (telopType === 'side' && !(graphicsStore.getProject() || {}).templates?.side) {
       // テンプレート 'side' が存在しない場合のみ旧固定列。存在すればデザインの変数 (binding) に従う
       wsData = [
         ['テキスト(JP)', 'テキスト(EN)'],
@@ -822,10 +849,11 @@ function registerIpcHandlers() {
     } else {
       // 任意テンプレート: 列 = 文字フィールド (取込と同じ列順)。
       // 1行目 = 見出し (レイヤー名 [フィールド名])、2行目 = 見本 (デザインのサンプル文字)
-      const fields = templateFields(telopType);
-      if (fields.length === 0) return { success: false, error: 'テンプレートに文字フィールドがありません。' };
+      const fields = templateExcelColumns(telopType);
+      if (fields.length === 0) return { success: false, error: 'テンプレートにExcelの列として使う文字フィールドがありません。' };
       wsData = [
-        fields.map((f) => (f.label && f.label !== f.binding ? `${f.label} [${f.binding}]` : f.binding)),
+        // 見出しは設定した列名を優先 (未設定ならレイヤー名 [変数名])
+        fields.map((f) => f.header || (f.label && f.label !== f.binding ? `${f.label} [${f.binding}]` : f.binding)),
         fields.map((f) => f.sample || ''),
       ];
       const project = graphicsStore.getProject();

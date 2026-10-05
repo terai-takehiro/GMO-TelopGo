@@ -1445,6 +1445,14 @@ body {
   white-space: nowrap;
 }
 
+/* 変数/Excel タブ */
+.de-var-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.de-var-name { width: 96px; flex-shrink: 0; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.de-var-label { color: var(--text-muted); }
+.de-var-header { flex: 1; min-width: 0; }
+.de-var-move { padding: 0 6px; }
+.de-var-actions { display: flex; gap: 6px; margin-top: 10px; }
+
 /* アニメーション設定パネル */
 .de-props-hint {
   font-size: 11px;
