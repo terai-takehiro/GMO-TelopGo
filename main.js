@@ -5,10 +5,12 @@ const gpioDio = require('./src/main/gpio-dio');
 const remoteLink = require('./src/main/remote-link');
 const graphicsServer = require('./src/main/graphics-server');
 
-// GPU 設定は Chromium 既定に任せる。
-// 以前の enable-zero-copy / ignore-gpu-blocklist / enable-gpu-rasterization は、
-// 一部の Windows GPU でタブ切替時に前画面が残像のように重なって残る不具合の原因になるため外した。
-// 描画で問題が出る環境では、起動引数 --disable-gpu で GPU を無効化して切り分けられる。
+// GPU アクセラレーション最適化
+// ※v3.10.0 でこれらを外したところ、GPUブロックリスト対象のPCでソフトウェア描画になり
+//   UIの見た目が劣化したため元に戻した。タブ切替で残像が出る個体は起動引数 --disable-gpu で切り分ける。
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
 
 let mainWindow;
 

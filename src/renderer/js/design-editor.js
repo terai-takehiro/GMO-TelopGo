@@ -2324,6 +2324,10 @@ const DesignEditor = {
   // ===== 保存 / 再読込 =====
 
   async save() {
+    if (typeof RemoteSync !== 'undefined' && RemoteSync.isDesignLocked()) {
+      App.setStatus('ホストPCではデザインを保存できません。クライアントPCで作画してください', 'error');
+      return;
+    }
     const result = await window.api.graphicsSaveProject(this.project);
     if (result.ok) {
       this.dirty = false;
