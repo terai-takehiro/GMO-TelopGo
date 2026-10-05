@@ -1343,6 +1343,9 @@ body.role-client .settings-section[data-section="gpio"] { display: none !importa
   white-space: pre-line;
   overflow: hidden;
 }
+@supports (overflow-clip-margin: 1px) {
+  .de-canvas .tl-text { overflow: clip; overflow-clip-margin: 0.4em; }
+}
 .de-canvas .tl-text-inner {
   display: inline-block;
   position: relative;
@@ -2117,6 +2120,9 @@ body.role-client .settings-section[data-section="gpio"] { display: none !importa
 .od-next-canvas .tl-layer { position: absolute; box-sizing: border-box; }
 .od-next-canvas .tl-group, .de-canvas .tl-group { position: absolute; overflow: visible; }
 .od-next-canvas .tl-text { display: flex; white-space: pre-line; overflow: hidden; }
+@supports (overflow-clip-margin: 1px) {
+  .od-next-canvas .tl-text { overflow: clip; overflow-clip-margin: 0.4em; }
+}
 .od-next-canvas .tl-text-inner { display: inline-block; position: relative; box-sizing: border-box; }
 .od-next-canvas .tl-txt-fill { position: absolute; inset: 0; padding: inherit; box-sizing: border-box; }
 .od-next-canvas .tl-tcy { text-combine-upright: all; }

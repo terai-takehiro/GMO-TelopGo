@@ -41,6 +41,9 @@
     return { anim: tpl, delay: (tpl.stagger || 0) * index, custom: false };
   }
 
+  /** 表示状態の clip-path を枠の外へ広げる量 (px)。ワイプ/プッシュ終了後も縁取り・影・ディセンダーを切らない */
+  const VISIBLE_CLIP_MARGIN = 200;
+
   /** プリセットごとの「隠れた状態」のフレームを作る (INは→表示, OUTは表示→) */
   function hiddenFrame(anim, baseTransform) {
     const base = baseTransform && baseTransform !== 'none' ? ` ${baseTransform}` : '';
@@ -102,7 +105,11 @@
     const hidden = hiddenFrame(anim, baseTransform);
     if ('opacity' in hidden) frame.opacity = el.style.opacity !== '' ? el.style.opacity : 1;
     if ('transform' in hidden) frame.transform = baseTransform && baseTransform !== 'none' ? baseTransform : 'none';
-    if ('clipPath' in hidden) frame.clipPath = 'inset(0 0 0 0)';
+    if ('clipPath' in hidden) {
+      // 表示状態でも枠で切り続けると、枠からはみ出す文字 (g/y/p の下端・縁取り・影) が欠ける。
+      // 図形の切り抜き (clip-path が指定済みの要素) は従来どおり。
+      frame.clipPath = el.style.clipPath === '' ? `inset(-${VISIBLE_CLIP_MARGIN}px)` : 'inset(0 0 0 0)';
+    }
     if ('filter' in hidden) frame.filter = 'blur(0px)';
     return frame;
   }
