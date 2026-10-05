@@ -612,12 +612,22 @@
           <label class="gpio-enable-label"><input type="checkbox" id="graphics-autostart" checked> アプリ起動時に出力サーバを起動する</label>
         </div>
         <div class="settings-row">
+          <label for="graphics-url-host">URLのIP</label>
+          <select id="graphics-url-host" class="input input--small graphics-url-host"></select>
+          <span class="settings-inline-hint" id="graphics-url-warn"></span>
+        </div>
+        <div class="settings-row">
           <label>出力URL</label>
           <div class="graphics-urls" id="graphics-urls">
             <span class="settings-inline-hint">サーバ起動後に表示されます</span>
           </div>
         </div>
-        <p class="gpio-hint">vMixのブラウザ入力に上記URLを追加してください (1920x1080・透過)。日本語/英語で別URL、名前・サイドを個別に取り込む場合は /name /side 付きのURLを使用します。他のPCから取り込む場合はWindowsファイアウォールで指定ポートの受信許可が必要です。</p>
+        <div class="settings-row" id="graphics-firewall-row">
+          <label>FW許可</label>
+          <code class="graphics-url" id="graphics-firewall-cmd"></code>
+          <button class="btn btn--small" id="graphics-firewall-copy" title="管理者として起動した PowerShell / コマンドプロンプトに貼り付けて実行します">コピー</button>
+        </div>
+        <p class="gpio-hint">vMixのブラウザ入力に上記URLを追加してください (1920x1080・透過)。日本語/英語で別URL、名前・サイドを個別に取り込む場合は /name /side 付きのURLを使用します。他のPCから取り込む場合は、vMixのあるPCと同じネットワークのIPを「URLのIP」で選んでください (ネットワークが複数ある場合や仮想アダプタが混在する場合に切り替えます)。それでも開けない場合は、Windowsファイアウォールで指定ポートの受信許可が必要です (「FW許可」のコマンドを管理者権限で実行)。</p>
       </fieldset>
       </section>
       <section class="settings-section" data-section="channels">
@@ -705,6 +715,7 @@
           <label for="remote-port">ポート番号</label>
           <input type="number" id="remote-port" class="input input--small" min="1" max="65535" placeholder="8765">
           <span class="settings-inline-hint">※出力サーバ (既定8790) とは別のポートです</span>
+          <span class="settings-inline-hint" id="remote-lan-ips"></span>
         </div>
         <div class="settings-row" id="remote-host-address-row">
           <label for="remote-host-address">接続先ホストIP</label>

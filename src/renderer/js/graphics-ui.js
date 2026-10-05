@@ -5,6 +5,12 @@ const GraphicsUI = {
   status: null, // 最新のサーバ状態
 
   init() {
+    document.getElementById('graphics-firewall-copy').addEventListener('click', () => {
+      const cmd = document.getElementById('graphics-firewall-cmd').textContent;
+      if (!cmd) return;
+      navigator.clipboard.writeText(cmd);
+      App.setStatus('ファイアウォール許可のコマンドをコピーしました (管理者権限で実行してください)', 'success');
+    });
     document.getElementById('graphics-start').addEventListener('click', () => this.start());
     document.getElementById('graphics-stop').addEventListener('click', () => this.stop());
     document.getElementById('graphics-open-template').addEventListener('click', async () => {
@@ -89,14 +95,73 @@ const GraphicsUI = {
     }
   },
 
+  URL_HOST_KEY: 'telopgo.outputUrlHost',
+
+  /** 出力URLに使うIP: 選択を保存していてまだ有効ならそれ、無ければ他PCから届きやすい順の先頭 */
+  pickHost(status) {
+    const list = (status && status.lanInterfaces) || [];
+    let saved = '';
+    try { saved = localStorage.getItem(this.URL_HOST_KEY) || ''; } catch (_) { /* 保存できない環境 */ }
+    if (saved && (saved === '127.0.0.1' || list.some((i) => i.address === saved))) return saved;
+    return (list[0] && list[0].address) || (status && status.lanAddresses && status.lanAddresses[0]) || '127.0.0.1';
+  },
+
+  /** URLのIP選択肢 (インターフェース名つき) と警告表示 */
+  renderHostSelect(status) {
+    const sel = document.getElementById('graphics-url-host');
+    const warn = document.getElementById('graphics-url-warn');
+    if (!sel) return;
+    const list = (status && status.lanInterfaces) || [];
+    const current = this.pickHost(status);
+    sel.innerHTML = '';
+    list.forEach((i) => {
+      const opt = document.createElement('option');
+      opt.value = i.address;
+      const tag = i.linkLocal ? ' / 自動割当 (他PCから届きません)' : i.virtual ? ' / 仮想アダプタ' : '';
+      opt.textContent = `${i.address}  (${i.name}${tag})`;
+      sel.appendChild(opt);
+    });
+    const local = document.createElement('option');
+    local.value = '127.0.0.1';
+    local.textContent = '127.0.0.1  (このPCのみ)';
+    sel.appendChild(local);
+    sel.value = current;
+    sel.onchange = () => {
+      try { localStorage.setItem(this.URL_HOST_KEY, sel.value); } catch (_) { /* 保存できない環境 */ }
+      this.renderUrls(this.status);
+    };
+
+    const chosen = list.find((i) => i.address === current);
+    if (list.length === 0) warn.textContent = 'ネットワークに接続されていません (他PCからは開けません)';
+    else if (chosen && chosen.linkLocal) warn.textContent = '自動割当IPです。DHCP/ケーブル接続を確認してください';
+    else if (chosen && chosen.virtual) warn.textContent = '仮想アダプタのIPです。他PCから届かない場合は別のIPを選んでください';
+    else if (current === '127.0.0.1') warn.textContent = 'このPC内のvMixでのみ使えます';
+    else warn.textContent = list.length > 1 ? 'vMixのあるPCと同じネットワークのIPを選んでください' : '';
+  },
+
+  /** このPCのIP一覧を2台運用の設定にも表示 (クライアントの「接続先ホストIP」に入れる値の確認用) */
+  renderLanIps(status) {
+    const el = document.getElementById('remote-lan-ips');
+    if (!el) return;
+    const list = (status && status.lanInterfaces) || [];
+    el.textContent = list.length ? `このPCのIP: ${list.map((i) => i.address).join(' / ')}` : '';
+  },
+
   renderUrls(status) {
     const container = document.getElementById('graphics-urls');
     container.innerHTML = '';
+    this.renderHostSelect(status);
+    this.renderLanIps(status);
+    const cmdEl = document.getElementById('graphics-firewall-cmd');
+    if (cmdEl && status) {
+      const port = status.port || this.collectConfig().port;
+      cmdEl.textContent = `netsh advfirewall firewall add rule name="GMO TelopGo" dir=in action=allow protocol=TCP localport=${port}`;
+    }
     if (!status.running) {
       container.innerHTML = '<span class="settings-inline-hint">サーバ起動後に表示されます</span>';
       return;
     }
-    const host = (status.lanAddresses && status.lanAddresses[0]) || '127.0.0.1';
+    const host = this.pickHost(status);
     const urls = [
       { label: '日本語 (全チャンネル)', path: '/output/jp' },
       { label: '英語 (全チャンネル)', path: '/output/en' },
