@@ -631,20 +631,43 @@ const RundownUI = {
   /** 系統(チャンネル)ごとの列でページ一覧を描画 (最大4系統横並び) */
   renderColumns() {
     const wrap = document.getElementById('od-columns');
-    wrap.innerHTML = '';
     const corner = this.currentCorner();
-    if (!corner) return;
+    if (!corner) {
+      wrap.innerHTML = '';
+      return;
+    }
     const telopMode = App.activeMode === 'telop';
+
+    // OAモニター (出力ページの iframe) は列を描き直しても作り直さない。
+    // iframe を作り直す/DOM内で移動すると出力ページが読み込み直され、送出中のテロップが
+    // 出し直されて見える (NEXT選択や2台運用の同期のたびに OA がちらつく) ため、列ごと使い回す
+    const prevCols = {};
+    Array.from(wrap.children).forEach((node) => {
+      const keep = node.classList.contains('od-col')
+        && App.channels.some((c) => c.id === node.dataset.channelId && c.region === node.dataset.region);
+      if (keep) prevCols[node.dataset.channelId] = node;
+      else node.remove();
+    });
 
     this.renderModeBanner();
     // 電テロモードでは Excel取込 (変数代入・氏名一括・名前プール) は無関係なのでメニューごと隠す
     const excelWrap = document.getElementById('od-excel-wrap');
     if (excelWrap) excelWrap.classList.toggle('hidden', telopMode);
 
-    App.channels.forEach((ch) => {
-      const col = document.createElement('div');
+    App.channels.forEach((ch, colIndex) => {
+      let col = prevCols[ch.id] || null;
+      let monitors = col ? col.querySelector(':scope > .od-col-monitors') : null;
+      if (col && monitors) {
+        // 使い回す列: モニター以外を作り直す
+        Array.from(col.children).forEach((node) => { if (node !== monitors) node.remove(); });
+      } else {
+        if (col) col.remove();
+        col = document.createElement('div');
+        monitors = null;
+      }
       col.className = `od-col${ch.id === this.activeChannelId ? ' active' : ''}`;
       col.dataset.channelId = ch.id;
+      col.dataset.region = ch.region;
 
       // ヘッダ (色ドット+ラベル+件数+その系統へページ追加)
       const header = document.createElement('div');
@@ -668,46 +691,49 @@ const RundownUI = {
       header.appendChild(name);
       header.appendChild(addBtn);
       header.addEventListener('click', () => this.focusChannel(ch.id));
-      col.appendChild(header);
+      if (monitors) col.insertBefore(header, monitors);
+      else col.appendChild(header);
 
-      // OA|NEXT ミニモニター (系統ごとの出力/次ページ確認)
-      const monitors = document.createElement('div');
-      monitors.className = 'od-col-monitors';
-      const oaBox = document.createElement('div');
-      oaBox.className = 'od-col-mon-box';
-      const oaLabel = document.createElement('span');
-      oaLabel.className = 'od-col-mon-label oa';
-      oaLabel.dataset.channelId = ch.id;
-      oaLabel.textContent = 'OA';
-      const oaFrame = document.createElement('div');
-      oaFrame.className = 'od-col-mon';
-      const oaIframe = document.createElement('iframe');
-      oaIframe.className = 'od-col-oa';
-      oaIframe.dataset.region = ch.region;
-      oaIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-      oaIframe.setAttribute('allow', 'autoplay');
-      oaIframe.src = 'about:blank';
-      oaFrame.appendChild(oaIframe);
-      oaBox.appendChild(oaLabel);
-      oaBox.appendChild(oaFrame);
-      const nextBox = document.createElement('div');
-      nextBox.className = 'od-col-mon-box';
-      const nextLabel = document.createElement('span');
-      nextLabel.className = 'od-col-mon-label next od-col-next-label';
-      nextLabel.dataset.channelId = ch.id;
-      nextLabel.textContent = 'NEXT';
-      const nextFrame = document.createElement('div');
-      nextFrame.className = 'od-col-mon';
-      const nextHost = document.createElement('div');
-      nextHost.className = 'od-col-next';
-      nextHost.dataset.channelId = ch.id;
-      nextFrame.appendChild(nextHost);
-      nextBox.appendChild(nextLabel);
-      nextBox.appendChild(nextFrame);
-      monitors.appendChild(oaBox);
-      monitors.appendChild(nextBox);
-      monitors.addEventListener('click', () => this.focusChannel(ch.id));
-      col.appendChild(monitors);
+      // OA|NEXT ミニモニター (系統ごとの出力/次ページ確認)。使い回す列ではそのまま残す
+      if (!monitors) {
+        monitors = document.createElement('div');
+        monitors.className = 'od-col-monitors';
+        const oaBox = document.createElement('div');
+        oaBox.className = 'od-col-mon-box';
+        const oaLabel = document.createElement('span');
+        oaLabel.className = 'od-col-mon-label oa';
+        oaLabel.dataset.channelId = ch.id;
+        oaLabel.textContent = 'OA';
+        const oaFrame = document.createElement('div');
+        oaFrame.className = 'od-col-mon';
+        const oaIframe = document.createElement('iframe');
+        oaIframe.className = 'od-col-oa';
+        oaIframe.dataset.region = ch.region;
+        oaIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+        oaIframe.setAttribute('allow', 'autoplay');
+        oaIframe.src = 'about:blank';
+        oaFrame.appendChild(oaIframe);
+        oaBox.appendChild(oaLabel);
+        oaBox.appendChild(oaFrame);
+        const nextBox = document.createElement('div');
+        nextBox.className = 'od-col-mon-box';
+        const nextLabel = document.createElement('span');
+        nextLabel.className = 'od-col-mon-label next od-col-next-label';
+        nextLabel.dataset.channelId = ch.id;
+        nextLabel.textContent = 'NEXT';
+        const nextFrame = document.createElement('div');
+        nextFrame.className = 'od-col-mon';
+        const nextHost = document.createElement('div');
+        nextHost.className = 'od-col-next';
+        nextHost.dataset.channelId = ch.id;
+        nextFrame.appendChild(nextHost);
+        nextBox.appendChild(nextLabel);
+        nextBox.appendChild(nextFrame);
+        monitors.appendChild(oaBox);
+        monitors.appendChild(nextBox);
+        monitors.addEventListener('click', () => this.focusChannel(ch.id));
+        col.appendChild(monitors);
+      }
 
       // ボディ (その系統のページ)
       const body = document.createElement('div');
@@ -787,7 +813,9 @@ const RundownUI = {
       footer.appendChild(take);
       col.appendChild(footer);
 
-      wrap.appendChild(col);
+      // 並び順の位置へ (既に正しい位置なら動かさない = iframe を読み込み直さない)
+      const at = wrap.children[colIndex] || null;
+      if (at !== col) wrap.insertBefore(col, at);
     });
 
     this.updateChannelMonitors();
