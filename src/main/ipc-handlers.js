@@ -8,6 +8,7 @@ const { readExcel } = require('./excel-reader');
 const gpioDio = require('./gpio-dio');
 const remoteLink = require('./remote-link');
 const designSync = require('./design-sync');
+const netInfo = require('./net-info');
 const graphicsStore = require('./graphics-store');
 const graphicsServer = require('./graphics-server');
 const liveData = require('./live-data');
@@ -259,17 +260,6 @@ async function ensureDefaultWebFont() {
   }
 }
 
-/** LAN内のIPv4アドレス一覧 */
-function lanAddresses() {
-  const addrs = [];
-  Object.values(os.networkInterfaces()).forEach((ifaces) => {
-    (ifaces || []).forEach((iface) => {
-      if (iface.family === 'IPv4' && !iface.internal) addrs.push(iface.address);
-    });
-  });
-  return addrs;
-}
-
 function registerIpcHandlers() {
   // --- グラフィックスエンジン初期化 ---
   graphicsStore.init(app.getPath('userData'));
@@ -505,7 +495,8 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('graphics-server-status', async () => {
-    return { ...graphicsServer.getStatus(), lanAddresses: lanAddresses() };
+    const lanInterfaces = await netInfo.listIPv4();
+    return { ...graphicsServer.getStatus(), lanAddresses: lanInterfaces.map((i) => i.address), lanInterfaces };
   });
 
   // --- デザインエディタ ---

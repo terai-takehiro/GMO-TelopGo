@@ -167,7 +167,8 @@ const HomeUI = {
       if (window.api && window.api.graphicsServerStatus) status = await window.api.graphicsServerStatus();
     } catch (_) { /* ignore */ }
     if (status && status.running) {
-      const host = (status.lanAddresses && status.lanAddresses[0]) || '127.0.0.1';
+      const host = typeof GraphicsUI !== 'undefined' ? GraphicsUI.pickHost(status)
+        : ((status.lanAddresses && status.lanAddresses[0]) || '127.0.0.1');
       rows.push(['出力サーバ', `${host}:${status.port}`, true]);
     } else {
       rows.push(['出力サーバ', '停止中', false]);
