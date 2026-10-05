@@ -1768,10 +1768,10 @@ body.role-client .settings-section[data-section="gpio"] { display: none !importa
   --od-text: var(--text-primary);
   --od-text-dim: var(--text-muted);
   --od-onair: var(--red);
-  --od-next: var(--yellow);
+  --od-next: var(--green);
   --od-take: var(--green);
   --od-onair-bg: var(--red-dim);
-  --od-next-bg: var(--yellow-dim);
+  --od-next-bg: #e3f6ea;
   background: var(--od-bg);
   color: var(--od-text);
 }
@@ -2032,7 +2032,7 @@ body.role-client .settings-section[data-section="gpio"] { display: none !importa
 .od-page:hover { border-color: #c2cfdd; }
 .od-page.editing { outline: 1px dashed var(--accent); }
 .od-page-state { width: 5px; align-self: stretch; border-radius: 3px; background: transparent; flex-shrink: 0; }
-.od-page.next { background: var(--od-next-bg); border-color: #e6c37a; }
+.od-page.next { background: var(--od-next-bg); border-color: #8fd3aa; }
 .od-page.next .od-page-state { background: var(--od-next); }
 .od-page.on-air { background: var(--od-onair-bg); border-color: #f0a9a2; box-shadow: inset 0 0 0 1px rgba(217, 45, 32, 0.28); }
 .od-page.on-air .od-page-state { background: var(--od-onair); animation: od-onair-pulse 1.6s ease-in-out infinite; }
@@ -2640,7 +2640,7 @@ body.role-client .settings-section[data-section="gpio"] { display: none !importa
 }
 .manual-swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin: 0 3px 0 8px; vertical-align: middle; }
 .manual-swatch.onair { background: var(--red); }
-.manual-swatch.next { background: var(--yellow); }
+.manual-swatch.next { background: var(--green); }
 
 /* ============================================================
    デザインタブ v3.0 — Photoshop風ダークUI
@@ -3258,7 +3258,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.55); backdrop-filter: none; }
 .home-sys-dot { background: #555; }
 
 /* ===== 送出 ===== */
-#tab-onair { --od-onair: #e0332b; --od-next: #e8a317; background: var(--line); }
+#tab-onair { --od-onair: #e0332b; --od-next: #3cc47a; background: var(--line); }
 .od-rehearsal-banner { background: repeating-linear-gradient(45deg, #3f3414, #3f3414 14px, #4a3d17 14px, #4a3d17 28px); color: #f3c55a; }
 .od-topbar { min-height: 36px; padding: 0 10px; gap: 8px; background: #323232; border-bottom: 1px solid var(--line); }
 .od-mode-switch { border-color: #4a4a4a; border-radius: 2px; }
@@ -3316,19 +3316,19 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.55); backdrop-filter: none; }
   color: #fff !important;
 }
 .od-col-mon-label.oa { background: #c8261b; }
-.od-col-mon-label.next { background: #9a6a00; }
+.od-col-mon-label.next { background: #1d7a45; }
 .od-col-mon { border-radius: 0; border: 1px solid #111; }
 .od-col-body { padding: 0; gap: 0; background: #383838; }
 .od-page { gap: 8px; padding: 0 8px 0 0; min-height: 30px; border: none; border-radius: 0; border-bottom: 1px solid var(--border-light); background: transparent; }
 .od-page:hover { background: #404040; border-color: var(--border-light); }
 .od-page-state { width: 3px; border-radius: 0; }
-.od-page.next { background: var(--yellow-dim); border-color: var(--border-light); }
+.od-page.next { background: #173a26; border-color: var(--border-light); }
 .od-page.on-air { background: var(--red-dim); border-color: var(--border-light); box-shadow: none; }
 .od-page.played { opacity: 0.45; }
 .od-page.editing { outline: 1px solid #6aa6ff; outline-offset: -1px; }
 .od-page-no { font-size: 12px; min-width: 40px; color: #9a9a9a; }
 .od-page.on-air .od-page-no { color: #ff8a80; }
-.od-page.next .od-page-no { color: #f3c55a; }
+.od-page.next .od-page-no { color: #6fdc9a; }
 .od-page-summary { font-size: 12px; font-weight: 500; }
 .od-page.on-air .od-page-summary, .od-page.next .od-page-summary { font-weight: 700; color: #fff; }
 .od-page-meta { font-size: 10px; color: #8a8a8a; }

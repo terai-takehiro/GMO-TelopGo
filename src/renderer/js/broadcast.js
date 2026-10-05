@@ -19,11 +19,38 @@ const Broadcast = {
     if (page.kind === 'still') return (page.still && page.still.file) || '(静止画)';
     if (page.kind === 'design') return '(作画)';
     const values = page.values || {};
+    const nameFirst = this.summarizeNames(page);
+    if (nameFirst) return nameFirst;
     const texts = Object.entries(values)
       .filter(([k, v]) => v && /Jp$/i.test(k))
       .map(([, v]) => v);
     const joined = (texts.length ? texts : Object.values(values).filter(Boolean)).join(' / ');
     return joined.replace(/\n/g, ' ').slice(0, 60);
+  },
+
+  /**
+   * 氏名テロップ (name-* テンプレート) の要約。人物ごとに「名前（肩書）」の順で並べる
+   * (例: 見本 太郎（代表取締役） / 見本 花子（取締役）)。名前が1つも無ければ null
+   */
+  summarizeNames(page) {
+    if (!String(page.templateKey || '').startsWith('name-')) return null;
+    const values = page.values || {};
+    const fields = App.nameFields || {};
+    const bind = (prefix, kind) => {
+      const slot = prefix ? `${prefix}${kind}Jp` : `${kind.toLowerCase()}Jp`;
+      return fields[slot] || slot;
+    };
+    const clean = (v) => String(v || '').replace(/\n/g, ' ').trim();
+    const prefixes = ['', '2nd', '3rd', '4th'];
+    // 名前が1つも無い (肩書のみ等) ときは従来の要約
+    if (!prefixes.some((p) => clean(values[bind(p, 'Name')]))) return null;
+    const persons = prefixes.map((prefix) => {
+      const name = clean(values[bind(prefix, 'Name')]);
+      const title = clean(values[bind(prefix, 'Title')]);
+      if (!name) return title;
+      return title ? `${name}（${title}）` : name;
+    }).filter(Boolean);
+    return persons.join(' / ').slice(0, 60);
   },
 
   /**
