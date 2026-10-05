@@ -7,6 +7,7 @@ const XLSX = require('xlsx');
 const { readExcel } = require('./excel-reader');
 const gpioDio = require('./gpio-dio');
 const remoteLink = require('./remote-link');
+const designSync = require('./design-sync');
 const graphicsStore = require('./graphics-store');
 const graphicsServer = require('./graphics-server');
 const liveData = require('./live-data');
@@ -519,6 +520,7 @@ function registerIpcHandlers() {
       }
       graphicsStore.setProject(project);
       graphicsServer.refreshProject();
+      designSync.schedulePush(); // クライアント: 保存したデザインをホストへ反映
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -569,6 +571,7 @@ function registerIpcHandlers() {
     try {
       const id = graphicsStore.createSet(String(name || '').trim() || '新しいデザイン', !!fromCurrent);
       graphicsServer.refreshProject();
+      designSync.schedulePush();
       return { ok: true, id, ...graphicsStore.listSets() };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -579,6 +582,7 @@ function registerIpcHandlers() {
     try {
       graphicsStore.switchSet(id);
       graphicsServer.refreshProject();
+      designSync.schedulePush();
       return { ok: true, ...graphicsStore.listSets() };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -733,6 +737,7 @@ function registerIpcHandlers() {
       });
       graphicsStore.setProject(data.project);
       graphicsServer.refreshProject();
+      designSync.schedulePush();
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -748,6 +753,7 @@ function registerIpcHandlers() {
     try {
       graphicsStore.reload();
       graphicsServer.refreshProject();
+      designSync.schedulePush();
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -765,6 +771,7 @@ function registerIpcHandlers() {
     if (graphicsServer.isRunning() && (settings.channels || settings.outputGroups)) {
       graphicsServer.refreshProject();
     }
+    designSync.schedulePush(); // クライアント: 系統・出力グループ等の設定をホストへ反映
     return { success: true };
   });
 
@@ -961,6 +968,11 @@ function registerIpcHandlers() {
   gpioDio.events.on('state', (state) => broadcastToWindows('gpio-state', state));
   gpioDio.events.on('error', (message) => broadcastToWindows('gpio-error', message));
   graphicsServer.events.on('status', () => broadcastToWindows('graphics-status-changed', graphicsServer.getStatus()));
+
+  // --- デザイン・設定の同期 (クライアント → ホスト。ホストのデザインの取り込みは手動) ---
+  designSync.init({ remoteLink, graphicsStore, graphicsServer, settingsStore: { getSettings, saveSettings }, notify: broadcastToWindows });
+  ipcMain.handle('design-sync-push', async () => designSync.push(true));
+  ipcMain.handle('design-sync-pull', async () => designSync.pull());
 
   // --- リモート連携 (2台運用) ---
   ipcMain.handle('remote-start', async (_event, options) => {

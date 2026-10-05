@@ -393,6 +393,7 @@
           <select id="de-template" class="hidden" aria-hidden="true"></select>
           <div class="de-viewport" id="de-viewport">
             <div class="de-server-warning hidden" id="de-server-warning">出力サーバが停止中のため、画像・持ち込みフォントが表示されません (設定タブで起動してください)</div>
+            <div class="de-server-warning de-host-lock hidden" id="de-host-lock">ホストPCではデザインを保存できません。作画はクライアントPCで行うと、ホストへ自動で反映されます</div>
             <div class="de-canvas-wrap" id="de-canvas-wrap">
               <div class="de-canvas" id="de-canvas"></div>
               <div class="de-overlay" id="de-overlay">
@@ -723,7 +724,13 @@
           <button class="btn btn--small" id="remote-stop">停止</button>
           <span class="gpio-conn-status" id="remote-conn-status">停止中</span>
         </div>
-        <p class="gpio-hint">テロップデータとON AIR/NEXT状態は両PC間で自動同期されます (接続時はホストのデータが優先)。担当でないPCでのCHANGE/TAKE/CLEAR操作 (GPIOボタン含む) は担当PCへ転送されて実行されます。ホスト側のWindowsファイアウォールで指定ポートの受信許可が必要です。</p>
+        <div class="settings-row hidden" id="remote-design-sync-row">
+          <label>デザイン・設定</label>
+          <button class="btn btn--small" id="remote-design-push" title="このPCのデザイン (テンプレート・素材) と系統/出力グループ/氏名項目名の設定を、ホストへ反映します">ホストへ反映</button>
+          <button class="btn btn--small" id="remote-design-pull" title="ホストPCのデザインと系統設定で、このPCを上書きします (初回セットアップ用)">ホストから取り込む</button>
+          <span class="settings-inline-hint">通常はデザイン保存時に自動でホストへ反映されます</span>
+        </div>
+        <p class="gpio-hint">テロップデータ (ページ・並び順) とON AIR/NEXT状態は両PC間で自動同期されます (接続時はホストのデータが優先)。ホストPCは出力 (描画) とGPIOを担当し、作画・送出の操作はクライアントPCで行う運用を想定しています。クライアントで保存したデザインと系統/出力グループ/氏名項目名の設定は、ホストへ自動で反映されます (ホストのデザインを取り込みたいときは「ホストから取り込む」)。GPIOの設定はホストPCのみで行い、クライアントでは非表示になります。担当でないPCでのCHANGE/TAKE/CLEAR操作 (GPIOボタン含む) は担当PCへ転送されて実行されます。ホスト側のWindowsファイアウォールで指定ポートの受信許可が必要です。</p>
       </fieldset>
       </section>
       <section class="settings-section" data-section="gpio">

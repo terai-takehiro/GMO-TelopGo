@@ -225,8 +225,9 @@ const GpioRemote = {
       });
     });
 
-    // 有効設定なら起動時に自動接続 (初回のみ)
-    if (this.config.enabled && !this.autoConnectDone) {
+    // 有効設定なら起動時に自動接続 (初回のみ)。クライアントはGPIOユニットを持たないので接続しない
+    const isClient = typeof RemoteSync !== 'undefined' && RemoteSync.isClientMode();
+    if (this.config.enabled && !this.autoConnectDone && !isClient) {
       this.autoConnectDone = true;
       this.connect(true);
     }
@@ -300,11 +301,22 @@ const GpioRemote = {
     statusEl.textContent = connected ? '接続中' : '未接続';
     statusEl.classList.toggle('connected', connected);
 
-    const barEl = document.getElementById('status-gpio');
-    barEl.textContent = connected ? 'GPIO: 接続中' : 'GPIO: 未接続';
-    barEl.style.color = connected ? 'var(--green)' : '';
+    this.refreshStatusBar();
 
     if (!connected) this.updateMonitor(0);
+  },
+
+  /** ステータスバーのGPIO表示 (クライアントはホストPC側で管理するため接続状態を持たない) */
+  refreshStatusBar() {
+    const barEl = document.getElementById('status-gpio');
+    if (!barEl) return;
+    if (typeof RemoteSync !== 'undefined' && RemoteSync.isClientMode()) {
+      barEl.textContent = 'GPIO: ホストPCで管理';
+      barEl.style.color = '';
+      return;
+    }
+    barEl.textContent = this.connected ? 'GPIO: 接続中' : 'GPIO: 未接続';
+    barEl.style.color = this.connected ? 'var(--green)' : '';
   },
 
   // ===== 学習 (ビット割当) =====

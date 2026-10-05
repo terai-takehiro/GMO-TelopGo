@@ -86,4 +86,10 @@ contextBridge.exposeInMainWorld('api', {
   remoteSend: (message) => ipcRenderer.invoke('remote-send', message),
   onRemoteMessage: (callback) => ipcRenderer.on('remote-message', (_event, msg) => callback(msg)),
   onRemoteStatus: (callback) => ipcRenderer.on('remote-status-changed', (_event, status) => callback(status)),
+
+  // デザイン・設定の同期 (クライアント → ホスト / ホストから取り込み)
+  designSyncPush: () => ipcRenderer.invoke('design-sync-push'),
+  designSyncPull: () => ipcRenderer.invoke('design-sync-pull'),
+  onDesignSynced: (callback) => ipcRenderer.on('design-synced', (_event, info) => callback(info)),
+  onDesignSyncStatus: (callback) => ipcRenderer.on('design-sync-status', (_event, info) => callback(info)),
 });

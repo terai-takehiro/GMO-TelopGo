@@ -406,6 +406,9 @@ const SettingsUI = {
   },
 
   populateFields(settings) {
+    // 2台運用の動作モード (GPIOの自動接続可否・GPIO設定の表示可否に使うため最初に反映)
+    RemoteSync.presetMode(settings.remote);
+
     // 出力チャンネル (他モジュールより先に反映する)
     App.channels = (settings.channels && settings.channels.length) ? settings.channels : [
       { id: 'tl1', label: 'TL1', region: 'tl1', color: '#e8b93c' },
@@ -440,6 +443,20 @@ const SettingsUI = {
     // 氏名テロップの項目名マッピング (名前プールのプルダウン判定・Excel一括取込/書き出しで使用)
     App.nameFields = settings.nameFields || {};
     NameFieldsUI.populate(App.nameFields);
+  },
+
+  /** 同期で書き換わった設定 (系統・プリセット・出力グループ・氏名項目名) を画面へ反映 */
+  applySyncedSettings(settings) {
+    App.channels = (settings.channels && settings.channels.length) ? settings.channels : App.channels;
+    App.telopPresets = Array.isArray(settings.telopPresets) ? settings.telopPresets : [];
+    App.outputGroups = Array.isArray(settings.outputGroups) ? settings.outputGroups : [];
+    App.nameFields = settings.nameFields || App.nameFields;
+    TelopPresetsUI.populate(App.telopPresets);
+    ChannelsUI.populate(App.channels);
+    OutputGroupsUI.populate(App.outputGroups);
+    NameFieldsUI.populate(App.nameFields);
+    if (typeof LiveDataUI !== 'undefined') LiveDataUI.renderRegionOptions();
+    if (typeof GraphicsUI !== 'undefined' && GraphicsUI.status) GraphicsUI.renderUrls(GraphicsUI.status);
   },
 
   async save() {

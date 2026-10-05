@@ -40,6 +40,12 @@ const RemoteSync = {
     window.api.onRemoteMessage((msg) => this.onMessage(msg));
     window.api.onRemoteStatus((status) => this.onStatus(status));
 
+    // デザイン・設定の同期 (クライアント → ホスト / ホストから取り込み)
+    document.getElementById('remote-design-push').addEventListener('click', () => this.designPush());
+    document.getElementById('remote-design-pull').addEventListener('click', () => this.designPull());
+    window.api.onDesignSyncStatus((info) => this.onDesignSyncStatus(info));
+    window.api.onDesignSynced((info) => this.onDesignSynced(info));
+
     // レンダラーリロード時に既存リンク状態を反映
     window.api.remoteStatus().then((status) => this.onStatus(status));
 
@@ -47,6 +53,87 @@ const RemoteSync = {
   },
 
   // ===== 設定UI =====
+
+  /** 動作モードがクライアントか (設定UIの選択値。起動直後でもリンク状態に依らず判定できる) */
+  isClientMode() {
+    const radio = document.querySelector('input[name="remote-mode"]:checked');
+    return !!radio && radio.value === 'client';
+  },
+
+  /** 動作モードだけ先に反映 (GPIO自動接続の判定などが他モジュールより先に必要なため) */
+  presetMode(remote) {
+    const mode = (remote && remote.mode) || 'standalone';
+    const radio = document.querySelector(`input[name="remote-mode"][value="${mode}"]`);
+    if (radio) radio.checked = true;
+    this.applyRoleUi();
+  },
+
+  /**
+   * クライアントでは GPIO 設定を非表示にする。
+   * GPIO (CONTEC DIO) はホストPCに接続されるため、クライアントでは使わない・設定しない。
+   */
+  applyRoleUi() {
+    const client = this.isClientMode();
+    document.body.classList.toggle('role-client', client);
+    document.getElementById('remote-design-sync-row').classList.toggle('hidden', !client);
+    this.updateDesignLock();
+    if (client) {
+      const active = document.querySelector('#tab-settings .settings-section.active');
+      if (active && active.dataset.section === 'gpio' && typeof SettingsNav !== 'undefined') SettingsNav.show('remote');
+    }
+    if (typeof GpioRemote !== 'undefined' && GpioRemote.refreshStatusBar) GpioRemote.refreshStatusBar();
+  },
+
+  /** ホストPCは描画/GPIO専用: 接続中はデザインを保存させない (クライアントの作画が正) */
+  isDesignLocked() {
+    return this.role === 'host' && this.connected;
+  },
+
+  updateDesignLock() {
+    const banner = document.getElementById('de-host-lock');
+    if (banner) banner.classList.toggle('hidden', !this.isDesignLocked());
+  },
+
+  // ===== デザイン・設定の同期 =====
+
+  async designPush() {
+    const r = await window.api.designSyncPush();
+    if (!r.ok) App.setStatus(`ホストへ反映できません: ${r.error}`, 'error');
+  },
+
+  async designPull() {
+    if (!confirm('ホストPCのデザインと系統/出力グループ/氏名項目名の設定で、このPCの内容を上書きします。\nよろしいですか?')) return;
+    const r = await window.api.designSyncPull();
+    if (!r.ok) App.setStatus(`ホストから取り込めません: ${r.error}`, 'error');
+  },
+
+  onDesignSyncStatus(info) {
+    if (info.state === 'sent') {
+      App.setStatus(info.direction === 'pull' ? 'ホストのデザインを取り込み中...' : 'デザイン・設定をホストへ送信中...');
+    } else if (info.state === 'applied') {
+      const what = info.direction === 'pull' || info.direction === 'from-host' ? 'ホストのデザインを取り込みました' : 'デザイン・設定をホストへ反映しました';
+      App.setStatus(info.unchanged ? '同期済みです (変更なし)' : what, 'success');
+    } else if (info.state === 'failed') {
+      App.setStatus(`デザイン同期エラー: ${info.error || ''}`, 'error');
+    }
+  },
+
+  /** 相手PCからデザイン・設定が反映された: 設定・テンプレート・デザインエディタを読み直す */
+  async onDesignSynced(info) {
+    const settings = await window.api.getSettings();
+    if (typeof SettingsUI !== 'undefined') SettingsUI.applySyncedSettings(settings);
+    if (typeof RundownUI !== 'undefined' && RundownUI.loaded) await RundownUI.refreshTemplates();
+    if (typeof DesignEditor !== 'undefined' && DesignEditor.loaded) {
+      if (DesignEditor.dirty) {
+        App.setStatus('デザインが同期されましたが、編集中の未保存の変更があるため画面は更新していません (「再読込」で反映)', 'error');
+        return;
+      }
+      await DesignEditor.refreshSets();
+      await DesignEditor.loadProject();
+    }
+    App.setStatus(info && info.direction === 'from-client'
+      ? 'クライアントのデザイン・設定が反映されました' : 'ホストのデザイン・設定を取り込みました', 'success');
+  },
 
   populateConfig(remote) {
     if (!remote) return;
@@ -79,6 +166,7 @@ const RemoteSync = {
   updateModeUi() {
     const mode = document.querySelector('input[name="remote-mode"]:checked').value;
     document.getElementById('remote-host-address-row').classList.toggle('hidden', mode !== 'client');
+    this.applyRoleUi();
   },
 
   // ===== リンク開始/停止 =====
@@ -121,6 +209,7 @@ const RemoteSync = {
     this.role = status.role;
     const wasConnected = this.connected;
     this.connected = status.connected;
+    this.updateDesignLock();
 
     const statusEl = document.getElementById('remote-conn-status');
     const barEl = document.getElementById('status-remote');
