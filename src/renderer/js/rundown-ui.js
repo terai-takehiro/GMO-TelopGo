@@ -122,6 +122,7 @@ const RundownUI = {
 
     // 右サイドバー (ページ編集) の折りたたみ
     this.initRightPanel();
+    this.initConsoleToggle();
 
     // 素材集: 選択して一括削除
     document.getElementById('od-standby-selall').addEventListener('change', (e) => {
@@ -980,6 +981,25 @@ const RundownUI = {
       this.updateChannelMonitors();
       this.renderNextPreviews();
     }
+  },
+
+  // ===== 各列の送出ボタン (コンソール) の表示/非表示 =====
+
+  CONSOLE_HIDDEN_KEY: 'telopgo.onairConsoleHidden',
+
+  initConsoleToggle() {
+    document.getElementById('od-console-toggle').addEventListener('click', () => this.setConsoleHidden(!this.consoleHidden));
+    this.setConsoleHidden(this._pref(this.CONSOLE_HIDDEN_KEY) === '1');
+  },
+
+  /** リモコン/GPIO/キー操作の運用向け: 列下部の送出ボタン一式を隠して送出リストを広く見せる */
+  setConsoleHidden(hidden) {
+    this.consoleHidden = !!hidden;
+    document.getElementById('od-columns').classList.toggle('od-columns--no-console', this.consoleHidden);
+    const btn = document.getElementById('od-console-toggle');
+    btn.textContent = this.consoleHidden ? '送出ボタンを表示' : '送出ボタンを隠す';
+    btn.classList.toggle('active', this.consoleHidden);
+    this._pref(this.CONSOLE_HIDDEN_KEY, this.consoleHidden ? '1' : '0');
   },
 
   /** TAKE後に呼ばれる: 設定がONならページ編集を折りたたむ */
