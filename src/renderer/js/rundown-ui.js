@@ -577,6 +577,8 @@ const RundownUI = {
     el.addEventListener('dragleave', () => el.classList.remove('od-drop-target'));
     el.addEventListener('drop', (e) => {
       el.classList.remove('od-drop-target');
+      // 親 (列/素材集) の「末尾へドロップ」まで動くと、ここで並べ替えた直後に末尾へ戻ってしまう
+      e.stopPropagation();
       // 電テロ: 画像ファイルのドロップ取込 (このページの系統へ)
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         if (App.activeMode !== 'telop' || listName !== 'pages') return;
