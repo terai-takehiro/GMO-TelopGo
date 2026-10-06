@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [3.13.0] - 2026-10-06
 
 ### Added
 - **送出画面の各列の送出ボタン (TOP/BACK/SKIP/STOP/UPDATE/CLEAR/CLEAR&BACK/TAKE) を隠せるように**。
