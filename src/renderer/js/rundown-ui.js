@@ -1451,7 +1451,7 @@ const RundownUI = {
     ['in', 'out'].forEach((dir) => {
       const eff = this.stillEffect(page, dir);
       const wrap = document.createElement('div');
-      wrap.className = 'od-editor-inline';
+      wrap.className = 'od-editor-inline od-effect-inline';
 
       const presetSel = document.createElement('select');
       presetSel.className = 'input input--small';
@@ -1480,7 +1480,7 @@ const RundownUI = {
 
       if (eff.preset !== 'cut') {
         const secInput = DesignEditor.numInput({ min: '0', step: '0.1' });
-        secInput.className = 'input input--small';
+        secInput.className = 'input input--small od-effect-sec';
         secInput.dataset.fieldKey = `still-${dir}-sec`;
         secInput.value = Math.round(eff.duration) / 1000;
         secInput.title = 'エフェクトの秒数 (↑↓キーで増減)';
@@ -1495,12 +1495,12 @@ const RundownUI = {
         unit.textContent = '秒';
         wrap.appendChild(unit);
       }
-      row(dir === 'in' ? 'IN エフェクト' : 'OUT エフェクト', wrap);
+      row(dir === 'in' ? 'IN 効果' : 'OUT 効果', wrap).title = `${dir.toUpperCase()}エフェクト (種類・方向・秒数)`;
     });
 
     const bulk = document.createElement('button');
-    bulk.className = 'btn btn--small';
-    bulk.textContent = 'このIN/OUTを他の静止画へ一括適用…';
+    bulk.className = 'btn btn--small od-effect-bulk';
+    bulk.textContent = '他の静止画へ一括適用…';
     bulk.addEventListener('click', (e) => {
       e.stopPropagation();
       const channelId = App.channelOfPage(page);

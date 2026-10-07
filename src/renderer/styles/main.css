@@ -2179,6 +2179,10 @@ body.role-client .settings-section[data-section="gpio"] { display: none !importa
   font-size: 12px;
 }
 .od-editor-inline { display: flex; gap: 6px; flex: 1; }
+.od-effect-inline { flex-wrap: wrap; min-width: 0; }
+.od-effect-inline select.input { flex: 1 1 80px; }
+.od-editor-inline .input.od-effect-sec { flex: 0 0 52px; }
+.od-effect-bulk { flex: 1; min-width: 0; white-space: normal; }
 .od-editor-unit { font-size: 11px; color: var(--od-text-dim); align-self: center; }
 .od-field-input { resize: vertical; }
 textarea.od-field-input { box-sizing: border-box; min-height: 32px; line-height: 1.4; overflow-y: auto; }
