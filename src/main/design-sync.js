@@ -20,6 +20,11 @@
  *   design-need   {id, files:[name]}            受信側→送信側: 足りない素材の要求
  *   design-file   {id, file, data(base64)}      送信側→受信側: 素材ファイル
  *   design-result {id, ok, error?}              受信側→送信側: 適用結果
+ *
+ * 送出リスト (state-sync で同期) が参照する素材 (電テロの静止画・作画内の画像) は、デザインと別に
+ * 受信側が不足分を要求して取り寄せる (どちらのPCで取り込んだ画像でも出力担当PCで描画できるように):
+ *   design-asset-need {files:[name]}            不足側→相手: 素材の要求
+ *   design-asset-file {file, data(base64)}      相手→不足側: 素材ファイル
  */
 const fs = require('fs');
 const path = require('path');
@@ -33,6 +38,8 @@ let lastPushedHash = '';  // 直近に送信した内容 (変化が無い保存�
 let pullPending = false;  // クライアント: pull要求の応答待ち (この間だけホストからのofferを受け入れる)
 let incoming = null;      // 素材の到着待ちの offer { id, payload, need:Set }
 let seq = 0;
+const assetWanted = new Map(); // 送出リスト用に相手へ要求中の素材 file -> 要求時刻
+const ASSET_WANT_TTL_MS = 30000; // 応答が無い要求はこの時間後に再要求できるようにする
 
 function init(d) {
   deps = d;
@@ -41,7 +48,7 @@ function init(d) {
   });
   // 切断したら待ち状態を破棄
   deps.remoteLink.events.on('status', (st) => {
-    if (!st.connected) { incoming = null; pullPending = false; }
+    if (!st.connected) { incoming = null; pullPending = false; assetWanted.clear(); }
   });
 }
 
@@ -176,6 +183,26 @@ function onMessage(msg) {
       }
       break;
 
+    case 'design-asset-need':
+      // 相手の送出リストが参照する素材のうち、こちらにあるものを送る
+      (payload.files || []).forEach((file) => {
+        if (typeof file !== 'string' || !file) return;
+        try {
+          const data = fs.readFileSync(assetPath(file)).toString('base64');
+          deps.remoteLink.send({ type: 'design-asset-file', payload: { file, data } });
+        } catch (_) { /* こちらにも無い素材は送らない */ }
+      });
+      break;
+
+    case 'design-asset-file':
+      if (typeof payload.file !== 'string' || !assetWanted.has(payload.file)) return;
+      assetWanted.delete(payload.file);
+      fs.writeFileSync(assetPath(payload.file), Buffer.from(payload.data || '', 'base64'));
+      // 取り寄せ前に送出済みの静止画も描き直す
+      deps.graphicsServer.refreshProject();
+      notify('assets-synced', { file: payload.file });
+      break;
+
     case 'design-result':
       notify('design-sync-status', payload.ok
         ? { state: 'applied', direction: r === 'client' ? 'push' : 'pull' }
@@ -212,4 +239,38 @@ function apply(payload) {
   }
 }
 
-module.exports = { init, schedulePush, push, pull };
+// ===== 送出リストの素材 =====
+
+/** 送出リストが参照する素材ファイル名 (電テロの静止画・作画内の画像) */
+function rundownAssetFiles(rundown) {
+  const files = new Set();
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (node.kind === 'still' && node.still && node.still.file) files.add(node.still.file);
+    if (node.kind === 'design' && node.design && node.design.variant) {
+      (node.design.variant.layers || []).forEach((layer) => {
+        if (layer && layer.type === 'image' && layer.file) files.add(layer.file);
+      });
+    }
+    Object.values(node).forEach(walk);
+  };
+  walk(rundown);
+  return [...files];
+}
+
+/** 送出リストの保存時に呼ぶ: 接続中なら、手元に無い参照素材を相手PCへ要求する */
+function requestRundownAssets(rundown) {
+  if (!deps || role() === 'standalone' || !isConnected()) return;
+  const now = Date.now();
+  const missing = rundownAssetFiles(rundown).filter((file) => {
+    const since = assetWanted.get(file);
+    if (since && now - since < ASSET_WANT_TTL_MS) return false;
+    return !fs.existsSync(assetPath(file));
+  });
+  if (missing.length === 0) return;
+  missing.forEach((file) => assetWanted.set(file, now));
+  deps.remoteLink.send({ type: 'design-asset-need', payload: { files: missing } });
+}
+
+module.exports = { init, schedulePush, push, pull, requestRundownAssets };

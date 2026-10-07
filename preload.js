@@ -92,4 +92,5 @@ contextBridge.exposeInMainWorld('api', {
   designSyncPull: () => ipcRenderer.invoke('design-sync-pull'),
   onDesignSynced: (callback) => ipcRenderer.on('design-synced', (_event, info) => callback(info)),
   onDesignSyncStatus: (callback) => ipcRenderer.on('design-sync-status', (_event, info) => callback(info)),
+  onAssetsSynced: (callback) => ipcRenderer.on('assets-synced', (_event, info) => callback(info)),
 });
