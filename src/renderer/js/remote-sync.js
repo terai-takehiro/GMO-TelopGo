@@ -45,6 +45,7 @@ const RemoteSync = {
     document.getElementById('remote-design-pull').addEventListener('click', () => this.designPull());
     window.api.onDesignSyncStatus((info) => this.onDesignSyncStatus(info));
     window.api.onDesignSynced((info) => this.onDesignSynced(info));
+    window.api.onAssetsSynced(() => this.onAssetsSynced());
 
     // レンダラーリロード時に既存リンク状態を反映
     window.api.remoteStatus().then((status) => this.onStatus(status));
@@ -133,6 +134,13 @@ const RemoteSync = {
     }
     App.setStatus(info && info.direction === 'from-client'
       ? 'クライアントのデザイン・設定が反映されました' : 'ホストのデザイン・設定を取り込みました', 'success');
+  },
+
+  /** 相手PCから送出リストの素材 (静止画など) を取り寄せた: サムネ・プレビューを描き直す */
+  onAssetsSynced() {
+    if (typeof RundownUI === 'undefined' || !RundownUI.loaded) return;
+    RundownUI._thumbCache.clear();
+    RundownUI.renderAll();
   },
 
   populateConfig(remote) {

@@ -392,6 +392,8 @@ function registerIpcHandlers() {
   ipcMain.handle('rundown-set', async (_event, data) => {
     try {
       rundownStore.set(data);
+      // 2台運用: 相手PCで取り込まれた静止画など、手元に無い素材を取り寄せる
+      designSync.requestRundownAssets(data);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
