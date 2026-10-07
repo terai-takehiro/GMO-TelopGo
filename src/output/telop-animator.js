@@ -178,13 +178,15 @@
 
   function trackAlpha(el, animation) {
     const base = el.style.filter;
+    // レイヤー自体の不透明度 (表示状態の値) を基準にし、表示しきった時点で補正が1に戻るようにする
+    const restOpacity = el.style.opacity !== '' ? parseFloat(el.style.opacity) : 1;
     const tick = () => {
       const state = animation.playState;
-      const op = parseFloat(getComputedStyle(el).opacity);
-      if (state === 'idle' || state === 'finished' || !(op < 0.999)) {
+      const ratio = parseFloat(getComputedStyle(el).opacity) / restOpacity;
+      if (state === 'idle' || state === 'finished' || !(ratio < 0.999)) {
         el.style.filter = base;
       } else {
-        el.style.filter = `${base} brightness(${(1 / Math.max(op, 0.02)).toFixed(3)})`.trim();
+        el.style.filter = `${base} brightness(${(1 / Math.max(ratio, 0.02)).toFixed(3)})`.trim();
       }
       if (state !== 'idle' && state !== 'finished') requestAnimationFrame(tick);
     };
@@ -243,6 +245,7 @@
               easing,
               fill: 'both',
             });
+            if (options.alphaFix) trackAlpha(span, a);
             finished.push(a.finished);
           });
           return;
