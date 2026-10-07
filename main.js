@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
 const { registerIpcHandlers } = require('./src/main/ipc-handlers');
 const gpioDio = require('./src/main/gpio-dio');
@@ -32,6 +32,21 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'src', 'renderer', 'index.html'));
   mainWindow.setMenuBarVisibility(false);
+
+  // 文字入力欄の右クリック: 切り取り/コピー/貼り付け (アプリ独自メニューを出す箇所は renderer 側で抑止される)
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    if (!params.isEditable) return;
+    Menu.buildFromTemplate([
+      { role: 'undo', label: '元に戻す' },
+      { role: 'redo', label: 'やり直し' },
+      { type: 'separator' },
+      { role: 'cut', label: '切り取り', enabled: params.editFlags.canCut },
+      { role: 'copy', label: 'コピー', enabled: params.editFlags.canCopy },
+      { role: 'paste', label: '貼り付け', enabled: params.editFlags.canPaste },
+      { type: 'separator' },
+      { role: 'selectAll', label: 'すべて選択' },
+    ]).popup({ window: mainWindow });
+  });
   mainWindow.maximize(); // 運用は全画面(最大化)が基本
 }
 
@@ -40,6 +55,20 @@ function createWindow() {
 if (process.platform === 'win32') app.setAppUserModelId('com.gmo.telopgo');
 
 app.whenReady().then(() => {
+  // メニューバーは非表示だが、編集ショートカット (Ctrl+X/C/V/Z/A) を確実に効かせるため編集メニューを登録する
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { role: 'editMenu' },
+    {
+      label: '表示',
+      submenu: [
+        { role: 'reload' }, { role: 'forceReload' }, { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+  ]));
   registerIpcHandlers();
   createWindow();
 });

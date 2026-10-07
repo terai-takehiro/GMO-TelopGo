@@ -1251,6 +1251,7 @@ const RundownUI = {
           this.renderColumns();
         });
         row('表示方法', fitSel);
+        this.renderStillEffectRows(page, corner, row);
       }
     }
 
@@ -1418,8 +1419,176 @@ const RundownUI = {
         id: 'still', type: 'image', x: 0, y: 0, w: 1920, h: 1080,
         file: still.file, objectFit: still.objectFit || 'contain', visible: true,
       }],
-      animation: {},
+      animation: still.animation || {},
     };
+  },
+
+  // ===== 電テロ (静止画) のIN/OUTエフェクト =====
+
+  /** 静止画で選べるエフェクト (文字送りは文字レイヤー専用のため除外) */
+  STILL_EFFECTS: [
+    ['cut', 'カット'], ['fade', 'フェード'], ['slide', 'スライド'], ['wipe', 'ワイプ'], ['push', 'プッシュ'],
+    ['pop', 'ポップ'], ['zoom', 'ズーム'], ['blur', 'ブラー'], ['flip', 'フリップ'],
+  ],
+  STILL_EFFECT_DIRS: [['up', '↑ 上'], ['down', '↓ 下'], ['left', '← 左'], ['right', '→ 右']],
+  /** 未設定時の既定 (TelopAnimator の既定と同じ) */
+  STILL_EFFECT_DEFAULT: { preset: 'fade', duration: 350 },
+
+  stillEffect(page, dir) {
+    const a = page.still && page.still.animation && page.still.animation[dir];
+    return Object.assign({}, this.STILL_EFFECT_DEFAULT, a || {});
+  },
+
+  /** 静止画ページのIN/OUTエフェクト (種類・方向・秒数) と一括適用の行を描く */
+  renderStillEffectRows(page, corner, row) {
+    const setEffect = (dir, patch) => {
+      this.mutate(() => {
+        page.still = page.still || {};
+        page.still.animation = page.still.animation || {};
+        page.still.animation[dir] = Object.assign(this.stillEffect(page, dir), patch);
+      });
+    };
+    ['in', 'out'].forEach((dir) => {
+      const eff = this.stillEffect(page, dir);
+      const wrap = document.createElement('div');
+      wrap.className = 'od-editor-inline od-effect-inline';
+
+      const presetSel = document.createElement('select');
+      presetSel.className = 'input input--small';
+      this.STILL_EFFECTS.forEach(([v, lbl]) => {
+        const opt = document.createElement('option');
+        opt.value = v; opt.textContent = lbl;
+        presetSel.appendChild(opt);
+      });
+      presetSel.value = eff.preset;
+      presetSel.addEventListener('change', () => setEffect(dir, { preset: presetSel.value }));
+      wrap.appendChild(presetSel);
+
+      if (['slide', 'wipe', 'push'].includes(eff.preset)) {
+        const dirSel = document.createElement('select');
+        dirSel.className = 'input input--small';
+        dirSel.title = 'スライド/プッシュ=進入方向、ワイプ=拭き出し方向';
+        this.STILL_EFFECT_DIRS.forEach(([v, lbl]) => {
+          const opt = document.createElement('option');
+          opt.value = v; opt.textContent = lbl;
+          dirSel.appendChild(opt);
+        });
+        dirSel.value = eff.direction || (eff.preset === 'wipe' ? 'right' : 'up');
+        dirSel.addEventListener('change', () => setEffect(dir, { direction: dirSel.value }));
+        wrap.appendChild(dirSel);
+      }
+
+      if (eff.preset !== 'cut') {
+        const secInput = DesignEditor.numInput({ min: '0', step: '0.1' });
+        secInput.className = 'input input--small od-effect-sec';
+        secInput.dataset.fieldKey = `still-${dir}-sec`;
+        secInput.value = Math.round(eff.duration) / 1000;
+        secInput.title = 'エフェクトの秒数 (↑↓キーで増減)';
+        secInput.addEventListener('change', () => {
+          const v = DesignEditor.parseNum(secInput.value);
+          if (!Number.isFinite(v)) { secInput.value = Math.round(eff.duration) / 1000; return; }
+          setEffect(dir, { duration: Math.round(Math.max(0, v) * 1000) });
+        });
+        wrap.appendChild(secInput);
+        const unit = document.createElement('span');
+        unit.className = 'od-editor-unit';
+        unit.textContent = '秒';
+        wrap.appendChild(unit);
+      }
+      row(dir === 'in' ? 'IN 効果' : 'OUT 効果', wrap).title = `${dir.toUpperCase()}エフェクト (種類・方向・秒数)`;
+    });
+
+    const bulk = document.createElement('button');
+    bulk.className = 'btn btn--small od-effect-bulk';
+    bulk.textContent = '他の静止画へ一括適用…';
+    bulk.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const channelId = App.channelOfPage(page);
+      const stills = (list) => list.filter((pg) => pg.kind === 'still' && pg !== page);
+      const cornerPages = [...(corner.pages || []), ...(corner.standby || [])];
+      const allPages = App.corners().flatMap((c) => [...(c.pages || []), ...(c.standby || [])]);
+      const targets = [
+        ['このコーナーの同じ系統', stills(cornerPages.filter((pg) => App.channelOfPage(pg) === channelId))],
+        ['このコーナーのすべて', stills(cornerPages)],
+        ['この放送の全コーナー', stills(allPages)],
+      ];
+      this.showMenu(e, targets.map(([label, list]) => ({
+        label: `${label} (${list.length}件)`,
+        disabled: list.length === 0,
+        action: () => this.applyStillEffects(page, list, label),
+      })));
+    });
+    const bulkRow = row('一括適用', bulk);
+    bulkRow.title = 'このページのIN/OUTエフェクト (種類・方向・秒数) を他の静止画ページへコピーします';
+  },
+
+  async applyStillEffects(srcPage, targets, label) {
+    if (!targets.length) return;
+    const ok = await AppModal.confirm('エフェクトの一括適用',
+      `${label}の静止画 ${targets.length} 件に、P${srcPage.pageNo} のIN/OUTエフェクトを適用します。よろしいですか?`);
+    if (!ok) return;
+    const animation = { in: this.stillEffect(srcPage, 'in'), out: this.stillEffect(srcPage, 'out') };
+    this.mutate(() => {
+      targets.forEach((pg) => {
+        pg.still = pg.still || {};
+        pg.still.animation = JSON.parse(JSON.stringify(animation));
+      });
+    });
+    App.setStatus(`静止画 ${targets.length} 件にIN/OUTエフェクトを適用しました`, 'success');
+  },
+
+  // ===== ページの切り取り / コピー / 貼り付け (Ctrl+X / Ctrl+C / Ctrl+V) =====
+
+  _pageClipboard: null,
+
+  isPageOnAir(page) {
+    return Object.values(App.broadcast || {}).some((st) => st && st.onAirPageId === page.id);
+  },
+
+  copyPage(page) {
+    this._pageClipboard = JSON.parse(JSON.stringify(page));
+    App.setStatus(`P${page.pageNo} をコピーしました (Ctrl+V で貼り付け)`, 'success');
+  },
+
+  cutPage(page, corner, listName) {
+    if (this.isPageOnAir(page)) { App.setStatus('送出中のページは切り取れません', 'error'); return; }
+    this._pageClipboard = JSON.parse(JSON.stringify(page));
+    this.mutate(() => {
+      const list = corner[listName];
+      list.splice(list.indexOf(page), 1);
+      Object.values(App.broadcast || {}).forEach((st) => { if (st && st.nextPageId === page.id) st.nextPageId = null; });
+      if (this.selectedPageId === page.id) this.selectedPageId = null;
+    });
+    this.renderEditor();
+    App.setStatus(`P${page.pageNo} を切り取りました (貼り付け先のページを選んで Ctrl+V)`, 'success');
+  },
+
+  /** 選択中ページの直後へ貼り付け (未選択なら表示中コーナーの末尾) */
+  pastePage() {
+    const clip = this._pageClipboard;
+    if (!clip) return;
+    const found = this.selectedPageId ? App.findPage(this.selectedPageId) : null;
+    const corner = found ? found.corner : this.currentCorner();
+    if (!corner) return;
+    const listName = found ? found.list : 'pages';
+    const copy = JSON.parse(JSON.stringify(clip));
+    copy.id = this.uid('pg');
+    const used = App.corners().some((c) => [...c.pages, ...(c.standby || [])].some((pg) => String(pg.pageNo) === String(copy.pageNo)));
+    if (used) copy.pageNo = this.nextPageNo(corner);
+    // 電テロページは貼り付け先の系統へ (リアルタイムCGはテンプレートで系統が決まる)
+    if (copy.channelId) {
+      const dest = found ? App.channelOfPage(found.page) : this.activeChannelId;
+      if (dest && App.channelById(dest)) copy.channelId = dest;
+    }
+    this.mutate(() => {
+      corner[listName] = corner[listName] || [];
+      const list = corner[listName];
+      const idx = found ? list.indexOf(found.page) + 1 : list.length;
+      list.splice(idx, 0, copy);
+      this.selectedPageId = copy.id;
+    });
+    this.renderEditor();
+    App.setStatus(`P${copy.pageNo} を貼り付けました`, 'success');
   },
 
   thumbKey(page) {
@@ -1799,7 +1968,14 @@ const RundownUI = {
       if (!item) return;
       const btn = document.createElement('button');
       btn.textContent = item.label;
+      if (item.kbd) {
+        const kbd = document.createElement('span');
+        kbd.className = 'od-menu-kbd';
+        kbd.textContent = item.kbd;
+        btn.appendChild(kbd);
+      }
       if (item.danger) btn.classList.add('danger');
+      if (item.disabled) btn.disabled = true;
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         this.closeContextMenu();
@@ -1824,6 +2000,12 @@ const RundownUI = {
             corner.standby.splice(corner.standby.indexOf(page), 1);
             corner.pages.push(page);
           }) },
+      { label: '切り取り', kbd: 'Ctrl+X', action: () => this.cutPage(page, corner, listName) },
+      { label: 'コピー', kbd: 'Ctrl+C', action: () => this.copyPage(page) },
+      { label: '貼り付け (このページの後ろへ)', kbd: 'Ctrl+V', disabled: !this._pageClipboard, action: () => {
+          this.selectedPageId = page.id;
+          this.pastePage();
+        } },
       { label: '複製', action: () => this.mutate(() => {
           const copy = JSON.parse(JSON.stringify(page));
           copy.id = this.uid('pg');
@@ -2033,6 +2215,18 @@ const RundownUI = {
     const target = e.target;
     const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
     if (isInput) return;
+
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.shiftKey && !e.altKey && ['x', 'c', 'v'].includes(e.key.toLowerCase())) {
+      e.preventDefault();
+      const key = e.key.toLowerCase();
+      if (key === 'v') { this.pastePage(); return; }
+      const found = this.selectedPageId ? App.findPage(this.selectedPageId) : null;
+      if (!found) return;
+      if (key === 'x') this.cutPage(found.page, found.corner, found.list);
+      else this.copyPage(found.page);
+      return;
+    }
 
     if (e.key === ' ' || e.key === 'Enter') {
       e.preventDefault();
