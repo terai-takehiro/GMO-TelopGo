@@ -98,7 +98,7 @@
         id: 'still', type: 'image', x: 0, y: 0, w: 1920, h: 1080,
         file: still.file, objectFit: still.objectFit || 'contain', visible: true,
       }],
-      animation: {},
+      animation: still.animation || {}, // ページごとのIN/OUTエフェクト (未設定はフェード既定)
     };
   }
 

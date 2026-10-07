@@ -2179,6 +2179,7 @@ body.role-client .settings-section[data-section="gpio"] { display: none !importa
   font-size: 12px;
 }
 .od-editor-inline { display: flex; gap: 6px; flex: 1; }
+.od-editor-unit { font-size: 11px; color: var(--od-text-dim); align-self: center; }
 .od-field-input { resize: vertical; }
 textarea.od-field-input { box-sizing: border-box; min-height: 32px; line-height: 1.4; overflow-y: auto; }
 .od-field-var { display: block; font-family: Consolas, monospace; font-size: 9px; opacity: 0.7; overflow: hidden; text-overflow: ellipsis; }
@@ -2442,6 +2443,8 @@ textarea.od-field-input { box-sizing: border-box; min-height: 32px; line-height:
 }
 .od-context-menu button:hover { background: var(--bg-hover); }
 .od-context-menu button.danger { color: var(--red); }
+.od-context-menu button:disabled { opacity: 0.4; cursor: default; background: none; }
+.od-menu-kbd { float: right; margin-left: 16px; font-size: 10px; opacity: 0.6; }
 
 /* モード入場ウィザード (番組 → 放送) */
 .start-dialog { width: 520px; max-width: 92vw; }
@@ -3492,3 +3495,4 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.55); backdrop-filter: none; }
 .od-xl-empty { color: #a8a8a8; }
 .od-xl-preview { width: 720px; max-width: 90vw; }
 .od-xl-preview-scroll { max-height: 50vh; overflow: auto; }
+.od-context-menu button:disabled:hover { background: none; color: inherit; }

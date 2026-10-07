@@ -362,6 +362,7 @@ const DesignEditor = {
       if (inGroup) items.push({ label: 'グループから出す / 解除', kbd: 'Ctrl+Shift+G', action: () => this.ungroupSelection() });
     }
     items.push('-');
+    items.push({ label: '切り取り', kbd: 'Ctrl+X', action: () => this.cutLayers() });
     items.push({ label: 'コピー', kbd: 'Ctrl+C', action: () => this.copyLayers() });
     items.push({ label: 'ペースト', kbd: 'Ctrl+V', disabled: !this._layerClipboard, action: () => this.pasteLayers() });
     items.push('-');
@@ -495,6 +496,15 @@ const DesignEditor = {
       group: group ? JSON.parse(JSON.stringify(group)) : null,
     };
     App.setStatus(`${targets.length}個のレイヤーをコピーしました`, 'success');
+  },
+
+  /** 切り取り (Ctrl+X): コピーしてから削除 */
+  cutLayers() {
+    const n = this.targets().length;
+    if (!n) return;
+    this.copyLayers();
+    this.deleteLayer();
+    App.setStatus(`${n}個のレイヤーを切り取りました`, 'success');
   },
 
   /** ペースト (Ctrl+V): 同じテンプレートなら少しずらし、別テンプレートなら同じ位置に */
@@ -3163,6 +3173,7 @@ const DesignEditor = {
 
     // Photoshop互換ショートカット
     const mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.shiftKey && (e.key === 'x' || e.key === 'X')) { e.preventDefault(); this.cutLayers(); return; }
     if (mod && !e.shiftKey && (e.key === 'c' || e.key === 'C')) { e.preventDefault(); this.copyLayers(); return; }
     if (mod && !e.shiftKey && (e.key === 'v' || e.key === 'V')) { e.preventDefault(); this.pasteLayers(); return; }
     if (mod && !e.shiftKey && (e.key === 'j' || e.key === 'J')) { e.preventDefault(); this.duplicateLayer(); return; }
