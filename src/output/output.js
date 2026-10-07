@@ -21,6 +21,9 @@
     : mSingle ? { type: 'channel', region: mSingle[2] }
       : { type: 'all' };
 
+  // ?alphafix=1: vMix の Web Browser インプット向けの半透明補正 (フェード中に黒っぽくなるのを防ぐ)
+  TelopAnimator.options.alphaFix = new URLSearchParams(location.search).get('alphafix') === '1';
+
   let project = null;
   const generation = {};
   const containers = {};

@@ -169,6 +169,28 @@
     return list;
   }
 
+  /**
+   * vMix補正 (出力URLの ?alphafix=1): vMix の Web Browser インプットは半透明の色を二重に暗く合成するため、
+   * 不透明度を動かす間だけ明るさを 1/不透明度 倍にして打ち消す (フェード中に黒っぽく沈むのを防ぐ)。
+   * 明るい色は1で頭打ちになるので完全一致ではないが、補正しない場合より常に本来の色に近づく。
+   */
+  const options = { alphaFix: false };
+
+  function trackAlpha(el, animation) {
+    const base = el.style.filter;
+    const tick = () => {
+      const state = animation.playState;
+      const op = parseFloat(getComputedStyle(el).opacity);
+      if (state === 'idle' || state === 'finished' || !(op < 0.999)) {
+        el.style.filter = base;
+      } else {
+        el.style.filter = `${base} brightness(${(1 / Math.max(op, 0.02)).toFixed(3)})`.trim();
+      }
+      if (state !== 'idle' && state !== 'finished') requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
   function play(container, variant, direction) {
     const list = units(container, variant);
     if (list.length === 0) return Promise.resolve();
@@ -235,11 +257,13 @@
         easing,
         fill: 'both',
       });
+      // ブラーは filter 自体を動かすため補正の対象外
+      if (options.alphaFix && 'opacity' in from && !('filter' in from)) trackAlpha(el, a);
       finished.push(a.finished);
     });
 
     return Promise.allSettled(finished);
   }
 
-  global.TelopAnimator = { play, resolve };
+  global.TelopAnimator = { play, resolve, options };
 })(typeof window !== 'undefined' ? window : globalThis);

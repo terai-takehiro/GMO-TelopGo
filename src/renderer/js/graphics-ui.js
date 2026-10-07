@@ -97,6 +97,7 @@ const GraphicsUI = {
 
   URL_HOST_KEY: 'telopgo.outputUrlHost',
   URL_HOST_CUSTOM_KEY: 'telopgo.outputUrlHostCustom',
+  URL_ALPHAFIX_KEY: 'telopgo.outputUrlAlphaFix',
   CUSTOM_OPTION: '__custom__',
 
   _store(key, value) {
@@ -202,6 +203,21 @@ const GraphicsUI = {
       return;
     }
     const host = this.pickHost(status);
+    // vMix補正: 出力URLに ?alphafix=1 を付ける (フェード中に半透明部分が黒っぽく沈むのを打ち消す)
+    const alphaFix = this._store(this.URL_ALPHAFIX_KEY) === '1';
+    const fixRow = document.createElement('label');
+    fixRow.className = 'graphics-url-option';
+    const fixCheck = document.createElement('input');
+    fixCheck.type = 'checkbox';
+    fixCheck.checked = alphaFix;
+    fixCheck.addEventListener('change', () => {
+      this._store(this.URL_ALPHAFIX_KEY, fixCheck.checked ? '1' : '0');
+      this.renderUrls(this.status || status);
+    });
+    fixRow.appendChild(fixCheck);
+    fixRow.appendChild(document.createTextNode(' vMix補正付きのURLにする (フェード中に半透明部分が黒っぽくなる場合。vMixのインプットURLを差し替えて使用)'));
+    container.appendChild(fixRow);
+    const query = alphaFix ? '?alphafix=1' : '';
     const urls = [
       { label: '日本語 (全チャンネル)', path: '/output/jp' },
       { label: '英語 (全チャンネル)', path: '/output/en' },
@@ -217,7 +233,7 @@ const GraphicsUI = {
       urls.push({ label: `英語 [G] ${g.label} (${members})`, path: `/output/en/g/${g.id}` });
     });
     urls.forEach(({ label, path }) => {
-      const url = `http://${host}:${status.port}${path}`;
+      const url = `http://${host}:${status.port}${path}${query}`;
       const row = document.createElement('div');
       row.className = 'graphics-url-row';
       row.innerHTML = `<span class="graphics-url-label">${label}</span><code class="graphics-url">${url}</code>`;

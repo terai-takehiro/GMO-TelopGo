@@ -3500,3 +3500,5 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.55); backdrop-filter: none; }
 .od-xl-preview { width: 720px; max-width: 90vw; }
 .od-xl-preview-scroll { max-height: 50vh; overflow: auto; }
 .od-context-menu button:disabled:hover { background: none; color: inherit; }
+
+.graphics-url-option { display: block; font-size: 11px; margin-bottom: 6px; cursor: pointer; }
