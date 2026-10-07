@@ -203,7 +203,7 @@ const GraphicsUI = {
       return;
     }
     const host = this.pickHost(status);
-    // vMix補正: 出力URLに ?alphafix=1 を付ける (フェード中に半透明部分が黒っぽく沈むのを打ち消す)
+    // 半透明補正 (KAIROS/vMix 等): 出力URLに ?alphafix=1 を付ける (フェード中に半透明部分が黒っぽく沈むのを打ち消す)
     const alphaFix = this._store(this.URL_ALPHAFIX_KEY) === '1';
     const fixRow = document.createElement('label');
     fixRow.className = 'graphics-url-option';
@@ -215,7 +215,7 @@ const GraphicsUI = {
       this.renderUrls(this.status || status);
     });
     fixRow.appendChild(fixCheck);
-    fixRow.appendChild(document.createTextNode(' vMix補正付きのURLにする (フェード中に半透明部分が黒っぽくなる場合。vMixのインプットURLを差し替えて使用)'));
+    fixRow.appendChild(document.createTextNode(' 半透明補正付きのURLにする (KAIROS・vMix などでフェード中に半透明部分が黒っぽくなる場合。受け側のURLを差し替えて使用)'));
     container.appendChild(fixRow);
     const query = alphaFix ? '?alphafix=1' : '';
     const urls = [
