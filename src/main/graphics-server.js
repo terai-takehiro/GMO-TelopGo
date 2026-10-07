@@ -45,6 +45,7 @@ let lastError = '';
 let staticDir = '';
 let assetsDir = '';
 let getProject = () => null;
+let appVersion = '';
 
 /** リージョン(チャンネル)ごとのオンエア状態。任意のリージョン名に対応する */
 const state = {};
@@ -64,6 +65,7 @@ function configure(options) {
   staticDir = options.staticDir;
   assetsDir = options.assetsDir;
   getProject = options.getProject;
+  appVersion = options.appVersion || '';
   if (options.getChannels) getChannels = options.getChannels;
   if (options.getGroups) getGroups = options.getGroups;
   // 既知チャンネルの状態スロットを用意 (出力ページのinit復元用)
@@ -145,7 +147,7 @@ function broadcast(msg) {
 }
 
 function initMessage() {
-  return { type: 'init', payload: { project: getProject(), state, channels: getChannels(), groups: getGroups() } };
+  return { type: 'init', payload: { project: getProject(), state, channels: getChannels(), groups: getGroups(), appVersion } };
 }
 
 // ===== 制御API =====

@@ -25,6 +25,7 @@
   TelopAnimator.options.alphaFix = new URLSearchParams(location.search).get('alphafix') === '1';
 
   let project = null;
+  let loadedVersion = ''; // このページを読み込んだときのアプリのバージョン
   const generation = {};
   const containers = {};
   // 描画対象リージョンをレイヤー順 (背面→前面) で保持
@@ -190,6 +191,12 @@
 
       switch (msg.type) {
         case 'init':
+          // アプリが更新されていたら出力ページ自体を読み直す (vMix/KAIROS で開きっぱなしのページが古いプログラムのまま動かないように)
+          if (msg.payload.appVersion) {
+            if (loadedVersion && loadedVersion !== msg.payload.appVersion) { location.reload(); return; }
+            loadedVersion = msg.payload.appVersion;
+          }
+          // fallthrough
         case 'refresh':
           project = msg.payload.project;
           TelopRenderer.applyFonts((project.assets && project.assets.fonts) || [], '/assets/');

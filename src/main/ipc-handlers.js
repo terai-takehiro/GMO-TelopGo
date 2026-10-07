@@ -292,6 +292,7 @@ function registerIpcHandlers() {
     getProject: graphicsStore.getProject,
     getChannels,
     getGroups: getOutputGroups,
+    appVersion: app.getVersion(),
   });
   const graphicsConfig = getGraphicsConfig();
   if (graphicsConfig.autoStart) {
