@@ -1,4 +1,4 @@
-const { ipcMain, dialog, BrowserWindow, app, shell } = require('electron');
+const { ipcMain, dialog: electronDialog, BrowserWindow, app, shell } = require('electron');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -15,6 +15,25 @@ const liveData = require('./live-data');
 const googleFonts = require('./google-fonts');
 const { getSettings, saveSettings, getGpioConfig, getGraphicsConfig, getChannels, getOutputGroups, getNameFields } = require('./settings-store');
 const rundownStore = require('./rundown-store');
+
+/**
+ * ファイルダイアログ (親ウィンドウ付きのモーダルで開き、閉じたらウィンドウへキー入力のフォーカスを戻す)。
+ * 親なしで開くと、Windows ではダイアログを閉じた後に入力欄へ文字が打てなくなることがあるため
+ */
+function withParent(method) {
+  return async (opts) => {
+    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    try {
+      return win ? await electronDialog[method](win, opts) : await electronDialog[method](opts);
+    } finally {
+      if (win && !win.isDestroyed()) { win.focus(); win.webContents.focus(); }
+    }
+  };
+}
+const dialog = {
+  showOpenDialog: withParent('showOpenDialog'),
+  showSaveDialog: withParent('showSaveDialog'),
+};
 
 /** テンプレートのbindingフィールド一覧 (レイヤー順・重複なし) */
 function templateBindings(templateKey) {
@@ -46,7 +65,9 @@ function templateFields(templateKey) {
     const variant = template.variants && template.variants[lang];
     ((variant && variant.layers) || []).forEach((layer) => {
       if (layer.type !== 'text' || !layer.binding || fields.some((f) => f.binding === layer.binding)) return;
-      fields.push({ binding: layer.binding, label: layer.name || '', sample: layer.sample || layer.text || '' });
+      // 見出しの既定はガイド (任意の日本語表示名) → レイヤー名
+      const guide = (template.varGuides || {})[layer.binding];
+      fields.push({ binding: layer.binding, label: guide || layer.name || '', sample: layer.sample || layer.text || '' });
     });
   });
   return fields;

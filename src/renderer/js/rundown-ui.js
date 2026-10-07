@@ -606,7 +606,7 @@ const RundownUI = {
       actions.appendChild(b);
     };
     mkAction(page.locked ? '🔓 解除' : '🔒 ロック', page.locked ? '送出ロックを解除' : '送出ロック (誤TAKE防止)',
-      () => this.mutate(() => { page.locked = !page.locked; }));
+      () => this.mutate(() => { page.locked = !page.locked; Broadcast.onPageLockChanged(page); }));
     mkAction('⧉ 複製', 'このページを複製', () => this.mutate(() => {
       const copy = JSON.parse(JSON.stringify(page));
       copy.id = this.uid('pg');
@@ -1126,8 +1126,45 @@ const RundownUI = {
 
   renderEditor() {
     const panel = document.getElementById('od-editor');
+    // 入力中の欄があれば、作り直す前に値を確定し、作り直した後にフォーカス・カーソル位置を戻す
+    // (TAKE/GPIO/オートフォローなどで再描画されても、打ちかけの文字が消えないように)
+    if (!this._editorChangeHooked) {
+      // 確定済みの値を覚えておく (未確定の入力があるときだけ change を発火させるため)
+      // 欄自身の確定 (Enter/フォーカス移動) による再描画では、フォーカスを戻さない (移動先の欄を優先)
+      panel.addEventListener('change', (e) => {
+        e.target._committed = e.target.value;
+        this._changingField = e.target;
+        setTimeout(() => { this._changingField = null; }, 0);
+      }, true);
+      this._editorChangeHooked = true;
+    }
+    const active = document.activeElement;
+    let restore = null;
+    if (!this._restoringEditor && active !== this._changingField && active && panel.contains(active) && active.dataset.fieldKey
+      && (active.tagName === 'TEXTAREA' || (active.tagName === 'INPUT' && active.type !== 'checkbox'))) {
+      restore = {
+        key: active.dataset.fieldKey, pageId: this._editorPageId,
+        start: active.selectionStart, end: active.selectionEnd, scroll: panel.scrollTop,
+      };
+      if (active.value !== active._committed) {
+        // change の処理から renderEditor が再び呼ばれても、ここへは戻らない
+        this._restoringEditor = true;
+        try { active.dispatchEvent(new Event('change')); } finally { this._restoringEditor = false; }
+      }
+    }
     panel.innerHTML = '';
     const found = this.selectedPageId ? App.findPage(this.selectedPageId) : null;
+    this._editorPageId = found ? found.page.id : null;
+    if (restore && restore.pageId === this._editorPageId) {
+      requestAnimationFrame(() => {
+        if (document.activeElement && document.activeElement !== document.body) return; // 既に別の欄へ移っている
+        const el = panel.querySelector(`[data-field-key="${CSS.escape(restore.key)}"]`);
+        if (!el || el.readOnly) return;
+        el.focus();
+        try { el.setSelectionRange(restore.start, restore.end); } catch (_) { /* number等は非対応 */ }
+        panel.scrollTop = restore.scroll;
+      });
+    }
     const railLabel = document.getElementById('od-right-rail-label');
     if (railLabel) railLabel.textContent = found ? `ページ編集　P${found.page.pageNo}` : 'ページ編集';
     if (!found) {
@@ -1163,15 +1200,20 @@ const RundownUI = {
     // ページ番号 / 尺
     const noInput = document.createElement('input');
     noInput.className = 'input input--small';
+    noInput.dataset.fieldKey = 'pageNo';
     noInput.value = page.pageNo;
     noInput.addEventListener('change', () => this.mutate(() => { page.pageNo = noInput.value.trim() || page.pageNo; }));
-    const durInput = document.createElement('input');
-    durInput.type = 'number';
+    // 数値欄は全角数字も受け付ける (↑↓キーで増減)。解釈できない入力は元の値に戻す
+    const durInput = DesignEditor.numInput({ min: '0' });
     durInput.className = 'input input--small';
-    durInput.min = '0';
+    durInput.dataset.fieldKey = 'duration';
     durInput.value = page.duration || 0;
-    durInput.title = '尺 (秒)。0=なし。コーナーのオートフォローONで自動送出に使われます';
-    durInput.addEventListener('change', () => this.mutate(() => { page.duration = Math.max(0, parseFloat(durInput.value) || 0); }));
+    durInput.title = '尺 (秒)。0=なし。コーナーのオートフォローONで自動送出に使われます (↑↓キーで増減)';
+    durInput.addEventListener('change', () => {
+      const v = DesignEditor.parseNum(durInput.value);
+      if (!Number.isFinite(v)) { durInput.value = page.duration || 0; return; }
+      this.mutate(() => { page.duration = Math.max(0, v); });
+    });
     const noDur = document.createElement('div');
     noDur.className = 'od-editor-inline';
     noDur.appendChild(noInput);
@@ -1182,6 +1224,7 @@ const RundownUI = {
     {
       const titleInput = document.createElement('input');
       titleInput.className = 'input';
+      titleInput.dataset.fieldKey = 'title';
       titleInput.value = page.title || '';
       titleInput.placeholder = 'テロップ名 (任意 — 一覧・ログでの識別用)';
       titleInput.addEventListener('change', () => this.mutate(() => { page.title = titleInput.value; }));
@@ -1215,7 +1258,7 @@ const RundownUI = {
     if (personsInfo.length && namePool.length) {
       const hint = document.createElement('div');
       hint.className = 'od-namepool-hint';
-      hint.textContent = `名前プールから選択 (${namePool.length}名読込済み) — 選ぶと肩書・名前(日英)が自動入力されます。下の欄へ直接入力したい場合は「手入力」を選んでください`;
+      hint.textContent = `名前プールから選択 (${namePool.length}名読込済み) — 選ぶと肩書・名前(日英)が自動入力されます。代入後も下の欄で手入力の修正ができます`;
       panel.appendChild(hint);
 
       personsInfo.forEach((person, pi) => {
@@ -1253,43 +1296,67 @@ const RundownUI = {
       });
     }
 
-    // プールから選択中の人物が占有しているbinding (編集不可にする)
-    const lockedBindings = new Set();
+    // プールから代入された欄 (代入後も手入力で編集できる。色で代入元が分かるようにする)
+    const poolBindings = new Set();
     personsInfo.forEach((person, pi) => {
       if (!poolSelEntries[pi]) return;
-      lockedBindings.add(person.nameJp);
-      lockedBindings.add(person.nameEn);
-      if (person.hasTitle) { lockedBindings.add(person.titleJp); lockedBindings.add(person.titleEn); }
+      poolBindings.add(person.nameJp);
+      poolBindings.add(person.nameEn);
+      if (person.hasTitle) { poolBindings.add(person.titleJp); poolBindings.add(person.titleEn); }
     });
 
     // フィールド (テンプレートのbinding)
+    const guides = tplInfo.guides || {};
     tplInfo.bindings.forEach((binding) => {
-      // 改行が必要なフィールドはtextarea、名前系は名前プール補完付きinput
-      const multiline = /text/i.test(binding);
+      // 手入力欄はすべて改行可 (Enterで改行・Ctrl+Enterで確定)。名前(JP)だけは名前プール補完付きの1行input
+      const multiline = !/nameJp$/i.test(binding);
       const input = document.createElement(multiline ? 'textarea' : 'input');
       input.className = 'input od-field-input';
-      if (multiline) input.rows = 2;
-      else if (/nameJp$/i.test(binding)) input.setAttribute('list', 'od-namepool');
-      input.value = (page.values && page.values[binding]) || '';
-      if (lockedBindings.has(binding)) {
-        input.readOnly = true;
-        input.classList.add('od-field-locked');
-        input.title = '名前プールから選択中のため編集できません (上のプルダウンで「手入力」を選ぶと編集できます)';
-      } else {
-        input.addEventListener('change', () => {
-          page.values = page.values || {};
-          page.values[binding] = input.value;
-          this._thumbCache.delete(this.thumbKey(page));
-          App.saveRundown();
-          this.renderColumns();
+      input.dataset.fieldKey = `v:${binding}`;
+      if (multiline) {
+        input.rows = 1;
+        input.placeholder = 'Enterで改行 / Ctrl+Enterで確定';
+        const fit = () => {
+          if (!input.isConnected || !input.offsetParent) return; // 非表示 (サイドバー折りたたみ中) は測れない
+          input.style.height = 'auto';
+          input.style.height = `${input.scrollHeight + 2}px`;
+        };
+        input.addEventListener('input', fit);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); input.blur(); }
         });
+        requestAnimationFrame(fit);
+      } else {
+        input.setAttribute('list', 'od-namepool');
       }
-      row(binding, input);
+      input.value = (page.values && page.values[binding]) || '';
+      if (poolBindings.has(binding)) {
+        input.classList.add('od-field-from-pool');
+        input.title = '名前プールから代入済み — このまま手入力で編集できます (プルダウンで選び直すと上書きされます)';
+      }
+      input.addEventListener('change', () => {
+        page.values = page.values || {};
+        page.values[binding] = input.value;
+        this._thumbCache.delete(this.thumbKey(page));
+        App.saveRundown();
+        this.renderColumns();
+      });
+      // ガイド (デザインで任意設定した日本語などの項目名) があれば、変数名の代わりに表示する
+      const fieldRow = row(guides[binding] || binding, input);
+      if (guides[binding]) {
+        const lab = fieldRow.querySelector('label');
+        lab.title = `変数: ${binding}`;
+        const code = document.createElement('span');
+        code.className = 'od-field-var';
+        code.textContent = binding;
+        lab.appendChild(code);
+      }
     });
 
     // メモ / ロック
     const noteInput = document.createElement('input');
     noteInput.className = 'input';
+    noteInput.dataset.fieldKey = 'note';
     noteInput.value = page.note || '';
     noteInput.placeholder = 'オペレーションメモ';
     noteInput.addEventListener('change', () => this.mutate(() => { page.note = noteInput.value; }));
@@ -1300,7 +1367,7 @@ const RundownUI = {
     const lockInput = document.createElement('input');
     lockInput.type = 'checkbox';
     lockInput.checked = !!page.locked;
-    lockInput.addEventListener('change', () => this.mutate(() => { page.locked = lockInput.checked; }));
+    lockInput.addEventListener('change', () => this.mutate(() => { page.locked = lockInput.checked; Broadcast.onPageLockChanged(page); }));
     lockLabel.appendChild(lockInput);
     lockLabel.appendChild(document.createTextNode(' 送出ロック (誤TAKE防止)'));
     panel.appendChild(lockLabel);
@@ -1315,6 +1382,7 @@ const RundownUI = {
       applyBtn.addEventListener('click', () => Broadcast.applyOnAirEdit(channelId));
       panel.appendChild(applyBtn);
     }
+    panel.querySelectorAll('[data-field-key]').forEach((el) => { el._committed = el.value; });
     void corner;
   },
 
@@ -1763,7 +1831,7 @@ const RundownUI = {
           const list = corner[listName];
           list.splice(list.indexOf(page) + 1, 0, copy);
         }) },
-      { label: page.locked ? 'ロック解除' : '送出ロック', action: () => this.mutate(() => { page.locked = !page.locked; }) },
+      { label: page.locked ? 'ロック解除' : '送出ロック', action: () => this.mutate(() => { page.locked = !page.locked; Broadcast.onPageLockChanged(page); }) },
       { label: 'デザインをエディタで開く', action: () => {
           if (typeof DesignEditor !== 'undefined') {
             DesignEditor.templateKey = page.templateKey;

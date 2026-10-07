@@ -91,6 +91,44 @@ const Broadcast = {
     this.notifyChanged();
   },
 
+  /**
+   * siblings の idx から dir 方向 (1=後ろ / -1=前) に、送出ロックされていない最初のページを探す
+   * (idx 自身は含まない)。無ければ null
+   */
+  findUnlocked(siblings, idx, dir = 1) {
+    for (let i = idx + dir; i >= 0 && i < siblings.length; i += dir) {
+      if (!siblings[i].locked) return siblings[i];
+    }
+    return null;
+  },
+
+  /** TAKE/UPDATE後のNEXT: 同コーナー・同系統で、送出ロック中のページを飛ばした次のページ */
+  nextAfter(corner, channelId, pageId) {
+    if (corner.locked) return null;
+    const siblings = this.channelPagesInCorner(corner, channelId);
+    const idx = siblings.findIndex((pg) => pg.id === pageId);
+    if (idx < 0) return null;
+    const pg = this.findUnlocked(siblings, idx, 1);
+    return pg ? pg.id : null;
+  },
+
+  /**
+   * ページの送出ロックを切り替えた後に呼ぶ。NEXTに入っているページをロックしたら、
+   * ロック中のページを飛ばした次のページへNEXTを送る (GPIO/キーでのTAKEが止まって混乱しないように)
+   */
+  onPageLockChanged(page) {
+    if (!page || !page.locked) return;
+    const found = App.findPage(page.id);
+    if (!found || found.list !== 'pages') return;
+    const channelId = App.channelOfPage(page);
+    if (!channelId) return;
+    const st = App.chState(channelId);
+    if (st.nextPageId !== page.id) return;
+    st.nextPageId = this.nextAfter(found.corner, channelId, page.id);
+    const next = st.nextPageId ? App.findPage(st.nextPageId) : null;
+    App.setStatus(next ? `P${page.pageNo} をロックしたため、NEXTを P${next.page.pageNo} に送りました` : `P${page.pageNo} をロックしました (次のページがないためNEXTは空です)`);
+  },
+
   /** NEXT対象ページ (無ければnull) */
   nextPage(channelId) {
     const st = App.chState(channelId);
@@ -131,10 +169,8 @@ const Broadcast = {
     st.onAirSummary = detail;
     st.onAirAt = performance.now();
 
-    // NEXTを同コーナー内・同チャンネルの次ページへ
-    const siblings = this.channelPagesInCorner(corner, channelId);
-    const idx = siblings.findIndex((pg) => pg.id === page.id);
-    st.nextPageId = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1].id : null;
+    // NEXTを同コーナー内・同チャンネルの次ページへ (送出ロック中のページは飛ばす)
+    st.nextPageId = this.nextAfter(corner, channelId, page.id);
 
     App.setStatus(`${App.rehearsal ? '[リハーサル] ' : ''}TAKE 完了 — P${page.pageNo} ON AIR`, 'success');
     this.notifyChanged();
@@ -170,9 +206,7 @@ const Broadcast = {
     st.onAirPageId = page.id;
     st.onAirSummary = detail;
     st.onAirAt = performance.now();
-    const siblings = this.channelPagesInCorner(corner, channelId);
-    const idx = siblings.findIndex((pg) => pg.id === page.id);
-    st.nextPageId = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1].id : null;
+    st.nextPageId = this.nextAfter(corner, channelId, page.id);
 
     App.setStatus(`${App.rehearsal ? '[リハーサル] ' : ''}UPDATE 完了 — P${page.pageNo}`, 'success');
     this.notifyChanged();
@@ -297,14 +331,23 @@ const Broadcast = {
   moveNext(channelId, delta) {
     const { siblings, idx } = this._cursor(channelId);
     if (siblings.length === 0) return;
-    let to;
-    if (idx < 0) {
-      to = delta > 0 ? 0 : siblings.length - 1;
-    } else {
-      to = Math.max(0, Math.min(siblings.length - 1, idx + delta));
+    // 送出ロック中のページは飛ばす (端まで無ければ動かさない)
+    const dir = delta > 0 ? 1 : -1;
+    const start = idx < 0 ? (dir > 0 ? -1 : siblings.length) : idx;
+    let to = null;
+    let pos = start;
+    for (let n = 0; n < Math.abs(delta); n += 1) {
+      const pg = this.findUnlocked(siblings, pos, dir);
+      if (!pg) break;
+      to = pg;
+      pos = siblings.indexOf(pg);
     }
-    App.chState(channelId).nextPageId = siblings[to].id;
-    App.setStatus(`NEXT: P${siblings[to].pageNo}`);
+    if (!to) {
+      App.setStatus(dir > 0 ? 'これより後に送出できるページはありません (ロック中は飛ばします)' : 'これより前に送出できるページはありません (ロック中は飛ばします)');
+      return;
+    }
+    App.chState(channelId).nextPageId = to.id;
+    App.setStatus(`NEXT: P${to.pageNo}`);
     this.notifyChanged();
   },
 
@@ -313,9 +356,10 @@ const Broadcast = {
     const corner = (typeof RundownUI !== 'undefined' && RundownUI.currentCorner()) || App.corners()[0];
     if (!corner) return;
     const siblings = this.channelPagesInCorner(corner, channelId);
-    if (siblings.length === 0) return;
-    App.chState(channelId).nextPageId = siblings[0].id;
-    App.setStatus(`NEXT: P${siblings[0].pageNo} (先頭)`);
+    const first = this.findUnlocked(siblings, -1, 1); // 送出ロック中のページは飛ばす
+    if (!first) return;
+    App.chState(channelId).nextPageId = first.id;
+    App.setStatus(`NEXT: P${first.pageNo} (先頭)`);
     this.notifyChanged();
   },
 

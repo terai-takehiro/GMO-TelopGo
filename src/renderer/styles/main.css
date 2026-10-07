@@ -1454,7 +1454,9 @@ body.role-client .settings-section[data-section="gpio"] { display: none !importa
 
 /* 変数/Excel タブ */
 .de-var-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-.de-var-name { width: 96px; flex-shrink: 0; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.de-var-name { width: 110px; flex-shrink: 0; font-size: 11px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.de-var-name code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.de-var-guide { width: 100%; height: 22px; font-size: 11px; }
 .de-var-label { color: var(--text-muted); }
 .de-var-header { flex: 1; min-width: 0; }
 .de-var-move { padding: 0 6px; }
@@ -1483,10 +1485,18 @@ body.role-client .settings-section[data-section="gpio"] { display: none !importa
   justify-content: center;
 }
 .de-align-btn svg { width: 15px; height: 15px; }
+.de-prop-row .de-align-btn { flex: 1; height: 26px; }
+.de-prop-row .de-align-btn svg { width: 17px; height: 17px; flex-shrink: 0; }
 
-/* 固定テキスト/データ連動 セグメントボタン */
-.de-seg { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; flex: 1; }
+/* ボタン群の切替 (固定テキスト/データ連動・揃え・書字方向など。アイコン+文字) */
+.de-segbar { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; flex: 1; min-width: 0; }
 .de-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
   flex: 1;
   padding: 6px 4px;
   background: var(--bg-input);
@@ -1498,6 +1508,10 @@ body.role-client .settings-section[data-section="gpio"] { display: none !importa
 }
 .de-seg-btn + .de-seg-btn { border-left: 1px solid var(--border); }
 .de-seg-btn.active { background: var(--accent-soft); color: #fff; font-weight: 700; }
+.de-seg-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+.de-seg-btn span { overflow: hidden; text-overflow: ellipsis; }
+.de-seg-btn--icon { padding: 4px 2px; }
+.de-segbar + .input, .de-segbar + .de-prop-num { flex: 0 0 64px; }
 .de-seg-btn:hover:not(.active) { background: var(--bg-hover); }
 
 /* 複数行テキスト入力 (改行対応) */
@@ -2166,7 +2180,9 @@ body.role-client .settings-section[data-section="gpio"] { display: none !importa
 }
 .od-editor-inline { display: flex; gap: 6px; flex: 1; }
 .od-field-input { resize: vertical; }
-.od-field-locked { background: var(--accent-soft) !important; color: var(--text-secondary); cursor: not-allowed; }
+textarea.od-field-input { box-sizing: border-box; min-height: 32px; line-height: 1.4; overflow-y: auto; }
+.od-field-var { display: block; font-family: Consolas, monospace; font-size: 9px; opacity: 0.7; overflow: hidden; text-overflow: ellipsis; }
+.od-field-from-pool { border-left: 3px solid var(--accent) !important; }
 .od-namepool-hint { font-size: 10px; color: var(--od-text-dim); line-height: 1.5; margin: 2px 0 6px; }
 .od-lock-label { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--od-text-dim); margin: 6px 0; }
 .od-apply-btn {
@@ -2399,7 +2415,7 @@ body.role-client .settings-section[data-section="gpio"] { display: none !importa
 .app-modal { width: 420px; max-width: 90vw; }
 .app-modal h3 { margin-bottom: 8px; }
 .app-modal #am-input { width: 100%; margin: 6px 0 14px; }
-.app-modal #am-msg { margin-bottom: 8px; }
+.app-modal #am-msg { margin-bottom: 8px; white-space: pre-line; }
 
 /* コンテキストメニュー (body直下・ライト) */
 .od-context-menu {

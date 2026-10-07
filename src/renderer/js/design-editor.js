@@ -680,7 +680,7 @@ const DesignEditor = {
             label: 'スタイルを削除', danger: true,
             action: async () => {
               if (!window.api.graphicsStylePresetDelete) return;
-              if (!confirm(`スタイル「${preset.name}」を削除しますか?`)) return;
+              if (!(await AppModal.confirm('スタイルを削除', `スタイル「${preset.name}」を削除しますか?`, { danger: true, okLabel: '削除' }))) return;
               await window.api.graphicsStylePresetDelete(preset.id);
               await this.refreshStylePresets();
               this.renderStylePanel();
@@ -737,11 +737,15 @@ const DesignEditor = {
     }
     const b = this.boundsOf(members);
     const num = (val, prop, apply) => {
-      const input = mk('input', 'input input--small de-prop-num');
-      input.type = 'number';
+      const input = this.numInput();
       input.value = Math.round(val);
       input.dataset.gprop = prop;
-      input.addEventListener('change', () => { this.beginChange(); apply(parseFloat(input.value) || 0); });
+      input.addEventListener('change', () => {
+        const v = this.parseNum(input.value);
+        if (!Number.isFinite(v)) { input.value = Math.round(val); return; }
+        this.beginChange();
+        apply(v);
+      });
       return input;
     };
     const shift = (dx, dy) => { this.moveTargets(dx, dy); this.renderArtboard(); };
@@ -971,7 +975,7 @@ const DesignEditor = {
   async switchSet(id) {
     if (id === this.sets.activeId) return;
     if (this.dirty) {
-      if (!confirm('デザインに未保存の変更があります。保存してから切り替えます。よろしいですか?')) {
+      if (!(await AppModal.confirm('デザインセットの切替', 'デザインに未保存の変更があります。保存してから切り替えます。よろしいですか?'))) {
         document.getElementById('de-set-select').value = this.sets.activeId; // 元に戻す
         return;
       }
@@ -1050,7 +1054,7 @@ const DesignEditor = {
       return;
     }
     const warn = this.dirty ? '\n※未保存の変更も一緒に破棄されます' : '';
-    if (!confirm(`デザインセット「${entry.name}」を削除し、「${others[0].name}」に切り替えます。よろしいですか?\n(この操作は元に戻せません)${warn}`)) return;
+    if (!(await AppModal.confirm('デザインセットを削除', `デザインセット「${entry.name}」を削除し、「${others[0].name}」に切り替えます。よろしいですか?\n(この操作は元に戻せません)${warn}`, { danger: true, okLabel: '削除' }))) return;
 
     const sw = await window.api.graphicsSwitchSet(others[0].id);
     if (!sw.ok) {
@@ -1138,13 +1142,13 @@ const DesignEditor = {
     this.renderAll();
   },
 
-  deleteTemplate() {
+  async deleteTemplate() {
     const keys = Object.keys(this.project.templates);
     if (keys.length <= 1) {
       App.setStatus('最後のテンプレートは削除できません', 'error');
       return;
     }
-    if (!confirm(`テンプレート「${this.templateLabel(this.templateKey)}」を削除しますか?\nこのテンプレートを使うページは送出できなくなります。`)) return;
+    if (!(await AppModal.confirm('テンプレートを削除', `テンプレート「${this.templateLabel(this.templateKey)}」を削除しますか?\nこのテンプレートを使うページは送出できなくなります。`, { danger: true, okLabel: '削除' }))) return;
     this.beginChange();
     delete this.project.templates[this.templateKey];
     this.templateKey = Object.keys(this.project.templates)[0];
@@ -1322,7 +1326,7 @@ const DesignEditor = {
   },
 
   async importDesign() {
-    if (!confirm('デザインファイルを読み込みます。現在のテンプレート・素材は置き換えられます。よろしいですか?')) return;
+    if (!(await AppModal.confirm('デザインを読み込む', 'デザインファイルを読み込みます。現在のテンプレート・素材は置き換えられます。よろしいですか?'))) return;
     const result = await window.api.graphicsImportDesign();
     if (!result) return;
     if (result.ok) {
@@ -2269,6 +2273,110 @@ const DesignEditor = {
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
   },
 
+  /** プロパティのボタン群で使うアイコン (文字揃え・書字方向・図形・方向など) */
+  PROP_ICON_PATHS: {
+    tLeft: '<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>',
+    tCenter: '<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>',
+    tRight: '<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>',
+    tJustify: '<path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>',
+    vTop: '<path d="M4 4h16"/><path d="M8 9h8M8 13h8"/>',
+    vMiddle: '<path d="M4 4h16M4 20h16"/><path d="M8 10h8M8 14h8"/>',
+    vBottom: '<path d="M4 20h16"/><path d="M8 11h8M8 15h8"/>',
+    horizontal: '<path d="M4 7h16M4 12h16M4 17h9"/>',
+    vertical: '<path d="M17 4v16M12 4v16M7 4v9"/>',
+    upright: '<path d="M9 4h6M9 20h6M12 4v16"/>',
+    italic: '<path d="M10 4h8M6 20h8M14 4l-4 16"/>',
+    none: '<circle cx="12" cy="12" r="8"/><path d="M6.5 17.5l11-11"/>',
+    solid: '<rect x="4" y="4" width="16" height="16" rx="2" fill="currentColor"/>',
+    gradient: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 8h16" opacity=".9"/><path d="M4 12h16" opacity=".6"/><path d="M4 16h16" opacity=".3"/>',
+    shadow: '<rect x="8" y="8" width="12" height="12" rx="2" fill="currentColor" opacity=".35" stroke="none"/><rect x="4" y="4" width="12" height="12" rx="2"/>',
+    boardFit: '<rect x="3" y="8" width="18" height="8" rx="3"/><path d="M7 12h10"/>',
+    boardFull: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 12h10"/>',
+    rect: '<rect x="4" y="6" width="16" height="12" rx="1"/>',
+    ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6"/>',
+    polygon: '<path d="M12 4l7.6 5.5-2.9 9H7.3l-2.9-9z"/>',
+    star: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z"/>',
+    up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+    down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+    left: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+    right: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  },
+  propIconSvg(kind) {
+    const path = this.PROP_ICON_PATHS[kind] || this.ALIGN_ICON_PATHS[kind] || '';
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+  },
+
+  /**
+   * 選択肢をボタンで並べた切替 (プルダウンの代わり)。
+   * options: [[value, { icon, label, title }], ...]。icon は propIconSvg のキー、label は横に添える文字
+   * onPick(value) はクリックされた値が現在値と違うときだけ呼ぶ
+   */
+  segControl(options, current, onPick) {
+    const wrap = document.createElement('div');
+    wrap.className = 'de-segbar';
+    options.forEach(([value, o]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `de-seg-btn${value === current ? ' active' : ''}${o.icon && !o.label ? ' de-seg-btn--icon' : ''}`;
+      if (o.icon) btn.insertAdjacentHTML('beforeend', this.propIconSvg(o.icon));
+      if (o.label) {
+        const span = document.createElement('span');
+        span.textContent = o.label;
+        btn.appendChild(span);
+      }
+      btn.title = o.title || o.label || '';
+      btn.addEventListener('click', () => { if (value !== current) onPick(value); });
+      wrap.appendChild(btn);
+    });
+    return wrap;
+  },
+
+  /** 数値の文字列を解釈 (全角数字・全角マイナス・小数点も可)。解釈できなければ NaN */
+  parseNum(str) {
+    const t = String(str === undefined || str === null ? '' : str)
+      .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+      .replace(/[．。]/g, '.')
+      .replace(/[－ー−‐]/g, '-')
+      .replace(/＋/g, '+')
+      .replace(/[,，\s]/g, '');
+    return t === '' ? NaN : Number(t);
+  },
+
+  /**
+   * 数値入力欄。type="number" は日本語入力 (全角) の数字を受け付けず空欄=0 になったり、
+   * フォーカス中のホイールで値が勝手に変わったりするため、テキスト欄 + ↑↓キーでの増減 (Shiftで×10) にしている
+   */
+  numInput(attrs = {}) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.inputMode = 'decimal';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.className = 'input input--small de-prop-num';
+    Object.entries(attrs).forEach(([k, v]) => input.setAttribute(k, v));
+    const step = parseFloat(attrs.step) || 1;
+    input.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      const cur = this.parseNum(input.value);
+      let v = (Number.isFinite(cur) ? cur : 0) + (e.key === 'ArrowUp' ? 1 : -1) * step * (e.shiftKey ? 10 : 1);
+      v = Math.round(v * 1000) / 1000;
+      if (attrs.min !== undefined) v = Math.max(Number(attrs.min), v);
+      if (attrs.max !== undefined) v = Math.min(Number(attrs.max), v);
+      input.value = String(v);
+      input.dispatchEvent(new Event('change'));
+    });
+    return input;
+  },
+
+  /** プロパティ欄で入力中の値を確定する (再描画やキャンバス操作で入力欄が消える前に change を発火させる) */
+  commitFocusedInput() {
+    const el = document.activeElement;
+    if (!el || this._committingInput || !el.closest || !el.closest('#de-props')) return;
+    this._committingInput = true;
+    try { el.blur(); } finally { this._committingInput = false; }
+  },
+
   /** W/H入力の横に置く「縦横比を固定」トグルボタン (南京錠アイコン、押すたびON/OFF) */
   aspectLockBtn(onToggle) {
     const btn = document.createElement('button');
@@ -2341,7 +2449,7 @@ const DesignEditor = {
   },
 
   async reload() {
-    if (this.dirty && !confirm('未保存の変更を破棄して再読込しますか?')) return;
+    if (this.dirty && !(await AppModal.confirm('再読込', '未保存の変更を破棄して再読込しますか?', { danger: true, okLabel: '破棄して再読込' }))) return;
     this.clearSelection();
     await this.loadProject();
     App.setStatus('デザインを再読込しました');
@@ -2821,6 +2929,8 @@ const DesignEditor = {
 
   onCanvasMouseDown(e) {
     if (e.button !== 0) return;
+    // キャンバスのクリックはフォーカスを移さない (preventDefault) ため、入力中の値をここで確定する
+    this.commitFocusedInput();
     const pt = this.canvasPoint(e);
     const layer = this.hitTest(pt);
     if (!layer) {
@@ -2860,6 +2970,7 @@ const DesignEditor = {
 
   /** リサイズ開始 (単体/複数選択/グループいずれも対応。各レイヤーの元の位置・サイズ・文字変体率を記録) */
   startResize(e, handle) {
+    this.commitFocusedInput();
     const targets = this.targets();
     if (!targets.length) return;
     const pt = this.canvasPoint(e);
@@ -3111,8 +3222,8 @@ const DesignEditor = {
 
   // ===== JP→ENコピー =====
 
-  copyJpToEn() {
-    if (!confirm(`「${this.templateLabel(this.templateKey)}」のJPレイアウトをENへコピーします。\nENの現在のレイアウトは上書きされます。よろしいですか?`)) return;
+  async copyJpToEn() {
+    if (!(await AppModal.confirm('JP→ENコピー', `「${this.templateLabel(this.templateKey)}」のJPレイアウトをENへコピーします。\nENの現在のレイアウトは上書きされます。よろしいですか?`))) return;
     this.beginChange();
     const template = this.project.templates[this.templateKey];
     const copy = JSON.parse(JSON.stringify(template.variants.jp));
@@ -3150,7 +3261,7 @@ const DesignEditor = {
       const variant = template.variants && template.variants[lang];
       ((variant && variant.layers) || []).forEach((layer) => {
         if (layer.type !== 'text' || !layer.binding || fields.some((f) => f.binding === layer.binding)) return;
-        fields.push({ binding: layer.binding, label: layer.name || '', sample: layer.sample || layer.text || '' });
+        fields.push({ binding: layer.binding, label: (template.varGuides || {})[layer.binding] || layer.name || '', sample: layer.sample || layer.text || '' });
       });
     });
     const byBinding = new Map(fields.map((f) => [f.binding, f]));
@@ -3164,6 +3275,22 @@ const DesignEditor = {
     });
     fields.forEach((f) => { if (!seen.has(f.binding)) cols.push({ ...f, header: '', enabled: true }); });
     return cols;
+  },
+
+  /** 変数のガイド (送出画面で変数名の代わりに表示する項目名。任意・テンプレート単位) */
+  varGuide(binding, templateKey = this.templateKey) {
+    const guides = this.project.templates[templateKey].varGuides || {};
+    return guides[binding] || '';
+  },
+
+  /** ガイドを保存 (呼び出し側で beginChange 済みであること)。空欄で削除 */
+  setVarGuide(binding, guide) {
+    const template = this.project.templates[this.templateKey];
+    const v = String(guide || '').trim();
+    template.varGuides = { ...(template.varGuides || {}) };
+    if (v) template.varGuides[binding] = v;
+    else delete template.varGuides[binding];
+    if (Object.keys(template.varGuides).length === 0) delete template.varGuides;
   },
 
   /** 列設定をテンプレートへ保存 (undo対象)。cols=null で初期状態 (レイヤー順・全列有効) に戻す */
@@ -3184,7 +3311,7 @@ const DesignEditor = {
     };
     pane.appendChild(mk('div', 'de-props-section', 'Excelの列 (変数のまとめ)'));
     pane.appendChild(mk('div', 'de-props-hint',
-      'このテンプレートの変数を、Excelの列として並べる順序・見出し・使用有無を設定します。「Excel取込」と「Excelテンプレ書き出し」の両方がこの設定に従います (上から順に左の列)。変数は文字レイヤーの「データ連動(変数)」で追加できます。'));
+      'このテンプレートの変数を、Excelの列として並べる順序・見出し・使用有無を設定します。「Excel取込」と「Excelテンプレ書き出し」の両方がこの設定に従います (上から順に左の列)。変数は文字レイヤーの「データ連動(変数)」で追加できます。ガイド (任意) を入れると、送出画面のページ編集で変数名の代わりにその名前を表示します (変数名は英語のまま)。'));
 
     const cols = this.excelColumns();
     if (cols.length === 0) {
@@ -3204,7 +3331,18 @@ const DesignEditor = {
         this.setExcelColumns(next);
       });
       const name = mk('div', 'de-var-name');
-      name.append(mk('code', '', c.binding), mk('span', 'de-var-label', c.label ? ` ${c.label}` : ''));
+      name.append(mk('code', '', c.binding));
+      const guide = mk('input', 'input input--small de-var-guide');
+      guide.type = 'text';
+      guide.value = this.varGuide(c.binding);
+      guide.placeholder = 'ガイド (任意)';
+      guide.title = '送出画面のページ編集で、変数名の代わりに表示する項目名 (例: 肩書)。空欄なら変数名を表示';
+      guide.addEventListener('change', () => {
+        this.beginChange();
+        this.setVarGuide(c.binding, guide.value);
+        this.renderProps();
+      });
+      name.appendChild(guide);
       const head = mk('input', 'input input--small de-var-header');
       head.type = 'text';
       head.value = c.header;
@@ -3251,6 +3389,8 @@ const DesignEditor = {
   renderProps() {
     const root = document.getElementById('de-props');
     const layer = this.selected();
+    // 入力中の値は、欄を作り直す前に確定する (確定せずに作り直すと入力した文字が消える)
+    this.commitFocusedInput();
     root.innerHTML = '';
     // タブごとのペイン (プロパティ / 文字 / アニメーション)
     const panes = {};
@@ -3323,9 +3463,20 @@ const DesignEditor = {
     };
 
     // 変更をモデルへ書き戻す共通ハンドラ
+    // opts.live: 入力中も1文字ごとにキャンバスへ反映する (取り消しは入力1回分=1手)
     const bind = (input, getter, setter, opts = {}) => {
+      let liveStarted = false;
+      if (opts.live) {
+        input.addEventListener('input', () => {
+          if (!liveStarted) { this.beginChange(); liveStarted = true; }
+          setter(input);
+          this.renderArtboard();
+          this.renderSelection();
+        });
+      }
       input.addEventListener('change', () => {
-        this.beginChange();
+        if (!liveStarted) this.beginChange();
+        liveStarted = false;
         setter(input);
         this.renderArtboard();
         this.renderSelection();
@@ -3335,13 +3486,12 @@ const DesignEditor = {
       return input;
     };
 
-    const num = (getter, setter, attrs = {}) => {
-      const input = document.createElement('input');
-      input.type = 'number';
-      input.className = 'input input--small de-prop-num';
-      Object.entries(attrs).forEach(([k, v]) => input.setAttribute(k, v));
-      return bind(input, (i) => { i.value = getter(); }, (i) => setter(parseFloat(i.value) || 0));
-    };
+    // 不正な入力 (空欄・文字) は元の値に戻し、範囲外で丸めた場合は丸めた値を表示し直す
+    const num = (getter, setter, attrs = {}) => bind(this.numInput(attrs), (i) => { i.value = getter(); }, (i) => {
+      const v = this.parseNum(i.value);
+      if (Number.isFinite(v)) setter(v);
+      i.value = getter();
+    });
 
     const text = (getter, setter, opts = {}) => {
       const input = document.createElement('input');
@@ -3357,8 +3507,17 @@ const DesignEditor = {
       input.className = 'input de-prop-textarea';
       input.rows = opts.rows || 2;
       if (opts.placeholder) input.placeholder = opts.placeholder;
-      return bind(input, (i) => { i.value = getter() || ''; }, (i) => setter(i.value), opts);
+      return bind(input, (i) => { i.value = getter() || ''; }, (i) => setter(i.value), { live: true, ...opts });
     };
+
+    /** ボタン群の切替 (options: [[value, {icon, label, title}]])。押すと即反映して関連項目を出し分ける */
+    const seg = (options, getter, setter) => this.segControl(options, getter(), (v) => {
+      this.beginChange();
+      setter(v);
+      this.renderArtboard();
+      this.renderSelection();
+      this.renderProps();
+    });
 
     const color = (getter, setter) => {
       const input = document.createElement('input');
@@ -3433,7 +3592,7 @@ const DesignEditor = {
       // 固定テキスト / データ連動(変数) の切替
       const modeRow = row('内容');
       const modeSeg = document.createElement('div');
-      modeSeg.className = 'de-seg';
+      modeSeg.className = 'de-segbar';
       const fixedBtn = document.createElement('button');
       fixedBtn.type = 'button';
       fixedBtn.className = `de-seg-btn${layer.binding ? '' : ' active'}`;
@@ -3463,6 +3622,10 @@ const DesignEditor = {
         row('固定テキスト', textarea(() => layer.text, (v) => { layer.text = v; }, { placeholder: 'テキストを入力 (Enterで改行できます)' }));
       } else {
         row('変数名', text(() => layer.binding, (v) => { layer.binding = v.trim() || layer.binding; }, { list: 'de-binding-suggest' }));
+        const guideInput = text(() => this.varGuide(layer.binding), (v) => { this.setVarGuide(layer.binding, v); this.renderProps(); });
+        guideInput.placeholder = '任意 (例: 肩書・名前)';
+        guideInput.title = '送出画面のページ編集で、変数名の代わりに表示する項目名 (空欄なら変数名を表示)';
+        row('ガイド', guideInput);
         row('見本', textarea(() => layer.sample, (v) => { layer.sample = v; }, { placeholder: '送出前に確認するための見本テキスト' }));
 
         const pools = this.availablePools();
@@ -3496,12 +3659,16 @@ const DesignEditor = {
         opt.value = b;
         bindingSuggestList.appendChild(opt);
       });
-      row('縦書き', select([['off', '横書き'], ['on', '縦書き']],
-        () => (layer.vertical ? 'on' : 'off'),
-        (v) => { layer.vertical = v === 'on'; this.renderProps(); }));
+      row('書字方向', seg([
+        ['off', { icon: 'horizontal', label: '横書き' }],
+        ['on', { icon: 'vertical', label: '縦書き' }]],
+      () => (layer.vertical ? 'on' : 'off'),
+      (v) => { layer.vertical = v === 'on'; }));
       if (layer.vertical) {
-        row('縦中横', select([['on', '数字を横組み (1〜3桁)'], ['off', 'なし']],
-          () => (layer.tcy === false ? 'off' : 'on'), (v) => { layer.tcy = v !== 'off'; }));
+        row('縦中横', seg([
+          ['on', { label: '数字を横組み', title: '1〜3桁の数字を横に並べます' }],
+          ['off', { label: 'なし' }]],
+        () => (layer.tcy === false ? 'off' : 'on'), (v) => { layer.tcy = v !== 'off'; }));
         const vHint = document.createElement('div');
         vHint.className = 'de-props-hint';
         vHint.textContent = '※縦書きは縦書き対応フォント (メイリオ / 游ゴシック / Noto Sans JP 等) を使用してください。非対応フォントでは文字が重なることがあります';
@@ -3522,24 +3689,36 @@ const DesignEditor = {
       row('字間 / 行間',
         num(() => layer.font.letterSpacing || 0, (v) => { layer.font.letterSpacing = v; }, { step: '0.01' }),
         num(() => layer.font.lineHeight || 1.25, (v) => { layer.font.lineHeight = Math.max(0.5, v); }, { step: '0.05' }));
+      const skewInput = num(() => layer.font.skewX || 0, (v) => { layer.font.skewX = Math.max(-45, Math.min(45, v)); });
+      skewInput.title = '歪み (°)  -45〜45';
       row('斜体 / 歪み(°)',
-        select([['off', 'なし'], ['on', '斜体']],
-          () => (layer.font.italic ? 'on' : 'off'), (v) => { layer.font.italic = v === 'on'; }),
-        num(() => layer.font.skewX || 0, (v) => { layer.font.skewX = Math.max(-45, Math.min(45, v)); }));
+        seg([
+          ['off', { icon: 'upright', title: '斜体なし' }],
+          ['on', { icon: 'italic', title: '斜体' }]],
+        () => (layer.font.italic ? 'on' : 'off'), (v) => { layer.font.italic = v === 'on'; }),
+        skewInput);
       row('横幅率/縦幅率(%)',
         num(() => Math.round((layer.font.scaleX !== undefined ? layer.font.scaleX : 1) * 100),
           (v) => { layer.font.scaleX = Math.max(10, Math.min(400, v || 100)) / 100; }, { step: '5' }),
         num(() => Math.round((layer.font.scaleY !== undefined ? layer.font.scaleY : 1) * 100),
           (v) => { layer.font.scaleY = Math.max(10, Math.min(400, v || 100)) / 100; }, { step: '5' }));
-      row('揃え',
-        select([['left', '左'], ['center', '中央'], ['right', '右'], ['justify', '均等割付']], () => layer.align || 'left', (v) => { layer.align = v; }),
-        select([['top', '上'], ['middle', '中央'], ['bottom', '下']], () => layer.vAlign || 'middle', (v) => { layer.vAlign = v; }));
-      row('自動調整', select(
-        [['none', 'なし'],
-          ['tracking', '字詰め (短文=字間広げ / 長文=詰め+長体)'],
-          ['condense', '長体 (横に圧縮して収める)'],
-          ['shrink', '縮小 (フォントを小さくして収める)']],
-        () => layer.autoFit || 'none', (v) => { layer.autoFit = v; this.renderProps(); }));
+      row('揃え (横)', seg([
+        ['left', { icon: 'tLeft', title: '左揃え' }],
+        ['center', { icon: 'tCenter', title: '中央揃え' }],
+        ['right', { icon: 'tRight', title: '右揃え' }],
+        ['justify', { icon: 'tJustify', title: '均等割付 (行を枠幅いっぱいに)' }]],
+      () => layer.align || 'left', (v) => { layer.align = v; }));
+      row('揃え (縦)', seg([
+        ['top', { icon: 'vTop', title: '上揃え' }],
+        ['middle', { icon: 'vMiddle', title: '上下中央' }],
+        ['bottom', { icon: 'vBottom', title: '下揃え' }]],
+      () => layer.vAlign || 'middle', (v) => { layer.vAlign = v; }));
+      row('自動調整', seg([
+        ['none', { label: 'なし', title: '自動調整しない' }],
+        ['tracking', { label: '字詰め', title: '短文=字間を広げる / 長文=詰め+長体で枠に収める' }],
+        ['condense', { label: '長体', title: '横に圧縮して枠に収める' }],
+        ['shrink', { label: '縮小', title: 'フォントを小さくして枠に収める' }]],
+      () => layer.autoFit || 'none', (v) => { layer.autoFit = v; }));
       if (layer.autoFit === 'tracking') {
         row('最大/最小字間(em)',
           num(() => (layer.font.trackMax !== undefined ? layer.font.trackMax : 0.35),
@@ -3550,14 +3729,15 @@ const DesignEditor = {
 
       // --- 塗り (単色 / グラデーション) ---
       section('塗り');
-      row('種類', select([['solid', '単色'], ['gradient', 'グラデーション']],
-        () => (layer.fill && layer.fill.type === 'gradient' ? 'gradient' : 'solid'),
-        (v) => {
-          layer.fill = v === 'gradient'
-            ? { type: 'gradient', from: layer.font.color || '#ffffff', to: '#ffd54a', angle: 180 }
-            : null;
-          this.renderProps();
-        }));
+      row('種類', seg([
+        ['solid', { icon: 'solid', label: '単色' }],
+        ['gradient', { icon: 'gradient', label: 'グラデーション' }]],
+      () => (layer.fill && layer.fill.type === 'gradient' ? 'gradient' : 'solid'),
+      (v) => {
+        layer.fill = v === 'gradient'
+          ? { type: 'gradient', from: layer.font.color || '#ffffff', to: '#ffd54a', angle: 180 }
+          : null;
+      }));
       if (layer.fill && layer.fill.type === 'gradient') {
         row('開始色 / 終了色',
           color(() => layer.fill.from || '#ffffff', (v) => { layer.fill.from = v; }),
@@ -3616,11 +3796,13 @@ const DesignEditor = {
         delete layer.shadow.x;
         delete layer.shadow.y;
       }
-      row('影', select([['off', 'なし'], ['on', 'あり']], () => (layer.shadow ? 'on' : 'off'), (v) => {
+      row('影', seg([
+        ['off', { icon: 'none', label: 'なし' }],
+        ['on', { icon: 'shadow', label: 'あり' }]],
+      () => (layer.shadow ? 'on' : 'off'), (v) => {
         layer.shadow = v === 'on'
           ? (layer.shadow || { angle: 45, distance: 4, blur: 6, color: 'rgba(0,0,0,0.6)' })
           : null;
-        this.renderProps();
       }));
       if (layer.shadow) {
         const angleInput = num(() => (layer.shadow.angle !== undefined ? layer.shadow.angle : 45),
@@ -3635,19 +3817,20 @@ const DesignEditor = {
 
       // --- 座布団 (文字にフィットする背景) ---
       section('座布団 (文字の背景)');
-      row('モード', select(
-        [['off', 'なし'], ['fit', '文字にフィット'], ['fixed', 'レイヤー枠全体']],
-        () => (layer.board && layer.board.enabled ? (layer.board.mode || 'fit') : 'off'),
-        (v) => {
-          if (v === 'off') {
-            layer.board = null;
-          } else {
-            layer.board = layer.board || { color: '#0d6ab7', radius: 6, padX: 18, padY: 6 };
-            layer.board.enabled = true;
-            layer.board.mode = v;
-          }
-          this.renderProps();
-        }));
+      row('モード', seg([
+        ['off', { icon: 'none', label: 'なし' }],
+        ['fit', { icon: 'boardFit', label: 'フィット', title: '文字の幅にフィット' }],
+        ['fixed', { icon: 'boardFull', label: '枠全体', title: 'レイヤー枠全体' }]],
+      () => (layer.board && layer.board.enabled ? (layer.board.mode || 'fit') : 'off'),
+      (v) => {
+        if (v === 'off') {
+          layer.board = null;
+        } else {
+          layer.board = layer.board || { color: '#0d6ab7', radius: 6, padX: 18, padY: 6 };
+          layer.board.enabled = true;
+          layer.board.mode = v;
+        }
+      }));
       if (layer.board && layer.board.enabled) {
         row('色 / 角丸',
           color(() => layer.board.color || '#0d6ab7', (v) => { layer.board.color = v; }),
@@ -3696,9 +3879,11 @@ const DesignEditor = {
       layer.fill = layer.fill || { type: 'solid', color: '#0d6ab7' };
       layer.border = layer.border || { width: 0, color: '#ffffff' };
       section('塗り');
-      row('種類', select([['solid', '単色'], ['gradient', 'グラデーション']],
-        () => layer.fill.type || 'solid',
-        (v) => { layer.fill.type = v; this.renderProps(); }));
+      row('種類', seg([
+        ['solid', { icon: 'solid', label: '単色' }],
+        ['gradient', { icon: 'gradient', label: 'グラデーション' }]],
+      () => layer.fill.type || 'solid',
+      (v) => { layer.fill.type = v; }));
       if (layer.fill.type === 'gradient') {
         row('開始色 / 終了色',
           color(() => layer.fill.from || '#0d6ab7', (v) => { layer.fill.from = v; }),
@@ -3708,9 +3893,13 @@ const DesignEditor = {
         row('色', color(() => layer.fill.color || '#0d6ab7', (v) => { layer.fill.color = v; }));
       }
       section('形状');
-      row('種類', select([['rect', '四角形'], ['ellipse', '円 / 楕円'], ['polygon', '正多角形'], ['star', '星形']],
-        () => layer.shape || 'rect',
-        (v) => { if (v === 'rect') delete layer.shape; else layer.shape = v; this.renderProps(); }));
+      row('種類', seg([
+        ['rect', { icon: 'rect', title: '四角形' }],
+        ['ellipse', { icon: 'ellipse', title: '円 / 楕円' }],
+        ['polygon', { icon: 'polygon', title: '正多角形' }],
+        ['star', { icon: 'star', title: '星形' }]],
+      () => layer.shape || 'rect',
+      (v) => { if (v === 'rect') delete layer.shape; else layer.shape = v; }));
       if (layer.shape === 'polygon' || layer.shape === 'star') {
         row('頂点数', num(() => layer.sides || 5, (v) => { layer.sides = Math.max(3, Math.min(24, Math.round(v) || 5)); }, { min: 3, max: 24 }));
       }
@@ -3742,26 +3931,29 @@ const DesignEditor = {
         this.renderAll();
       });
       row('ファイル', fileLabel, changeBtn);
-      row('フィット', select([['fill', '引き伸ばし'], ['contain', '全体表示'], ['cover', '切り抜き']],
-        () => layer.objectFit || 'fill', (v) => { layer.objectFit = v; }));
+      row('フィット', seg([
+        ['fill', { label: '引き伸ばし' }],
+        ['contain', { label: '全体表示' }],
+        ['cover', { label: '切り抜き' }]],
+      () => layer.objectFit || 'fill', (v) => { layer.objectFit = v; }));
     }
 
     // --- アニメーション (レイヤー個別設定 — PowerPointの個別アニメーション相当) ---
     section('アニメーション');
-    row('動き', select(
-      [['default', 'テンプレートの既定に従う'], ['custom', 'このレイヤーだけ個別設定']],
-      () => (layer.anim ? 'custom' : 'default'),
-      (v) => {
-        if (v === 'custom') {
-          layer.anim = layer.anim || {
-            in: { preset: 'fade', duration: 350, easing: 'ease-out', delay: 0 },
-            out: { preset: 'fade', duration: 250, easing: 'ease-in', delay: 0 },
-          };
-        } else {
-          delete layer.anim;
-        }
-        this.renderProps();
-      }));
+    row('動き', seg([
+      ['default', { label: '既定に従う', title: 'テンプレートの既定アニメーションに従う' }],
+      ['custom', { label: '個別設定', title: 'このレイヤーだけ個別に設定する' }]],
+    () => (layer.anim ? 'custom' : 'default'),
+    (v) => {
+      if (v === 'custom') {
+        layer.anim = layer.anim || {
+          in: { preset: 'fade', duration: 350, easing: 'ease-out', delay: 0 },
+          out: { preset: 'fade', duration: 250, easing: 'ease-in', delay: 0 },
+        };
+      } else {
+        delete layer.anim;
+      }
+    }));
 
     if (layer.anim) {
       ['in', 'out'].forEach((dir) => {
@@ -3818,13 +4010,11 @@ const DesignEditor = {
       getter(input);
       return input;
     };
-    const num = (getter, setter, attrs = {}) => {
-      const input = document.createElement('input');
-      input.type = 'number';
-      input.className = 'input input--small de-prop-num';
-      Object.entries(attrs).forEach(([k, v]) => input.setAttribute(k, v));
-      return bind(input, (i) => { i.value = getter(); }, (i) => setter(parseFloat(i.value) || 0));
-    };
+    const num = (getter, setter, attrs = {}) => bind(this.numInput(attrs), (i) => { i.value = getter(); }, (i) => {
+      const v = this.parseNum(i.value);
+      if (Number.isFinite(v)) setter(v);
+      i.value = getter();
+    });
     const select = (options, getter, setter, rerender) => {
       const sel = document.createElement('select');
       sel.className = 'input input--small';
@@ -3836,6 +4026,12 @@ const DesignEditor = {
       });
       return bind(sel, (i) => { i.value = getter(); }, (i) => setter(i.value), rerender);
     };
+
+    // 方向: 矢印ボタン (ANIM_DIRECTIONS の順)
+    const dirSeg = (fallback) => this.segControl(
+      this.ANIM_DIRECTIONS.map(([v, label]) => [v, { icon: v, title: label }]),
+      anim.direction || fallback,
+      (v) => { this.beginChange(); anim.direction = v; this.renderProps(); });
 
     // プリセット: 単語ボタンのグリッド (変更時はパネルを再描画して関連パラメータを出し分け)
     const presetGrid = document.createElement('div');
@@ -3870,11 +4066,11 @@ const DesignEditor = {
       row('イージング', select(this.ANIM_EASINGS, () => anim.easing || opts.defaultEasing || 'ease-out', (v) => { anim.easing = v; }));
 
       if (anim.preset === 'slide' || anim.preset === 'push') {
-        row('方向', select(this.ANIM_DIRECTIONS, () => anim.direction || 'up', (v) => { anim.direction = v; }));
+        row('方向', dirSeg('up'));
         row('距離 (px)', num(() => anim.distance !== undefined ? anim.distance : (anim.preset === 'push' ? 80 : 60), (v) => { anim.distance = v; }, { step: '10' }));
       }
       if (anim.preset === 'wipe') {
-        row('拭き出し方向', select(this.ANIM_DIRECTIONS, () => anim.direction || 'right', (v) => { anim.direction = v; }));
+        row('拭き出し方向', dirSeg('right'));
       }
       if (anim.preset === 'pop' || anim.preset === 'zoom') {
         row('開始スケール', num(() => anim.scaleFrom !== undefined ? anim.scaleFrom : (anim.preset === 'zoom' ? 1.25 : 0.6), (v) => { anim.scaleFrom = v; }, { step: '0.05' }));
@@ -3884,8 +4080,10 @@ const DesignEditor = {
       }
       if (anim.preset === 'chars') {
         row('文字間隔 (ms)', num(() => anim.charDelay !== undefined ? anim.charDelay : 40, (v) => { anim.charDelay = Math.max(0, v); }, { step: '10' }));
-        row('表示順', select([['forward', '先頭から順に'], ['random', 'ランダム']],
-          () => anim.charOrder || 'forward', (v) => { anim.charOrder = v; }));
+        row('表示順', this.segControl([
+          ['forward', { label: '先頭から順に' }],
+          ['random', { label: 'ランダム' }]],
+        anim.charOrder || 'forward', (v) => { this.beginChange(); anim.charOrder = v; this.renderProps(); }));
       }
     }
 
@@ -4008,6 +4206,7 @@ const DesignEditor = {
    */
   startTimelineDrag(e, ctx) {
     if (e.button !== 0) return;
+    this.commitFocusedInput();
     e.preventDefault();
     e.stopPropagation();
 

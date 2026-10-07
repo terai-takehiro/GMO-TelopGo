@@ -102,7 +102,7 @@ const RemoteSync = {
   },
 
   async designPull() {
-    if (!confirm('ホストPCのデザインと系統/出力グループ/氏名項目名の設定で、このPCの内容を上書きします。\nよろしいですか?')) return;
+    if (!(await AppModal.confirm('ホストから取り込む', 'ホストPCのデザインと系統/出力グループ/氏名項目名の設定で、このPCの内容を上書きします。\nよろしいですか?'))) return;
     const r = await window.api.designSyncPull();
     if (!r.ok) App.setStatus(`ホストから取り込めません: ${r.error}`, 'error');
   },

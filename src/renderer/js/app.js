@@ -155,7 +155,7 @@ const App = {
           }
         });
       });
-      templates[key] = { region: tpl.region || 'name', bindings, label: tpl.label || key };
+      templates[key] = { region: tpl.region || 'name', bindings, label: tpl.label || key, guides: { ...(tpl.varGuides || {}) } };
     });
     this.templates = templates;
     this.graphicsProject = project;
@@ -220,8 +220,8 @@ window.addEventListener('beforeunload', (e) => {
   // いったん終了をキャンセルし、確認してから閉じ直す
   e.preventDefault();
   e.returnValue = false;
-  setTimeout(() => {
-    if (confirm(`${reasons.join('\n')}\n\nこのまま終了しますか?`)) {
+  setTimeout(async () => {
+    if (await AppModal.confirm('終了の確認', `${reasons.join('\n')}\n\nこのまま終了しますか?`, { danger: true, okLabel: '終了する' })) {
       allowAppClose = true;
       window.close();
     }
