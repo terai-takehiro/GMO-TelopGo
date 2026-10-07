@@ -120,7 +120,7 @@ const RundownUI = {
     });
     document.getElementById('od-xl-preview-ok').addEventListener('click', () => this.commitExcelImport());
 
-    // 右サイドバー (ページ編集) の折りたたみ
+    // 右サイドバー (テロップ編集) の折りたたみ
     this.initRightPanel();
     this.initConsoleToggle();
 
@@ -950,7 +950,7 @@ const RundownUI = {
     App.setStatus(`素材集から ${targets.length} 件を削除しました`, 'success');
   },
 
-  // ===== 右サイドバー (ページ編集) の折りたたみ =====
+  // ===== 右サイドバー (テロップ編集) の折りたたみ =====
 
   RIGHT_COLLAPSED_KEY: 'telopgo.onairEditorCollapsed',
   RIGHT_AUTOCLOSE_KEY: 'telopgo.onairEditorAutoClose',
@@ -972,7 +972,7 @@ const RundownUI = {
     this.setRightCollapsed(this._pref(this.RIGHT_COLLAPSED_KEY) === '1');
   },
 
-  /** ページ編集を折りたたむ/開く (折りたたみ中は細い帯だけ残し、系統の列を広く使う) */
+  /** テロップ編集を折りたたむ/開く (折りたたみ中は細い帯だけ残し、系統の列を広く使う) */
   setRightCollapsed(collapsed) {
     this.rightCollapsed = !!collapsed;
     document.getElementById('od-right').classList.toggle('hidden', this.rightCollapsed);
@@ -1004,7 +1004,7 @@ const RundownUI = {
     this._pref(this.CONSOLE_HIDDEN_KEY, this.consoleHidden ? '1' : '0');
   },
 
-  /** TAKE後に呼ばれる: 設定がONならページ編集を折りたたむ */
+  /** TAKE後に呼ばれる: 設定がONならテロップ編集を折りたたむ */
   afterTake() {
     if (!this.rightCollapsed && document.getElementById('od-right-autoclose').checked) this.setRightCollapsed(true);
   },
@@ -1166,7 +1166,7 @@ const RundownUI = {
       });
     }
     const railLabel = document.getElementById('od-right-rail-label');
-    if (railLabel) railLabel.textContent = found ? `ページ編集　P${found.page.pageNo}` : 'ページ編集';
+    if (railLabel) railLabel.textContent = found ? `テロップ編集　P${found.page.pageNo}` : 'テロップ編集';
     if (!found) {
       panel.innerHTML = '<div class="od-editor-empty">ページを選択すると内容を編集できます</div>';
       return;

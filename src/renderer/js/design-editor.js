@@ -3311,7 +3311,7 @@ const DesignEditor = {
     };
     pane.appendChild(mk('div', 'de-props-section', 'Excelの列 (変数のまとめ)'));
     pane.appendChild(mk('div', 'de-props-hint',
-      'このテンプレートの変数を、Excelの列として並べる順序・見出し・使用有無を設定します。「Excel取込」と「Excelテンプレ書き出し」の両方がこの設定に従います (上から順に左の列)。変数は文字レイヤーの「データ連動(変数)」で追加できます。ガイド (任意) を入れると、送出画面のページ編集で変数名の代わりにその名前を表示します (変数名は英語のまま)。'));
+      'このテンプレートの変数を、Excelの列として並べる順序・見出し・使用有無を設定します。「Excel取込」と「Excelテンプレ書き出し」の両方がこの設定に従います (上から順に左の列)。変数は文字レイヤーの「データ連動(変数)」で追加できます。ガイド (任意) を入れると、送出画面のテロップ編集で変数名の代わりにその名前を表示します (変数名は英語のまま)。'));
 
     const cols = this.excelColumns();
     if (cols.length === 0) {
@@ -3336,7 +3336,7 @@ const DesignEditor = {
       guide.type = 'text';
       guide.value = this.varGuide(c.binding);
       guide.placeholder = 'ガイド (任意)';
-      guide.title = '送出画面のページ編集で、変数名の代わりに表示する項目名 (例: 肩書)。空欄なら変数名を表示';
+      guide.title = '送出画面のテロップ編集で、変数名の代わりに表示する項目名 (例: 肩書)。空欄なら変数名を表示';
       guide.addEventListener('change', () => {
         this.beginChange();
         this.setVarGuide(c.binding, guide.value);
@@ -3624,7 +3624,7 @@ const DesignEditor = {
         row('変数名', text(() => layer.binding, (v) => { layer.binding = v.trim() || layer.binding; }, { list: 'de-binding-suggest' }));
         const guideInput = text(() => this.varGuide(layer.binding), (v) => { this.setVarGuide(layer.binding, v); this.renderProps(); });
         guideInput.placeholder = '任意 (例: 肩書・名前)';
-        guideInput.title = '送出画面のページ編集で、変数名の代わりに表示する項目名 (空欄なら変数名を表示)';
+        guideInput.title = '送出画面のテロップ編集で、変数名の代わりに表示する項目名 (空欄なら変数名を表示)';
         row('ガイド', guideInput);
         row('見本', textarea(() => layer.sample, (v) => { layer.sample = v; }, { placeholder: '送出前に確認するための見本テキスト' }));
 
@@ -3641,7 +3641,7 @@ const DesignEditor = {
           row('プールの列', select(colOptions, () => layer.poolColumn || (colOptions[0] && colOptions[0][0]) || '', (v) => { layer.poolColumn = v; }));
           const poolHint = document.createElement('div');
           poolHint.className = 'de-props-hint';
-          poolHint.textContent = '送出のページ編集で、このプールからプルダウン選択できるようになります。同じプールを指定した他の変数とは1つのプルダウンにまとまります。';
+          poolHint.textContent = '送出のテロップ編集で、このプールからプルダウン選択できるようになります。同じプールを指定した他の変数とは1つのプルダウンにまとまります。';
           panel.appendChild(poolHint);
         }
       }

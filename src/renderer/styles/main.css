@@ -3450,7 +3450,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.55); backdrop-filter: none; }
 .start-step { border-radius: 2px; }
 .start-new { border-radius: 2px; border-color: #4a4a4a; }
 
-/* ===== 送出: Excelメニュー / ページ編集の折りたたみ / 素材集の一括削除 / Excel取込の確認 ===== */
+/* ===== 送出: Excelメニュー / テロップ編集の折りたたみ / 素材集の一括削除 / Excel取込の確認 ===== */
 .od-menu--wide { min-width: 300px; }
 .od-menu-sep { height: 1px; margin: 6px 0; background: #4f4f4f; }
 
