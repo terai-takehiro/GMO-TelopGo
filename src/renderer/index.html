@@ -190,8 +190,8 @@
                 <button class="od-menu-item" id="od-import-name-batch" title="Excelの「テンプレ」列 (1S/2S/3S/4S等) の値から行ごとに使用するテンプレートを自動判定して、複数ページを一括取込します">氏名テロップを一括取込…</button>
                 <button class="od-menu-item" id="od-export-name-batch-template" title="テンプレ列＋1st〜4th分の列を持つ、氏名テロップ一括取込用の入力Excelを1ファイルにまとめて書き出します">一括用Excelを書き出し…</button>
                 <div class="od-menu-sep"></div>
-                <div class="od-menu-label">名前プール — ページ編集での名前の補完候補</div>
-                <button class="od-menu-item" id="od-import-pool" title="名前プールをExcelから読込 (ページ編集時の名前補完に使われます)">名前プールを読込…</button>
+                <div class="od-menu-label">名前プール — テロップ編集での名前の補完候補</div>
+                <button class="od-menu-item" id="od-import-pool" title="名前プールをExcelから読込 (テロップ編集時の名前補完に使われます)">名前プールを読込…</button>
                 <button class="od-menu-item" id="od-export-pool-template" title="名前プール取込用の入力Excel (肩書/名前 日英4列) を書き出します">読込用Excelを書き出し…</button>
               </div>
             </div>
@@ -215,16 +215,16 @@
         </div>
         <div class="od-right" id="od-right">
           <div class="od-right-head">
-            <span class="od-right-title">ページ編集</span>
+            <span class="od-right-title">テロップ編集</span>
             <span class="od-spacer"></span>
-            <button class="btn btn--small od-btn od-right-toggle" id="od-right-collapse" title="ページ編集を折りたたむ (送出中は列を広く使えます)" aria-label="ページ編集を折りたたむ">»</button>
+            <button class="btn btn--small od-btn od-right-toggle" id="od-right-collapse" title="テロップ編集を折りたたむ (送出中は列を広く使えます)" aria-label="テロップ編集を折りたたむ">»</button>
           </div>
-          <label class="od-right-auto" title="TAKEしたら自動でページ編集を折りたたみます (「«」でいつでも開けます)"><input type="checkbox" id="od-right-autoclose"> TAKEしたら自動で折りたたむ</label>
+          <label class="od-right-auto" title="TAKEしたら自動でテロップ編集を折りたたみます (「«」でいつでも開けます)"><input type="checkbox" id="od-right-autoclose"> TAKEしたら自動で折りたたむ</label>
           <div class="od-editor" id="od-editor"></div>
         </div>
         <div class="od-right-rail hidden" id="od-right-rail">
-          <button class="btn btn--small od-btn od-right-toggle" id="od-right-expand" title="ページ編集を開く" aria-label="ページ編集を開く">«</button>
-          <span class="od-right-rail-label" id="od-right-rail-label">ページ編集</span>
+          <button class="btn btn--small od-btn od-right-toggle" id="od-right-expand" title="テロップ編集を開く" aria-label="テロップ編集を開く">«</button>
+          <span class="od-right-rail-label" id="od-right-rail-label">テロップ編集</span>
         </div>
       </div>
     </div>
