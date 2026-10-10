@@ -232,21 +232,38 @@ const GraphicsUI = {
       urls.push({ label: `日本語 [G] ${g.label} (${members})`, path: `/output/jp/g/${g.id}` });
       urls.push({ label: `英語 [G] ${g.label} (${members})`, path: `/output/en/g/${g.id}` });
     });
+    // 各出力に OA (送出中) と NEXT (次に出るページを静止描画) の2本
     urls.forEach(({ label, path }) => {
-      const url = `http://${host}:${status.port}${path}${query}`;
-      const row = document.createElement('div');
-      row.className = 'graphics-url-row';
-      row.innerHTML = `<span class="graphics-url-label">${label}</span><code class="graphics-url">${url}</code>`;
-      const copyBtn = document.createElement('button');
-      copyBtn.className = 'btn btn--small';
-      copyBtn.textContent = 'コピー';
-      copyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(url);
-        App.setStatus(`URLをコピーしました: ${url}`, 'success');
-      });
-      row.appendChild(copyBtn);
-      container.appendChild(row);
+      container.appendChild(this.urlRow(label, 'OA', `http://${host}:${status.port}${path}${query}`));
+      container.appendChild(this.urlRow('', 'NEXT', `http://${host}:${status.port}${path}?next=1`));
     });
+  },
+
+  /** 出力URLの1行 (kind = 'OA' | 'NEXT') */
+  urlRow(label, kind, url) {
+    const row = document.createElement('div');
+    row.className = `graphics-url-row${kind === 'NEXT' ? ' graphics-url-row--next' : ''}`;
+    const lab = document.createElement('span');
+    lab.className = 'graphics-url-label';
+    lab.textContent = label;
+    const tag = document.createElement('span');
+    tag.className = `graphics-url-kind graphics-url-kind--${kind.toLowerCase()}`;
+    tag.textContent = kind;
+    tag.title = kind === 'NEXT'
+      ? 'NEXTのページをアニメーションなしで描画します (vMixのプレビュー・マルチビュー用)'
+      : '送出中 (ON AIR) のテロップ';
+    const code = document.createElement('code');
+    code.className = 'graphics-url';
+    code.textContent = url;
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn btn--small';
+    copyBtn.textContent = 'コピー';
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(url);
+      App.setStatus(`URLをコピーしました: ${url}`, 'success');
+    });
+    row.append(lab, tag, code, copyBtn);
+    return row;
   },
 
   /**

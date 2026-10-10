@@ -125,6 +125,8 @@ const DesignEditor = {
     document.getElementById('de-redo').addEventListener('click', () => this.redo());
     document.getElementById('de-reload').addEventListener('click', () => this.reload());
     document.getElementById('de-save').addEventListener('click', () => this.save());
+    document.getElementById('de-pageedit-save').addEventListener('click', () => this.finishPageEdit(true));
+    document.getElementById('de-pageedit-cancel').addEventListener('click', () => this.cancelPageEdit());
 
     // レイヤー操作
     document.getElementById('de-layer-up').addEventListener('click', () => this.moveLayer(1));
@@ -150,10 +152,15 @@ const DesignEditor = {
     canvas.addEventListener('mousedown', (e) => this.onCanvasMouseDown(e));
     document.addEventListener('mousemove', (e) => this.onMouseMove(e));
     document.addEventListener('mouseup', () => this.onMouseUp());
-    window.addEventListener('resize', () => { this.applyZoom(); this.renderSelection(); });
+    window.addEventListener('resize', () => {
+      if (!this.project) return; // デザインタブを一度も開いていない (プロジェクト未読込)
+      this.applyZoom();
+      this.renderSelection();
+    });
 
     // キーボード
     document.addEventListener('keydown', (e) => this.onKeyDown(e));
+    this.initSpacePan();
 
     this.initChrome();
   },
@@ -566,6 +573,7 @@ const DesignEditor = {
   /** テンプレートを切り替える (ドキュメントタブ / テンプレート一覧から) */
   selectTemplate(key) {
     if (!this.project.templates[key] || key === this.templateKey) return;
+    if (this.pageEditBlocked()) return;
     this.templateKey = key;
     this.clearSelection();
     document.getElementById('de-template').value = key;
@@ -948,11 +956,7 @@ const DesignEditor = {
 
   /** デザインタブ表示時 (初回にプロジェクトを読み込む) */
   async onShow() {
-    if (!this.loaded) {
-      await this.refreshSets();
-      await this.loadProject();
-      await this.refreshStylePresets();
-    }
+    await this.ensureLoaded();
     this.applyZoom();
     this.renderSelection();
 
@@ -962,6 +966,19 @@ const DesignEditor = {
       this.systemFonts = await window.api.getSystemFonts();
       this.renderProps(); // フォントプルダウンに反映
     }
+  },
+
+  /** 初回のプロジェクト読込 (タブ表示と画像編集の開始が重なっても1回だけ読む) */
+  ensureLoaded() {
+    if (this.loaded) return Promise.resolve();
+    if (!this._loading) {
+      this._loading = (async () => {
+        await this.refreshSets();
+        await this.loadProject();
+        await this.refreshStylePresets();
+      })().finally(() => { this._loading = null; });
+    }
+    return this._loading;
   },
 
   // ===== デザインセット管理 =====
@@ -984,6 +1001,7 @@ const DesignEditor = {
 
   async switchSet(id) {
     if (id === this.sets.activeId) return;
+    if (this.pageEditBlocked()) { document.getElementById('de-set-select').value = this.sets.activeId; return; }
     if (this.dirty) {
       if (!(await AppModal.confirm('デザインセットの切替', 'デザインに未保存の変更があります。保存してから切り替えます。よろしいですか?'))) {
         document.getElementById('de-set-select').value = this.sets.activeId; // 元に戻す
@@ -1091,6 +1109,7 @@ const DesignEditor = {
   // ===== テンプレート管理 (追加/名前変更/削除) =====
 
   openTplDialog() {
+    if (this.pageEditBlocked()) return;
     const chSel = document.getElementById('de-tpl-channel');
     chSel.innerHTML = '';
     (App.channels.length ? App.channels : [{ id: 'name', label: '名前', region: 'name' }, { id: 'side', label: 'サイド', region: 'side' }])
@@ -1143,6 +1162,7 @@ const DesignEditor = {
   },
 
   async renameTemplate() {
+    if (this.pageEditBlocked()) return;
     // Electron では window.prompt が使えないためアプリ内モーダルを使う
     const name = await AppModal.prompt('テンプレート名', { value: this.templateLabel(this.templateKey) });
     if (!name) return;
@@ -1153,6 +1173,7 @@ const DesignEditor = {
   },
 
   async deleteTemplate() {
+    if (this.pageEditBlocked()) return;
     const keys = Object.keys(this.project.templates);
     if (keys.length <= 1) {
       App.setStatus('最後のテンプレートは削除できません', 'error');
@@ -1180,7 +1201,14 @@ const DesignEditor = {
   },
 
   async loadProject() {
-    this.project = await window.api.graphicsGetProject();
+    // 電テロのページを編集中なら、その編集中の内容は読み直しても残す (2台運用でデザインが同期されたとき等)
+    const fresh = await window.api.graphicsGetProject();
+    const keepPageEdit = this.pageEdit && this.project && this.project.templates[this.PAGE_EDIT_KEY];
+    this.project = fresh;
+    if (keepPageEdit) {
+      this.project.templates[this.PAGE_EDIT_KEY] = keepPageEdit;
+      this.templateKey = this.PAGE_EDIT_KEY;
+    }
     this.loaded = true;
     this.dirty = false;
     this.undoStack = [];
@@ -1324,6 +1352,7 @@ const DesignEditor = {
   },
 
   async exportDesign() {
+    if (this.pageEditBlocked()) return;
     // 未保存の変更も含めて書き出すため、先に保存する
     await this.save();
     const result = await window.api.graphicsExportDesign();
@@ -1336,6 +1365,7 @@ const DesignEditor = {
   },
 
   async importDesign() {
+    if (this.pageEditBlocked()) return;
     if (!(await AppModal.confirm('デザインを読み込む', 'デザインファイルを読み込みます。現在のテンプレート・素材は置き換えられます。よろしいですか?'))) return;
     const result = await window.api.graphicsImportDesign();
     if (!result) return;
@@ -2442,6 +2472,8 @@ const DesignEditor = {
   // ===== 保存 / 再読込 =====
 
   async save() {
+    // 電テロのページを編集中は、テンプレートではなくそのページへ保存して送出リストへ戻る
+    if (this.pageEdit) { await this.finishPageEdit(true); return; }
     if (typeof RemoteSync !== 'undefined' && RemoteSync.isDesignLocked()) {
       App.setStatus('ホストPCではデザインを保存できません。クライアントPCで作画してください', 'error');
       return;
@@ -2459,6 +2491,7 @@ const DesignEditor = {
   },
 
   async reload() {
+    if (this.pageEditBlocked()) return;
     if (this.dirty && !(await AppModal.confirm('再読込', '未保存の変更を破棄して再読込しますか?', { danger: true, okLabel: '破棄して再読込' }))) return;
     this.clearSelection();
     await this.loadProject();
@@ -2467,8 +2500,133 @@ const DesignEditor = {
 
   updateStatus() {
     const btn = document.getElementById('de-save');
-    btn.textContent = this.dirty ? '● 未保存 — 保存して反映' : '保存して反映';
+    if (this.pageEdit) {
+      btn.textContent = this.dirty ? '● 保存して送出リストへ戻る' : '保存して送出リストへ戻る';
+    } else {
+      btn.textContent = this.dirty ? '● 未保存 — 保存して反映' : '保存して反映';
+    }
     btn.classList.toggle('de-save--dirty', this.dirty);
+  },
+
+  // ===== 電テロのページ (静止画・作画) を、このデザイン画面で編集する =====
+  //
+  // 送出リストのページの絵柄を、テンプレートと同じ画面・同じ道具で編集する。
+  // 編集中はページの絵柄を一時的なテンプレート (PAGE_EDIT_KEY) としてプロジェクトに差し込み、
+  // 保存するとその絵柄をページへ書き戻して一時テンプレートを取り除く (デザインのプロジェクトは保存しない)。
+
+  PAGE_EDIT_KEY: '__page_edit__',
+  /** 編集中のページ { pageId, title, onSave, saved: 開く前のエディタの状態 } (編集中でなければ null) */
+  pageEdit: null,
+
+  /** ページ編集中は使えない操作 (テンプレート・セットの切替/追加/削除、読込/書き出し、EN 等) */
+  pageEditBlocked() {
+    if (!this.pageEdit) return false;
+    App.setStatus('電テロの画像を編集中は使えません (「保存して送出リストへ戻る」か「キャンセル」で編集を終えてください)', 'error');
+    return true;
+  },
+
+  /**
+   * ページの絵柄 (variant) を開いて編集を始める。onSave(variant) は「保存して戻る」で呼ばれる
+   * @param {{pageId, title, region, variant, onSave}} opts
+   */
+  async beginPageEdit(opts) {
+    if (this.pageEdit) {
+      if (this.pageEdit.pageId === opts.pageId) return;
+      if (!(await AppModal.confirm('画像の編集', `「${this.pageEdit.title}」を編集中です。編集内容を破棄して、別のページを開きますか?`, { danger: true, okLabel: '破棄して開く' }))) return;
+      this.endPageEdit();
+    }
+    await this.ensureLoaded();
+    this.commitFocusedInput();
+    this.pageEdit = {
+      pageId: opts.pageId,
+      title: opts.title || '',
+      onSave: opts.onSave,
+      saved: {
+        templateKey: this.templateKey, lang: this.lang, propsTab: this.propsTab,
+        undoStack: this.undoStack, redoStack: this.redoStack, dirty: this.dirty,
+      },
+    };
+    const variant = JSON.parse(JSON.stringify(opts.variant || { layers: [], animation: {} }));
+    if (!Array.isArray(variant.layers)) variant.layers = [];
+    this.project.templates[this.PAGE_EDIT_KEY] = {
+      label: opts.title || '電テロ', region: opts.region || '',
+      variants: { jp: variant, en: JSON.parse(JSON.stringify(variant)) },
+    };
+    this.templateKey = this.PAGE_EDIT_KEY;
+    this.lang = 'jp';
+    document.getElementById('de-lang-jp').classList.add('active');
+    document.getElementById('de-lang-en').classList.remove('active');
+    this.undoStack = [];
+    this.redoStack = [];
+    this.dirty = false;
+    if (this.propsTab === 'vars') this.propsTab = 'props';
+    this.clearSelection();
+    this.setPageEditChrome(true);
+    this.renderAll();
+    this.showPropsTab();
+    App.setStatus(`「${this.pageEdit.title}」の画像を編集中 — 保存するとこのページだけに反映されます (元の画像ファイルは残ります)`);
+  },
+
+  /** 編集モードの見た目 (帯の表示・テンプレート用の操作を隠す・ライブラリはスタイルを表示) */
+  setPageEditChrome(on) {
+    const root = document.getElementById('tab-design');
+    root.classList.toggle('de-page-editing', on);
+    document.getElementById('de-pageedit-bar').classList.toggle('hidden', !on);
+    document.getElementById('de-pageedit-title').textContent = on && this.pageEdit ? this.pageEdit.title : '';
+    const libTab = root.querySelector(`#de-lib-tabs .de-ptab[data-libtab="${on ? 'style' : 'tpl'}"]`);
+    if (libTab) libTab.click();
+  },
+
+  /** 一時テンプレートを取り除き、開く前のエディタの状態へ戻す (編集中の絵柄を返す) */
+  endPageEdit() {
+    const pe = this.pageEdit;
+    if (!pe) return null;
+    this.commitFocusedInput();
+    const tpl = this.project.templates[this.PAGE_EDIT_KEY];
+    const variant = tpl && tpl.variants && tpl.variants.jp ? JSON.parse(JSON.stringify(tpl.variants.jp)) : null;
+    delete this.project.templates[this.PAGE_EDIT_KEY];
+    this.pageEdit = null;
+    this.templateKey = this.project.templates[pe.saved.templateKey] ? pe.saved.templateKey : Object.keys(this.project.templates)[0];
+    this.lang = pe.saved.lang === 'en' ? 'en' : 'jp';
+    document.getElementById('de-lang-jp').classList.toggle('active', this.lang === 'jp');
+    document.getElementById('de-lang-en').classList.toggle('active', this.lang === 'en');
+    this.propsTab = pe.saved.propsTab || 'props';
+    this.undoStack = pe.saved.undoStack || [];
+    this.redoStack = pe.saved.redoStack || [];
+    this.dirty = !!pe.saved.dirty;
+    this.clearSelection();
+    this.setPageEditChrome(false);
+    this.refreshTemplateSelect();
+    this.renderAll();
+    this.showPropsTab();
+    return { variant, pe };
+  },
+
+  /** 保存してページへ書き戻し (apply=true)、送出画面 (または gotoTab) へ戻る */
+  async finishPageEdit(apply, gotoTab) {
+    if (!this.pageEdit) return;
+    const res = this.endPageEdit();
+    if (apply && res && res.variant && res.pe.onSave) res.pe.onSave(res.variant);
+    const btn = document.querySelector(`.tab-btn[data-tab="${gotoTab || 'onair'}"]`);
+    if (btn) btn.click();
+  },
+
+  async cancelPageEdit() {
+    if (!this.pageEdit) return;
+    if (this.dirty && !(await AppModal.confirm('画像の編集', '編集内容を破棄して送出リストへ戻りますか?', { danger: true, okLabel: '破棄して戻る' }))) return;
+    await this.finishPageEdit(false);
+    App.setStatus('画像の編集を破棄しました');
+  },
+
+  /** 編集中にほかのタブへ移ろうとしたとき: 保存して移るか、編集を続けるか */
+  async confirmLeavePageEdit(target) {
+    if (!this.pageEdit) return true;
+    if (!this.dirty) { await this.finishPageEdit(false, target); return false; }
+    if (await AppModal.confirm('画像の編集', `「${this.pageEdit.title}」の編集内容を保存して移動しますか?
+(キャンセルで編集を続けます。破棄する場合は「キャンセル (破棄)」を押してください)`, { okLabel: '保存して移動' })) {
+      await this.finishPageEdit(true, target);
+    }
+    return false;
   },
 
   /** 出力サーバ停止中の警告バナー (画像・持ち込みフォントが表示されないため) */
@@ -2480,6 +2638,7 @@ const DesignEditor = {
   // ===== 表示 =====
 
   setLang(lang) {
+    if (lang !== 'jp' && this.pageEditBlocked()) return;
     this.lang = lang;
     document.getElementById('de-lang-jp').classList.toggle('active', lang === 'jp');
     document.getElementById('de-lang-en').classList.toggle('active', lang === 'en');
@@ -3165,6 +3324,7 @@ const DesignEditor = {
   onKeyDown(e) {
     // デザインタブが非表示、または入力中は無視
     if (!document.getElementById('tab-design').classList.contains('active')) return;
+    if (document.querySelector('dialog[open]')) return;
     const tag = document.activeElement && document.activeElement.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
@@ -3173,6 +3333,23 @@ const DesignEditor = {
 
     // Photoshop互換ショートカット
     const mod = e.ctrlKey || e.metaKey;
+    const lower = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (mod && e.shiftKey && !e.altKey && lower === 's') { e.preventDefault(); this.exportDesign(); return; }
+    if (mod && e.shiftKey && !e.altKey && lower === 'e') { e.preventDefault(); this.exportPng(); return; }
+    if (mod && !e.altKey && lower === 'p') { e.preventDefault(); this.playAnimation(e.shiftKey ? 'out' : 'in'); return; }
+    if (mod && e.altKey && (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0')) { e.preventDefault(); this.setZoomValue('1'); return; }
+    if (!mod && !e.altKey && !e.shiftKey && (lower === 't' || lower === 'u')) {
+      e.preventDefault();
+      this.addLayer(lower === 't' ? 'text' : 'rect');
+      return;
+    }
+    if (!mod && !e.altKey && e.key === 'F2') {
+      e.preventDefault();
+      const one = this.selected();
+      if (one) this.renameLayer(one);
+      else if (this.activeGroup()) this.renameGroup(this.activeGroup());
+      return;
+    }
     if (mod && !e.shiftKey && (e.key === 'x' || e.key === 'X')) { e.preventDefault(); this.cutLayers(); return; }
     if (mod && !e.shiftKey && (e.key === 'c' || e.key === 'C')) { e.preventDefault(); this.copyLayers(); return; }
     if (mod && !e.shiftKey && (e.key === 'v' || e.key === 'V')) { e.preventDefault(); this.pasteLayers(); return; }
@@ -3217,6 +3394,59 @@ const DesignEditor = {
     }
   },
 
+  /** キャンバスの拡大/縮小 (Ctrl+＋ / Ctrl+−)。dir>0 で拡大 */
+  ZOOM_LEVELS: [0.25, 0.5, 0.75, 1, 1.5, 2],
+  zoomStep(dir) {
+    const cur = this.zoom || 0.4;
+    const levels = this.ZOOM_LEVELS;
+    const next = dir > 0
+      ? (levels.find((l) => l > cur + 0.001) || levels[levels.length - 1])
+      : ([...levels].reverse().find((l) => l < cur - 0.001) || levels[0]);
+    this.setZoomValue(String(next));
+  },
+
+  /** Space+ドラッグでキャンバスの表示位置を動かす (手のひら) */
+  initSpacePan() {
+    const viewport = document.getElementById('de-viewport');
+    const designActive = () => document.getElementById('tab-design').classList.contains('active');
+    const typing = () => {
+      const el = document.activeElement;
+      return !!el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable);
+    };
+    document.addEventListener('keydown', (e) => {
+      if (e.code !== 'Space' || !designActive() || typing() || document.querySelector('dialog[open]')) return;
+      e.preventDefault(); // フォーカス中のボタンが押されないように
+      if (!this._spacePan) {
+        this._spacePan = true;
+        viewport.classList.add('de-viewport--pan');
+      }
+    });
+    document.addEventListener('keyup', (e) => {
+      if (e.code !== 'Space') return;
+      this._spacePan = false;
+      viewport.classList.remove('de-viewport--pan');
+    });
+    window.addEventListener('blur', () => { this._spacePan = false; viewport.classList.remove('de-viewport--pan'); });
+    viewport.addEventListener('mousedown', (e) => {
+      if (!this._spacePan || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation(); // レイヤーの選択・移動を始めない
+      const start = { x: e.clientX, y: e.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
+      viewport.classList.add('de-viewport--panning');
+      const move = (ev) => {
+        viewport.scrollLeft = start.left - (ev.clientX - start.x);
+        viewport.scrollTop = start.top - (ev.clientY - start.y);
+      };
+      const up = () => {
+        viewport.classList.remove('de-viewport--panning');
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+      };
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    }, true);
+  },
+
   // ===== 試写 =====
 
   playAnimation(direction) {
@@ -3234,6 +3464,7 @@ const DesignEditor = {
   // ===== JP→ENコピー =====
 
   async copyJpToEn() {
+    if (this.pageEditBlocked()) return;
     if (!(await AppModal.confirm('JP→ENコピー', `「${this.templateLabel(this.templateKey)}」のJPレイアウトをENへコピーします。\nENの現在のレイアウトは上書きされます。よろしいですか?`))) return;
     this.beginChange();
     const template = this.project.templates[this.templateKey];

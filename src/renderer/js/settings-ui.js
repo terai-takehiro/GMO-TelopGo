@@ -59,14 +59,14 @@ const ChannelsUI = {
       color.type = 'color';
       color.className = 'de-prop-color';
       color.value = ch.color || '#4da3ff';
-      color.addEventListener('change', () => { ch.color = color.value; });
+      color.addEventListener('change', () => { ch.color = color.value; OutputGroupsUI.render(); });
       const label = document.createElement('input');
       label.type = 'text';
       label.className = 'input input--small';
       label.value = ch.label;
       label.placeholder = '表示名';
       label.maxLength = 20;
-      label.addEventListener('change', () => { ch.label = label.value.trim() || ch.region; });
+      label.addEventListener('change', () => { ch.label = label.value.trim() || ch.region; OutputGroupsUI.render(); });
       const region = document.createElement('input');
       region.type = 'text';
       region.className = 'input input--small ch-region';
@@ -74,9 +74,17 @@ const ChannelsUI = {
       region.placeholder = 'URL名 (半角英数)';
       region.title = '出力URLのスラッグ (/output/jp/この名前)。半角英数のみ';
       region.addEventListener('change', () => {
-        ch.region = region.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') || ch.region;
-        ch.id = ch.region;
+        const prev = ch.region;
+        const next = region.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+        if (next && next !== prev && !this.rows.some((r) => r !== ch && r.region === next)) {
+          ch.region = next;
+          ch.id = next;
+          OutputGroupsUI.renameRegion(prev, next);
+        } else if (next !== prev) {
+          App.setStatus('URL名が不正か、すでに使われています', 'error');
+        }
         region.value = ch.region;
+        OutputGroupsUI.render();
       });
       // 系統プリセットの適用 (この枠へ 名前/サイド 等をストックから割当)
       const presetSel = document.createElement('select');
@@ -111,6 +119,7 @@ const ChannelsUI = {
         if (!(await AppModal.confirm('系統を削除', `系統「${ch.label}」を削除しますか?`, { danger: true, okLabel: '削除' }))) return;
         this.rows.splice(i, 1);
         this.render();
+        OutputGroupsUI.render();
       });
       row.appendChild(color);
       row.appendChild(label);
@@ -122,20 +131,80 @@ const ChannelsUI = {
     });
     const add = document.createElement('button');
     add.className = 'btn btn--small';
-    add.textContent = '＋チャンネル追加';
-    add.addEventListener('click', async () => {
-      const region = await AppModal.prompt('系統を追加', { placeholder: 'URL名 (半角英数, 例: tl3)' });
-      if (!region) return;
-      const slug = region.toLowerCase().replace(/[^a-z0-9_-]/g, '');
-      if (!slug || this.rows.some((r) => r.region === slug)) {
-        App.setStatus('URL名が不正か、すでに使われています', 'error');
-        return;
-      }
-      const label = (await AppModal.prompt('表示名', { value: slug.toUpperCase(), message: '一覧に表示する名前 (例: TL3)' })) || slug;
-      this.rows.push({ id: slug, label, region: slug, color: '#7c5cff' });
-      this.render();
-    });
+    add.textContent = '＋TLを追加';
+    add.addEventListener('click', () => this.openAddDialog());
     wrap.appendChild(add);
+  },
+
+  ADD_COLORS: ['#7c5cff', '#2bb3a0', '#e0607e', '#7fb04a', '#e8b93c', '#4da3ff'],
+
+  /** TLを追加: 表示名・URL名・色と、どの出力に含めるかをまとめて決める */
+  openAddDialog() {
+    const dlg = document.getElementById('ch-add-dialog');
+    if (!dlg) return;
+    let n = this.rows.length + 1;
+    while (this.rows.some((r) => r.region === `tl${n}`)) n += 1;
+    document.getElementById('ch-add-label').value = `TL${n}`;
+    document.getElementById('ch-add-region').value = `tl${n}`;
+    document.getElementById('ch-add-color').value = this.ADD_COLORS[this.rows.length % this.ADD_COLORS.length];
+    const outs = document.getElementById('ch-add-outs');
+    outs.innerHTML = '';
+    const mkRow = (text, path, checked, disabled, groupIdx) => {
+      const row = document.createElement('label');
+      row.className = 'ch-add-out';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = checked;
+      cb.disabled = disabled;
+      if (groupIdx !== undefined) cb.dataset.groupIdx = String(groupIdx);
+      const name = document.createElement('span');
+      name.className = 'ch-add-out-name';
+      name.textContent = text;
+      const code = document.createElement('code');
+      code.className = 'og-url';
+      code.textContent = path;
+      row.append(cb, name, code);
+      outs.appendChild(row);
+    };
+    mkRow('全系統 (自動で含まれます)', '/output/jp', true, true);
+    OutputGroupsUI.rows.forEach((g, gi) => mkRow(g.label || g.id, `/output/jp/g/${g.id}`, false, false, gi));
+    const note = document.createElement('div');
+    note.className = 'settings-inline-hint';
+    note.textContent = OutputGroupsUI.rows.length
+      ? 'TL単体の出力URL (/output/jp/<URL名>) も自動で作られます。重ねる順は「出力の割当」で変えられます (追加したTLはいちばん前面)'
+      : '出力グループはまだありません。TL単体の出力URL (/output/jp/<URL名>) は自動で作られます';
+    outs.appendChild(note);
+    if (!this._addDialogHooked) {
+      this._addDialogHooked = true;
+      document.getElementById('ch-add-cancel').addEventListener('click', () => dlg.close());
+      document.getElementById('ch-add-ok').addEventListener('click', () => this.submitAddDialog());
+    }
+    dlg.showModal();
+    document.getElementById('ch-add-label').focus();
+  },
+
+  submitAddDialog() {
+    const dlg = document.getElementById('ch-add-dialog');
+    const slug = document.getElementById('ch-add-region').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    if (!slug || slug === 'jp' || slug === 'en' || slug === 'g' || this.rows.some((r) => r.region === slug)) {
+      App.setStatus('URL名が不正か、すでに使われています (半角英数。jp / en / g は使えません)', 'error');
+      return;
+    }
+    const label = document.getElementById('ch-add-label').value.trim().slice(0, 20) || slug.toUpperCase();
+    const color = document.getElementById('ch-add-color').value || '#7c5cff';
+    this.rows.push({ id: slug, label, region: slug, color });
+    const joined = [];
+    document.querySelectorAll('#ch-add-outs input[data-group-idx]').forEach((cb) => {
+      const g = OutputGroupsUI.rows[Number(cb.dataset.groupIdx)];
+      if (!cb.checked || !g) return;
+      g.channels = g.channels || [];
+      if (!g.channels.includes(slug)) g.channels.push(slug);
+      joined.push(g.label || g.id);
+    });
+    dlg.close();
+    this.render();
+    OutputGroupsUI.render();
+    App.setStatus(`${label} を追加しました${joined.length ? ` (出力: 全系統・${joined.join('・')})` : ''} — 「設定を保存」で反映されます`, 'success');
   },
 
   collect() {
@@ -143,7 +212,11 @@ const ChannelsUI = {
   },
 };
 
-/** 出力グループ (複数チャンネルを1URLへレイヤー合成) の設定UI */
+/**
+ * 出力の割当 (出力URL × TLライン のマトリクス)。
+ * 行=出力URL (全系統は自動 / 出力グループ)、列=TLライン。マスのON/OFFでその出力に重ねるTLを決める。
+ * 出力グループの channels 配列の順 = 重なり順 (先頭=背面 / 末尾=前面)。/output/jp/g/<id> で配信
+ */
 const OutputGroupsUI = {
   rows: [],
 
@@ -152,22 +225,163 @@ const OutputGroupsUI = {
     this.render();
   },
 
+  /** 列に使う系統 (系統の設定画面で編集中の内容。未保存の追加・削除も反映する) */
+  channels() {
+    if (typeof ChannelsUI !== 'undefined' && ChannelsUI.rows.length) return ChannelsUI.rows;
+    return App.channels || [];
+  },
+
+  /** 出力サーバ起動中ならフルURL、停止中は null */
+  fullUrl(path) {
+    const st = typeof GraphicsUI !== 'undefined' ? GraphicsUI.status : null;
+    if (!st || !st.running) return null;
+    return `http://${GraphicsUI.pickHost(st)}:${st.port}${path}`;
+  },
+
+  copyBtn(label, path) {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn--small';
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      const url = this.fullUrl(path);
+      if (!url) { App.setStatus('出力サーバの起動後にURLをコピーできます (設定 › 出力サーバと URL)', 'error'); return; }
+      navigator.clipboard.writeText(url);
+      App.setStatus(`URLをコピーしました: ${url}`, 'success');
+    });
+    return btn;
+  },
+
+  /** 出力のOA/NEXTのURL表示 */
+  urlLines(path) {
+    const box = document.createElement('div');
+    box.className = 'og-urls';
+    [['OA', path], ['NEXT', `${path}?next=1`]].forEach(([kind, p]) => {
+      const line = document.createElement('div');
+      line.className = 'og-url-line';
+      const tag = document.createElement('span');
+      tag.className = `graphics-url-kind graphics-url-kind--${kind.toLowerCase()}`;
+      tag.textContent = kind;
+      const code = document.createElement('code');
+      code.className = 'og-url';
+      code.textContent = p;
+      line.append(tag, code);
+      box.appendChild(line);
+    });
+    return box;
+  },
+
+  checkIcon() {
+    return '<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7"/></svg>';
+  },
+
   render() {
     const wrap = document.getElementById('og-list');
     if (!wrap) return;
     wrap.innerHTML = '';
-    const channels = App.channels || [];
-    this.rows.forEach((g, i) => {
-      const card = document.createElement('div');
-      card.className = 'og-card';
+    const channels = this.channels();
+    // 無くなった系統への参照は外す
+    this.rows.forEach((g) => { g.channels = (g.channels || []).filter((cid) => channels.some((c) => c.region === cid)); });
 
-      const head = document.createElement('div');
-      head.className = 'og-head';
+    const table = document.createElement('table');
+    table.className = 'og-matrix';
+    const head = document.createElement('tr');
+    const th0 = document.createElement('th');
+    th0.className = 'og-th-out';
+    th0.textContent = '出力 (vMix等に登録するURL)';
+    head.appendChild(th0);
+    channels.forEach((ch) => {
+      const th = document.createElement('th');
+      th.className = 'og-th-ch';
+      th.innerHTML = `<span class="og-th-name"><span class="og-chip-dot"></span></span><span class="og-th-region"></span>`;
+      th.querySelector('.og-chip-dot').style.background = ch.color || '#888';
+      th.querySelector('.og-th-name').appendChild(document.createTextNode(ch.label));
+      th.querySelector('.og-th-region').textContent = ch.region;
+      head.appendChild(th);
+    });
+    const thStack = document.createElement('th');
+    thStack.textContent = '重なり順 (左=背面 / 右=前面)';
+    head.appendChild(thStack);
+    head.appendChild(document.createElement('th'));
+    const thead = document.createElement('thead');
+    thead.appendChild(head);
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+
+    const stackCell = (regions, g) => {
+      const td = document.createElement('td');
+      const box = document.createElement('div');
+      box.className = 'og-stack';
+      if (!regions.length) {
+        box.innerHTML = '<span class="og-empty">(TLなし — 何も出ません)</span>';
+      }
+      regions.forEach((region, idx) => {
+        const ch = channels.find((c) => c.region === region);
+        const chip = document.createElement('span');
+        chip.className = 'og-chip sel';
+        const dot = document.createElement('span');
+        dot.className = 'og-chip-dot';
+        dot.style.background = ch ? ch.color : '#888';
+        chip.append(dot, document.createTextNode(ch ? ch.label : region));
+        if (g) {
+          const mk = (text, title, disabled, fn) => {
+            const b = document.createElement('button');
+            b.className = 'og-chip-btn';
+            b.textContent = text;
+            b.title = title;
+            b.disabled = disabled;
+            b.addEventListener('click', fn);
+            chip.appendChild(b);
+          };
+          mk('◀', '1つ背面へ', idx === 0, () => { [regions[idx - 1], regions[idx]] = [regions[idx], regions[idx - 1]]; this.render(); });
+          mk('▶', '1つ前面へ', idx === regions.length - 1, () => { [regions[idx + 1], regions[idx]] = [regions[idx], regions[idx + 1]]; this.render(); });
+        }
+        box.appendChild(chip);
+      });
+      td.appendChild(box);
+      return td;
+    };
+
+    // 全系統 (自動): /output/jp はすべてのTLを系統の並び順で重ねる
+    {
+      const tr = document.createElement('tr');
+      tr.className = 'og-row og-row--all';
+      const td = document.createElement('td');
+      const name = document.createElement('div');
+      name.className = 'og-name';
+      name.innerHTML = '<strong>全系統</strong><span class="og-auto">自動</span>';
+      td.append(name, this.urlLines('/output/jp'));
+      tr.appendChild(td);
+      channels.forEach((ch) => {
+        const cell = document.createElement('td');
+        cell.className = 'og-cell-td';
+        const b = document.createElement('button');
+        b.className = 'og-cell og-cell--fixed';
+        b.disabled = true;
+        b.title = '全系統の出力にはすべてのTLが自動で含まれます';
+        b.setAttribute('aria-label', `全系統に ${ch.label} を含める (自動)`);
+        b.innerHTML = this.checkIcon();
+        cell.appendChild(b);
+        tr.appendChild(cell);
+      });
+      tr.appendChild(stackCell(channels.map((c) => c.region), null));
+      const act = document.createElement('td');
+      act.className = 'og-actions';
+      act.append(this.copyBtn('OAをコピー', '/output/jp'), this.copyBtn('NEXTをコピー', '/output/jp?next=1'));
+      tr.appendChild(act);
+      tbody.appendChild(tr);
+    }
+
+    this.rows.forEach((g, i) => {
+      const tr = document.createElement('tr');
+      tr.className = 'og-row';
+      const td = document.createElement('td');
+      const name = document.createElement('div');
+      name.className = 'og-name';
       const label = document.createElement('input');
       label.type = 'text';
       label.className = 'input input--small';
       label.value = g.label || '';
-      label.placeholder = 'グループ名 (例: メイン)';
+      label.placeholder = '出力名 (例: メイン)';
       label.maxLength = 20;
       label.addEventListener('change', () => { g.label = label.value.trim() || g.id; });
       const idInput = document.createElement('input');
@@ -177,91 +391,70 @@ const OutputGroupsUI = {
       idInput.placeholder = 'URL名';
       idInput.title = '出力URL: /output/jp/g/<この名前>。半角英数のみ';
       idInput.addEventListener('change', () => {
-        g.id = idInput.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') || g.id;
-        idInput.value = g.id;
+        const id = idInput.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+        if (id && !this.rows.some((r) => r !== g && r.id === id)) g.id = id;
+        else App.setStatus('URL名が空か、ほかの出力と重なっています', 'error');
+        this.render();
       });
+      name.append(label, idInput);
+      td.append(name, this.urlLines(`/output/jp/g/${g.id}`));
+      tr.appendChild(td);
+      channels.forEach((ch) => {
+        const cell = document.createElement('td');
+        cell.className = 'og-cell-td';
+        const on = g.channels.includes(ch.region);
+        const b = document.createElement('button');
+        b.className = `og-cell${on ? ' on' : ''}`;
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.setAttribute('aria-label', `${g.label || g.id} に ${ch.label} を含める`);
+        b.title = on ? `${ch.label} を外す` : `${ch.label} を重ねる (いちばん前面に追加)`;
+        if (on) b.innerHTML = this.checkIcon();
+        b.addEventListener('click', () => {
+          if (g.channels.includes(ch.region)) g.channels = g.channels.filter((r) => r !== ch.region);
+          else g.channels.push(ch.region);
+          this.render();
+        });
+        cell.appendChild(b);
+        tr.appendChild(cell);
+      });
+      tr.appendChild(stackCell(g.channels, g));
+      const act = document.createElement('td');
+      act.className = 'og-actions';
       const del = document.createElement('button');
       del.className = 'btn btn--small';
       del.textContent = '削除';
-      del.title = 'グループを削除';
-      del.addEventListener('click', () => { this.rows.splice(i, 1); this.render(); });
-      head.appendChild(label);
-      head.appendChild(idInput);
-      head.appendChild(del);
-      card.appendChild(head);
-
-      // チャンネル選択 (チェック=含める / 上下で重なり順=レイヤー順)
-      g.channels = (g.channels || []).filter((cid) => channels.some((c) => c.region === cid));
-      const selected = g.channels;
-      const unselected = channels.filter((c) => !selected.includes(c.region)).map((c) => c.region);
-
-      const list = document.createElement('div');
-      list.className = 'og-channels';
-      const hint = document.createElement('div');
-      hint.className = 'settings-inline-hint';
-      hint.textContent = '含めるチャンネル (上=背面 / 下=前面):';
-      list.appendChild(hint);
-
-      const renderChip = (region, isSel) => {
-        const ch = channels.find((c) => c.region === region);
-        const chip = document.createElement('div');
-        chip.className = `og-chip${isSel ? ' sel' : ''}`;
-        const dot = document.createElement('span');
-        dot.className = 'og-chip-dot';
-        dot.style.background = ch ? ch.color : '#888';
-        chip.appendChild(dot);
-        chip.appendChild(document.createTextNode(ch ? ch.label : region));
-        if (isSel) {
-          const up = document.createElement('button');
-          up.className = 'og-chip-btn';
-          up.textContent = '↑';
-          up.title = '重なりを1つ背面へ (上=奥)';
-          up.addEventListener('click', () => {
-            const idx = selected.indexOf(region);
-            if (idx > 0) { [selected[idx - 1], selected[idx]] = [selected[idx], selected[idx - 1]]; this.render(); }
-          });
-          const down = document.createElement('button');
-          down.className = 'og-chip-btn';
-          down.textContent = '↓';
-          down.title = '重なりを1つ前面へ (下=手前)';
-          down.addEventListener('click', () => {
-            const idx = selected.indexOf(region);
-            if (idx < selected.length - 1) { [selected[idx + 1], selected[idx]] = [selected[idx], selected[idx + 1]]; this.render(); }
-          });
-          const rm = document.createElement('button');
-          rm.className = 'og-chip-btn';
-          rm.textContent = '×';
-          rm.title = 'このグループから外す';
-          rm.addEventListener('click', () => { g.channels = selected.filter((r) => r !== region); this.render(); });
-          chip.appendChild(up);
-          chip.appendChild(down);
-          chip.appendChild(rm);
-        } else {
-          const add = document.createElement('button');
-          add.className = 'og-chip-btn';
-          add.textContent = '＋';
-          add.title = 'このグループに含める';
-          add.addEventListener('click', () => { selected.push(region); this.render(); });
-          chip.appendChild(add);
-        }
-        return chip;
-      };
-
-      selected.forEach((region) => list.appendChild(renderChip(region, true)));
-      unselected.forEach((region) => list.appendChild(renderChip(region, false)));
-      card.appendChild(list);
-      wrap.appendChild(card);
+      del.title = 'この出力を削除';
+      del.addEventListener('click', async () => {
+        if (!(await AppModal.confirm('出力を削除', `出力「${g.label || g.id}」(/output/jp/g/${g.id}) を削除しますか?\nvMix等に登録している場合は映らなくなります。`, { danger: true, okLabel: '削除' }))) return;
+        this.rows.splice(i, 1);
+        this.render();
+      });
+      act.append(this.copyBtn('OAをコピー', `/output/jp/g/${g.id}`), this.copyBtn('NEXTをコピー', `/output/jp/g/${g.id}?next=1`), del);
+      tr.appendChild(act);
+      tbody.appendChild(tr);
     });
+    table.appendChild(tbody);
+    const scroll = document.createElement('div');
+    scroll.className = 'og-matrix-wrap';
+    scroll.appendChild(table);
+    wrap.appendChild(scroll);
 
     const add = document.createElement('button');
     add.className = 'btn btn--small';
-    add.textContent = '＋グループ追加';
+    add.textContent = '＋出力を追加';
     add.addEventListener('click', () => {
-      const id = `g${this.rows.length + 1}`;
-      this.rows.push({ id, label: `グループ${this.rows.length + 1}`, channels: [] });
+      let n = this.rows.length + 1;
+      while (this.rows.some((r) => r.id === `g${n}`)) n += 1;
+      this.rows.push({ id: `g${n}`, label: `出力${n}`, channels: [] });
       this.render();
     });
     wrap.appendChild(add);
+  },
+
+  /** 系統のURL名を変えたとき、出力の割当も付け替える */
+  renameRegion(from, to) {
+    if (!from || !to || from === to) return;
+    this.rows.forEach((g) => { g.channels = (g.channels || []).map((r) => (r === from ? to : r)); });
   },
 
   collect() {
@@ -539,6 +732,7 @@ const SettingsUI = {
     }
 
     App.rundown = result.rundown;
+    App.resetRundownHistory();
     if (typeof RundownUI !== 'undefined') {
       RundownUI.currentCornerId = null;
       RundownUI.selectedPageId = null;

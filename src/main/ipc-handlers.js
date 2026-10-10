@@ -376,6 +376,16 @@ function registerIpcHandlers() {
     }
   });
 
+  // NEXT出力 (?next=1): 送出画面のNEXTが変わるたびに各系統のNEXTの内容を受け取る (サーバ停止中も保持)
+  ipcMain.handle('graphics-set-next', async (_event, map) => {
+    try {
+      graphicsServer.setNext(map);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('app-version', () => app.getVersion());
 
   ipcMain.handle('open-onair-logs', async () => {

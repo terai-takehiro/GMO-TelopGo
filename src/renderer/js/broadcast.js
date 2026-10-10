@@ -112,6 +112,17 @@ const Broadcast = {
     return pg ? pg.id : null;
   },
 
+  /** TAKE/UPDATE後のNEXT。かるた取りの系統は次に出す札をその都度選ぶので空にする */
+  nextAfterTake(corner, channelId, pageId) {
+    if (App.sendMode(channelId) === 'karuta') return null;
+    return this.nextAfter(corner, channelId, pageId);
+  },
+
+  /** オンエアを差し替える前に、直前のオンエアを覚えておく (かるた取りの CLEAR&BACK で戻る先) */
+  rememberPrevOnAir(st, newPageId) {
+    if (st.onAirPageId && st.onAirPageId !== newPageId) st.prevOnAirPageId = st.onAirPageId;
+  },
+
   /**
    * ページの送出ロックを切り替えた後に呼ぶ。NEXTに入っているページをロックしたら、
    * ロック中のページを飛ばした次のページへNEXTを送る (GPIO/キーでのTAKEが止まって混乱しないように)
@@ -165,12 +176,13 @@ const Broadcast = {
     }
 
     const st = App.chState(channelId);
+    this.rememberPrevOnAir(st, page.id);
     st.onAirPageId = page.id;
     st.onAirSummary = detail;
     st.onAirAt = performance.now();
 
-    // NEXTを同コーナー内・同チャンネルの次ページへ (送出ロック中のページは飛ばす)
-    st.nextPageId = this.nextAfter(corner, channelId, page.id);
+    // NEXTを同コーナー内・同チャンネルの次ページへ (送出ロック中のページは飛ばす)。かるた取りは進めない
+    st.nextPageId = this.nextAfterTake(corner, channelId, page.id);
 
     App.setStatus(`${App.rehearsal ? '[リハーサル] ' : ''}TAKE 完了 — P${page.pageNo} ON AIR`, 'success');
     this.notifyChanged();
@@ -203,10 +215,11 @@ const Broadcast = {
     }
 
     const st = App.chState(channelId);
+    this.rememberPrevOnAir(st, page.id);
     st.onAirPageId = page.id;
     st.onAirSummary = detail;
     st.onAirAt = performance.now();
-    st.nextPageId = this.nextAfter(corner, channelId, page.id);
+    st.nextPageId = this.nextAfterTake(corner, channelId, page.id);
 
     App.setStatus(`${App.rehearsal ? '[リハーサル] ' : ''}UPDATE 完了 — P${page.pageNo}`, 'success');
     this.notifyChanged();
@@ -269,13 +282,20 @@ const Broadcast = {
     const st = App.chState(channelId);
     const curId = st.onAirPageId;
 
-    // オンエア中ページの1つ前 (同コーナー・同系統) を探す
+    // オンエア中ページの1つ前 (同コーナー・同系統) を探す。
+    // かるた取りは並び順に意味がないので、直前にオンエアしていた札へ戻す
     let prev = null;
     const found = curId ? App.findPage(curId) : null;
     if (found && found.list === 'pages') {
-      const siblings = this.channelPagesInCorner(found.corner, channelId);
-      const idx = siblings.findIndex((pg) => pg.id === curId);
-      if (idx > 0) prev = siblings[idx - 1];
+      if (App.sendMode(channelId) === 'karuta') {
+        const before = st.prevOnAirPageId ? App.findPage(st.prevOnAirPageId) : null;
+        if (before && before.list === 'pages' && before.page.id !== curId
+          && App.channelOfPage(before.page) === channelId) prev = before.page;
+      } else {
+        const siblings = this.channelPagesInCorner(found.corner, channelId);
+        const idx = siblings.findIndex((pg) => pg.id === curId);
+        if (idx > 0) prev = siblings[idx - 1];
+      }
     }
 
     if (prev) {
@@ -287,6 +307,7 @@ const Broadcast = {
           return;
         }
       }
+      this.rememberPrevOnAir(st, prev.id);
       st.onAirPageId = prev.id;
       st.onAirSummary = detail;
       st.onAirAt = performance.now();
@@ -363,11 +384,56 @@ const Broadcast = {
     this.notifyChanged();
   },
 
+  /** 表示中コーナーの最後のページをNEXTに (End キー) */
+  goEnd(channelId) {
+    const corner = (typeof RundownUI !== 'undefined' && RundownUI.currentCorner()) || App.corners()[0];
+    if (!corner) return;
+    const siblings = this.channelPagesInCorner(corner, channelId);
+    const last = this.findUnlocked(siblings, siblings.length, -1); // 送出ロック中のページは飛ばす
+    if (!last) return;
+    App.chState(channelId).nextPageId = last.id;
+    App.setStatus(`NEXT: P${last.pageNo} (末尾)`);
+    this.notifyChanged();
+  },
+
+  // ===== NEXT出力 (?next=1) =====
+
+  _nextSyncTimer: null,
+  _lastNextJson: '',
+
+  /** ページの送出内容 (出力ページが描画できる形) */
+  pageContent(page) {
+    if (page.kind === 'still') return { static: { kind: 'still', still: page.still } };
+    if (page.kind === 'design') return { static: { kind: 'design', variant: (page.design && page.design.variant) || null } };
+    return { templateKey: page.templateKey, values: page.values || {} };
+  },
+
+  /**
+   * 各系統のNEXTのページ内容を出力サーバへ送る (NEXT出力URL用)。
+   * NEXTの移動・ページの編集・2台運用の同期のたびに呼ばれるので、まとめて・変化したときだけ送る
+   */
+  syncNextOutput() {
+    if (!window.api || !window.api.graphicsSetNext || this._nextSyncTimer) return;
+    this._nextSyncTimer = setTimeout(() => {
+      this._nextSyncTimer = null;
+      const map = {};
+      App.channels.forEach((ch) => {
+        const found = this.nextPage(ch.id);
+        map[ch.region] = found ? this.pageContent(found.page) : null;
+      });
+      const json = JSON.stringify(map);
+      if (json === this._lastNextJson) return;
+      this._lastNextJson = json;
+      window.api.graphicsSetNext(map);
+    }, 50);
+  },
+
   // ===== UI通知 =====
 
   notifyChanged() {
     if (typeof RundownUI !== 'undefined') RundownUI.renderBroadcastState();
     this.updateGlobalOnAir();
+    this.syncNextOutput();
   },
 
   /** ステータスバーの送出状態表示 (全タブから見える) */

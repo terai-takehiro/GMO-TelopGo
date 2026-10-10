@@ -27,7 +27,7 @@ const ManualUI = {
           <li><b>ホーム</b> — 送出モードの選択 (リアルタイムCG / 電テロ)、「続きから」、システム状態</li>
           <li><b>送出</b> — 本番のランダウン操作画面 (リアルタイムCG / 電テロ)。モード選択後に<b>番組→放送(日付)を選んで</b>入る</li>
           <li><b>デザイン</b> — テロップのテンプレート作画 (Photoshop風のメニュー/ツール/パネル)</li>
-          <li><b>設定</b> — 左ナビで 出力 (サーバ・系統・グループ) / 連携 (2台運用・GPIO・ライブデータ) / データ (保存・読込・バックアップ) を切替</li>
+          <li><b>設定</b> — 左ナビで 出力 (サーバ・系統・出力の割当・ショートカット) / 連携 (2台運用・GPIO・ライブデータ) / データ (保存・読込・バックアップ) を切替</li>
           <li><b>ヘルプ</b> — 右上の <b>?</b> (または F1) でこのページを開きます</li>
         </ul>
         <h2 class="manual-h2">送出タブのレイアウト</h2>
@@ -64,7 +64,21 @@ const ManualUI = {
           <li>ページをNEXTにして <b>TAKE</b> で送出</li>
         </ol>
         <div class="manual-tip">💡「デザインから」追加した作画は<b>固定コピー</b>されます。以後テンプレートを編集しても、送出リスト上の絵柄は変わりません。</div>
-        <div class="manual-tip">🖼 静止画の<b>表示方法</b>は右ペインで選べます: 全体表示(contain) / 画面いっぱい(cover) / 引き伸ばし(fill)。対応形式: PNG / JPG / WebP / GIF / SVG。</div>`,
+        <div class="manual-tip">🖼 静止画の<b>表示方法</b>は右ペインで選べます: 全体表示(contain) / 画面いっぱい(cover) / 引き伸ばし(fill)。対応形式: PNG / JPG / WebP / GIF / SVG。</div>
+        <h2 class="manual-h2">リスト送出 / かるた取り送出 (TLごと)</h2>
+        <p class="manual-p">各TL列のヘッダの <b>[リスト | かるた]</b> で、系統ごとに送出方式を切り替えます (放送ごとに保存)。</p>
+        <ul class="manual-list">
+          <li><b>リスト</b>: 上から順に送出。TAKEするとNEXTが次のページへ進みます</li>
+          <li><b>かるた</b>: 札 (サムネイル) を並べて表示。<b>クリックした札がNEXT</b>になり、TAKEで送出します。TAKEしてもNEXTは進まないので、次に出す札をその都度選びます。CLEAR&BACKは直前に出していた札へ戻ります</li>
+        </ul>
+        <h2 class="manual-h2">画像の編集</h2>
+        <p class="manual-p">静止画・作画のページを選び、右ペインの<b>「画像を編集…」</b> (または <kbd>Ctrl</kbd>+<kbd>E</kbd>・右クリック) で、デザインタブと同じ画面で編集できます。</p>
+        <ul class="manual-list">
+          <li>取り込んだ画像は1枚のレイヤーとして開きます。ドラッグや矢印キーで位置を、角のドラッグで大きさを調整 (Shift+角で縦横比を保つ)</li>
+          <li>文字・図形・別の画像を追加でき、「スタイル」パネルの登録済みの装飾も使えます。IN/OUTの効果は「アニメーション」タブでも変えられます</li>
+          <li><b>保存して送出リストへ戻る</b> (<kbd>Ctrl</kbd>+<kbd>S</kbd>) で、<b>そのページだけ</b>に反映されます。元の画像ファイルは残り、右ペインの<b>「元の画像に戻す」</b>で取り込んだときの静止画に戻せます</li>
+          <li>送出中のページを編集したときは、「オンエアへ反映」を押すと出力に出ます</li>
+        </ul>`,
     },
     {
       id: 'design', title: 'デザインエディタ', html: `
@@ -88,7 +102,7 @@ const ManualUI = {
         <h2 class="manual-h2">送出の動詞</h2>
         <table class="manual-kbd">
           <tr><th>操作</th><th>意味</th></tr>
-          <tr><td>TAKE</td><td>NEXTをINアニメ付きで送出し、NEXTを次ページへ進める</td></tr>
+          <tr><td>TAKE</td><td>NEXTをINアニメ付きで送出し、NEXTを次ページへ進める (電テロのかるた取りの列は進めない)</td></tr>
           <tr><td>UPDATE</td><td>アニメなしで即時差し替え (オンエア中の訂正)</td></tr>
           <tr><td>CLEAR</td><td>OUTアニメで消去</td></tr>
           <tr><td>CLEAR&BACK</td><td>オンエアを消して1つ前のページを即表示 (誤送出のリカバリー)</td></tr>
@@ -107,15 +121,35 @@ const ManualUI = {
     },
     {
       id: 'shortcuts', title: 'ショートカット', html: `
-        <h2 class="manual-h2">送出タブのホットキー</h2>
+        <p class="manual-p">すべてのショートカットは、どの画面からでも <kbd>Ctrl</kbd>+<kbd>/</kbd> で一覧を表示できます (設定タブ「キーボードショートカット」にも同じ一覧があります)。</p>
+        <h2 class="manual-h2">共通</h2>
+        <table class="manual-kbd">
+          <tr><th>キー</th><th>動作</th></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>保存 (デザイン・送出リスト・設定)</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd></td><td>元に戻す / やり直し (送出リストのページ編集にも対応。TAKE/CLEARは対象外)</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>X</kbd> / <kbd>C</kbd> / <kbd>V</kbd></td><td>切り取り / コピー / 貼り付け</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>1</kbd>〜<kbd>4</kbd></td><td>ホーム / 送出 / デザイン / 設定</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>,</kbd></td><td>設定を開く</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F5</kbd></td><td>画面の再読み込み (確認あり。Ctrl+R では再読み込みしません)</td></tr>
+        </table>
+        <h2 class="manual-h2">送出タブ</h2>
         <table class="manual-kbd">
           <tr><th>キー</th><th>動作</th></tr>
           <tr><td><kbd>Space</kbd> / <kbd>Enter</kbd></td><td>TAKE (操作中の系統)</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>UPDATE (アニメなしで差し替え)</td></tr>
           <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>NEXTを上/下へ移動</td></tr>
+          <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>先頭 / 末尾のページをNEXTに</td></tr>
           <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>コーナーを移動</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>Backspace</kbd></td><td>CLEAR</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Backspace</kbd></td><td>CLEAR&BACK (消して前へ戻る)</td></tr>
+          <tr><td><kbd>Alt</kbd>+<kbd>1</kbd>〜<kbd>9</kbd> / <kbd>Ctrl</kbd>+<kbd>Tab</kbd></td><td>キー操作するTLを切替</td></tr>
           <tr><td><kbd>0</kbd>–<kbd>9</kbd></td><td>ダイレクト送出の番号入力を開始</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd> / <kbd>Delete</kbd></td><td>選択中のページを複製 / 削除</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td><td>選択中のページを送出ロック / 解除</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd> / <kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>ページを追加 / 放送を開く</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd> / <kbd>F2</kbd></td><td>ページ検索 / タイトルの変更</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>電テロの画像を編集</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>B</kbd></td><td>送出ボタンの表示/非表示</td></tr>
         </table>
         <div class="manual-tip">💡 列 (またはページ) をクリックするとその系統がキー操作の対象になります (ツールバーの「⌨ キー操作: TL1」表示)。列内のボタンは常にその列の系統に作用します。</div>`,
     },
@@ -129,11 +163,12 @@ const ManualUI = {
           <tr><td><code>/output/en</code></td><td>英語・全系統を重畳</td></tr>
           <tr><td><code>/output/jp/&lt;系統&gt;</code></td><td>単一系統のみ</td></tr>
           <tr><td><code>/output/jp/g/&lt;グループ&gt;</code></td><td>出力グループ (複数系統をレイヤー合成)</td></tr>
+          <tr><td><code>…?next=1</code></td><td>上のどのURLにも付けられます。送出中ではなく<b>NEXTのページ</b>をアニメーションなしで描画 (vMixのプレビュー・マルチビュー用)</td></tr>
         </table>
         <div class="manual-tip">💡 ホスト表示のIPアドレス+ポートで、別PCのvMixからも取り込めます (同一LAN)。</div>`,
     },
     {
-      id: 'channels', title: '系統と出力グループ', html: `
+      id: 'channels', title: '系統と出力の割当', html: `
         <h2 class="manual-h2">系統 (TL枠)</h2>
         <p class="manual-p">系統=出力の枠です。既定は汎用的な <b>TL1 / TL2</b>。番組に合わせてラベル(表示名)や色を自由に変え、TL3/TL4… と任意に追加できます (設定タブ「系統 (TL枠)」)。系統ごとに送出URLが作られます。</p>
         <h2 class="manual-h2">系統プリセット (テロップ枠のストック)</h2>
@@ -143,8 +178,9 @@ const ManualUI = {
           <li>各行の「<b>プリセット適用…</b>」で、任意の系統へ個別に割り当て (例: TL1←名前, TL2←サイド / TL1←新規作成, TL2←名前)</li>
           <li>適用すると、その系統のラベル・色と、割り当てられたデザインが切り替わります</li>
         </ul>
-        <h2 class="manual-h2">出力グループ (URLレイヤー合成)</h2>
-        <p class="manual-p">複数の系統を1つのURLへレイヤー合成できます。例:「メイン=TL1+TL2+TL3」「サブ=TL4のみ」。重なり順は並び順で調整します。日本語/英語の出し分けとは独立です。</p>`,
+        <h2 class="manual-h2">出力の割当 (出力URL × TLライン)</h2>
+        <p class="manual-p">設定タブ「出力の割当」の表で、行=出力URL、列=TLラインのマスをON/OFFして、どの出力にどのTLを重ねるかを決めます。例:「メイン=TL1+TL2+TL3」「サブ=TL4のみ」。重なり順は左が背面・右が前面で、◀ ▶ で入れ替えます。「全系統」(/output/jp) にはすべてのTLが自動で入ります。日本語/英語の出し分けとは独立です。</p>
+        <p class="manual-p">系統の「＋TLを追加」では、名前・URL名・色と一緒に<b>どの出力に含めるか</b>を選べます。各出力には OA と NEXT (?next=1) の2本のURLがあり、表の「OAをコピー」「NEXTをコピー」でコピーできます。</p>`,
     },
     {
       id: 'remote', title: 'GPIO・2台運用', html: `

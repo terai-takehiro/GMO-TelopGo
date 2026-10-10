@@ -2034,6 +2034,8 @@ body.role-client .settings-section[data-section="gpio"] { display: none !importa
 .od-page {
   display: flex;
   align-items: center;
+  /* 列 (縦並びのflex) に入りきらないページ数でも行を縮めない。縮むとサムネイルが上下の行と重なって潰れて見える */
+  flex-shrink: 0;
   gap: 10px;
   background: var(--od-bg2);
   border: 1px solid var(--od-border);
@@ -3502,3 +3504,142 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.55); backdrop-filter: none; }
 .od-context-menu button:disabled:hover { background: none; color: inherit; }
 
 .graphics-url-option { display: block; font-size: 11px; margin-bottom: 6px; cursor: pointer; }
+
+/* ===== 電テロ: 系統ごとの送出方式 (リスト / かるた取り) v3.16.0 ===== */
+.od-sendmode { display: inline-flex; flex-shrink: 0; border: 1px solid #4d4d4d; border-radius: 2px; overflow: hidden; margin-right: 6px; }
+.od-sendmode-btn { border: none; background: #2b2b2b; color: #c8c8c8; font-size: 10px; font-weight: 600; padding: 2px 7px; cursor: pointer; line-height: 1.4; }
+.od-sendmode-btn + .od-sendmode-btn { border-left: 1px solid #4d4d4d; }
+.od-sendmode-btn:hover { background: #3a3a3a; color: #fff; }
+.od-sendmode-btn.active { background: #2f6fd6; color: #fff; }
+
+/* かるた取り: 札 (サムネイル) をグリッドに並べる */
+.od-col-body.od-col-body--karuta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--od-tile-min, 140px), 1fr));
+  /* 札は overflow:hidden のため最小の高さが0になり、列の高さに合わせて行が縮んで潰れる。行は中身の高さに固定 */
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 6px;
+  padding: 6px;
+}
+.od-col-body--karuta.od-karuta-s { --od-tile-min: 104px; }
+.od-col-body--karuta.od-karuta-m { --od-tile-min: 140px; }
+.od-col-body--karuta.od-karuta-l { --od-tile-min: 200px; }
+.od-col-body--karuta > .od-empty { grid-column: 1 / -1; }
+.od-page.od-page--tile {
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #2f2f2f;
+  box-shadow: 0 0 0 1px #4a4a4a;
+}
+.od-page.od-page--tile:hover { background: #3a3a3a; box-shadow: 0 0 0 1px #8a8a8a; }
+.od-page--tile .od-page-state { display: none; }
+.od-page--tile .od-page-thumb { width: 100%; height: auto; aspect-ratio: 16 / 9; }
+.od-page--tile .od-page-no {
+  position: absolute; top: 3px; left: 3px; z-index: 1;
+  min-width: 0; padding: 0 5px; border-radius: 2px;
+  background: rgba(0, 0, 0, 0.65); color: #e6e6e6; font-size: 11px; line-height: 18px;
+}
+.od-page--tile .od-page-body { padding: 4px 6px 5px; }
+.od-page--tile .od-page-meta { margin-top: 2px; gap: 6px; overflow: hidden; white-space: nowrap; }
+.od-page--tile .od-page-countdown { position: absolute; top: 3px; right: 6px; z-index: 1; font-size: 13px; text-shadow: 0 0 3px #000; }
+/* 札では右クリックメニューを使う (ホバーの操作ボタンが札の上に重なり、押し間違えやすいため出さない) */
+.od-page--tile .od-page-actions { display: none; }
+.od-page.od-page--tile.next { background: #173a26; box-shadow: 0 0 0 2px #3cc47a; }
+.od-page.od-page--tile.on-air { background: var(--red-dim); box-shadow: 0 0 0 3px #e0332b; }
+.od-page.od-page--tile.on-air .od-page-no { background: #e0332b; color: #fff; }
+.od-page.od-page--tile.next .od-page-no { background: #1d7a45; color: #fff; }
+.od-page.od-page--tile.editing { outline: 2px solid #6aa6ff; outline-offset: 1px; }
+.od-page.od-page--tile.od-drop-target { border-top: none; box-shadow: 0 0 0 2px var(--accent); }
+
+/* 出力URL一覧: OA / NEXT の種別タグ v3.16.0 */
+.graphics-url-kind { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 18px; flex-shrink: 0; border-radius: 2px; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; color: #fff; }
+.graphics-url-kind--oa { background: #c8261b; }
+.graphics-url-kind--next { background: #1d7a45; }
+.graphics-url-row--next { margin-top: -2px; margin-bottom: 4px; }
+
+/* ===== 設定: 出力の割当 (出力URL × TLライン) v3.16.0 ===== */
+.og-matrix-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 3px; background: #2e2e2e; margin-bottom: 10px; }
+.og-matrix { width: 100%; border-collapse: collapse; font-size: 12px; }
+.og-matrix th { padding: 8px 10px; background: #2a2a2a; color: #c8c8c8; font-weight: 600; font-size: 11px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.og-matrix th.og-th-ch { text-align: center; min-width: 70px; }
+.og-th-name { display: inline-flex; align-items: center; gap: 5px; color: #e6e6e6; }
+.og-th-region { display: block; margin-top: 2px; font-family: var(--font-mono); font-weight: 400; font-size: 10px; color: #a8a8a8; }
+.og-matrix td { padding: 8px 10px; border-top: 1px solid #262626; vertical-align: middle; }
+.og-row--all td { background: #2b2b2b; }
+.og-name { display: flex; align-items: center; gap: 6px; }
+.og-name .input { flex: 0 1 140px; min-width: 90px; }
+.og-name .ch-region { flex: 0 1 110px; }
+.og-auto { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 2px; background: #4a4a4a; color: #e0e0e0; }
+.og-urls { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+.og-url-line { display: flex; align-items: center; gap: 6px; }
+.og-url { font-family: var(--font-mono); font-size: 11px; color: #9fc2ff; }
+.og-cell-td { text-align: center; }
+.og-cell { width: 38px; height: 30px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border-radius: 3px; border: 1px solid #5a5a5a; background: #262626; color: #fff; cursor: pointer; }
+.og-cell:hover { border-color: #9a9a9a; }
+.og-cell.on { background: #2f6fd6; border-color: #2f6fd6; }
+.og-cell.on:hover { background: #3b7deb; }
+.og-cell--fixed, .og-cell--fixed:hover { background: #3a3a3a; border-color: #3a3a3a; color: #bdbdbd; cursor: default; }
+.og-stack { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.og-chip-btn:disabled { opacity: 0.3; cursor: default; }
+.og-actions { white-space: nowrap; text-align: right; }
+.og-actions .btn { margin-left: 4px; }
+.ch-add-dialog { width: 520px; max-width: 92vw; }
+.ch-add-dialog .settings-row > label { min-width: 70px; }
+.ch-add-q { margin: 6px 0; font-weight: 700; color: #e6e6e6; }
+.ch-add-outs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.ch-add-out { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 3px; background: #2b2b2b; cursor: pointer; font-size: 12px; }
+.ch-add-out-name { flex: 1; }
+
+/* ===== デザイン: 電テロのページ (静止画・作画) の編集モード v3.16.0 ===== */
+#tab-design.de-page-editing [data-pe-hide] { display: none !important; }
+#tab-design.de-page-editing #de-lib-tpl { display: none !important; }
+#tab-design.de-page-editing #de-lib-style { display: flex !important; }
+.de-pageedit-bar {
+  display: flex; align-items: center; gap: 12px;
+  min-height: 38px; padding: 4px 12px;
+  background: #24324a; border-bottom: 1px solid #3f5a86;
+  font-size: 12px; color: #e6edf8;
+}
+.de-pageedit-bar.hidden { display: none; }
+.de-pageedit-badge { flex-shrink: 0; padding: 2px 8px; border-radius: 2px; background: #3b82f6; color: #fff; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; }
+.de-pageedit-title { flex-shrink: 0; font-weight: 700; }
+.de-pageedit-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #b9c7de; font-size: 11px; }
+.de-ob-kbd { margin-left: 8px; font-size: 10px; font-weight: 500; opacity: 0.75; }
+.de-viewport--pan, .de-viewport--pan * { cursor: grab !important; }
+.de-viewport--panning, .de-viewport--panning * { cursor: grabbing !important; }
+
+/* ===== キーボードショートカットの一覧 (設定 / Ctrl+/) v3.16.0 ===== */
+.sc-rules { margin: 0 0 12px; padding-left: 18px; font-size: 12px; line-height: 1.7; color: #cfcfcf; }
+.sc-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 0; }
+.sc-tabs { display: flex; gap: 2px; }
+.sc-tab { border: none; background: transparent; color: #c8c8c8; font-size: 12px; font-weight: 600; padding: 8px 14px; cursor: pointer; box-shadow: inset 0 -2px 0 transparent; }
+.sc-tab:hover { color: #fff; }
+.sc-tab.active { color: #fff; box-shadow: inset 0 -2px 0 #3b82f6; }
+.sc-count { color: #a8a8a8; font-weight: 500; }
+.sc-only { margin-left: auto; font-size: 12px; color: #d0d0d0; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.sc-legend { display: flex; gap: 6px; }
+.sc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sc-table th { text-align: left; font-size: 11px; color: #c8c8c8; font-weight: 700; padding: 8px 10px; background: #2b2b2b; }
+.sc-table td { padding: 6px 10px; border-top: 1px solid #2a2a2a; vertical-align: middle; }
+.sc-act { font-weight: 600; white-space: nowrap; }
+.sc-keys { white-space: nowrap; }
+.sc-note { font-size: 11px; color: #c8c8c8; line-height: 1.5; }
+.sc-kbd { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 3px; background: #1f1f1f; border: 1px solid #555; border-bottom-width: 2px; font-family: var(--font-mono); font-size: 11px; color: #f0f0f0; white-space: nowrap; }
+.sc-sep { color: #8f8f8f; margin: 0 4px; }
+.sc-st { display: inline-flex; align-items: center; justify-content: center; min-width: 38px; height: 18px; padding: 0 4px; border-radius: 2px; font-size: 10px; font-weight: 800; }
+.sc-st--old { background: #4a4a4a; color: #e0e0e0; }
+.sc-st--new { background: #3b82f6; color: #fff; }
+.sc-st--ext { background: #1f6f63; color: #fff; }
+.sc-st--chg { background: #a35a12; color: #fff; }
+.sc-dialog { width: 920px; max-width: 94vw; }
+.sc-dialog-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.sc-dialog-head h3 { margin: 0; }
+.sc-dialog-body { max-height: 70vh; overflow-y: auto; }

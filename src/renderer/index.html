@@ -331,11 +331,11 @@
           <button class="de-menu-btn" data-demenu="de-menu-file">ファイル</button>
           <div class="de-menu hidden" id="de-menu-file">
             <button class="de-menu-item" data-click="de-save">保存して反映<span class="de-menu-kbd">Ctrl+S</span></button>
-            <button class="de-menu-item" id="de-reload">破棄して再読込</button>
-            <div class="de-menu-sep"></div>
-            <button class="de-menu-item" id="de-import">デザインを読み込み…</button>
-            <button class="de-menu-item" id="de-export">デザインを書き出し…</button>
-            <button class="de-menu-item" id="de-export-png" title="表示中のテンプレートを1920x1080の透過PNGとして保存">PNG で保存…</button>
+            <button class="de-menu-item" id="de-reload" data-pe-hide>破棄して再読込</button>
+            <div class="de-menu-sep" data-pe-hide></div>
+            <button class="de-menu-item" id="de-import" data-pe-hide>デザインを読み込み…</button>
+            <button class="de-menu-item" id="de-export" data-pe-hide>デザインを書き出し…<span class="de-menu-kbd">Ctrl+Shift+S</span></button>
+            <button class="de-menu-item" id="de-export-png" title="表示中のテンプレートを1920x1080の透過PNGとして保存">PNG で保存…<span class="de-menu-kbd">Ctrl+Shift+E</span></button>
           </div>
         </div>
         <div class="de-menu-wrap">
@@ -346,15 +346,15 @@
             <div class="de-menu-sep"></div>
             <button class="de-menu-item" data-click="de-duplicate">レイヤーを複製</button>
             <button class="de-menu-item" data-click="de-delete">レイヤーを削除<span class="de-menu-kbd">Del</span></button>
-            <div class="de-menu-sep"></div>
-            <button class="de-menu-item" data-click="de-copy-lang">JP のレイアウトを EN へコピー</button>
+            <div class="de-menu-sep" data-pe-hide></div>
+            <button class="de-menu-item" data-click="de-copy-lang" data-pe-hide>JP のレイアウトを EN へコピー</button>
           </div>
         </div>
         <div class="de-menu-wrap">
           <button class="de-menu-btn" data-demenu="de-menu-layer">レイヤー</button>
           <div class="de-menu hidden" id="de-menu-layer">
-            <button class="de-menu-item" data-click="de-add-text">文字を追加</button>
-            <button class="de-menu-item" data-click="de-add-rect">図形を追加</button>
+            <button class="de-menu-item" data-click="de-add-text">文字を追加<span class="de-menu-kbd">T</span></button>
+            <button class="de-menu-item" data-click="de-add-rect">図形を追加<span class="de-menu-kbd">U</span></button>
             <button class="de-menu-item" data-click="de-add-image">画像を追加…</button>
             <div class="de-menu-sep"></div>
             <button class="de-menu-item" data-click="de-group">グループ化<span class="de-menu-kbd">Ctrl+G</span></button>
@@ -366,7 +366,7 @@
             <button class="de-menu-item" data-click="de-layer-bottom">最背面へ</button>
           </div>
         </div>
-        <div class="de-menu-wrap">
+        <div class="de-menu-wrap" data-pe-hide>
           <button class="de-menu-btn" data-demenu="de-menu-tpl">テンプレート</button>
           <div class="de-menu hidden" id="de-menu-tpl">
             <button class="de-menu-item" data-click="de-tpl-add">新規テンプレート…</button>
@@ -387,15 +387,15 @@
           <div class="de-menu hidden" id="de-menu-anim">
             <button class="de-menu-item" id="de-anim-settings" title="レイヤーの選択を解除してテンプレートのアニメーション設定を表示">テンプレートのアニメーション設定</button>
             <div class="de-menu-sep"></div>
-            <button class="de-menu-item" id="de-play-in">IN を試写</button>
-            <button class="de-menu-item" id="de-play-out">OUT を試写</button>
+            <button class="de-menu-item" id="de-play-in">IN を試写<span class="de-menu-kbd">Ctrl+P</span></button>
+            <button class="de-menu-item" id="de-play-out">OUT を試写<span class="de-menu-kbd">Ctrl+Shift+P</span></button>
           </div>
         </div>
         <span class="de-spacer"></span>
-        <label class="de-menubar-label">デザインセット
+        <label class="de-menubar-label" data-pe-hide>デザインセット
           <select id="de-set-select" class="de-dark-select"></select>
         </label>
-        <div class="de-menu-wrap">
+        <div class="de-menu-wrap" data-pe-hide>
           <button class="de-menu-btn" data-demenu="de-menu-set">セット管理</button>
           <div class="de-menu de-menu--right hidden" id="de-menu-set">
             <button class="de-menu-item" id="de-set-gallery-btn" title="デザインセットをサムネイルで一覧表示 (クリックで切替)">一覧から切り替え…</button>
@@ -407,13 +407,23 @@
         </div>
       </div>
 
+      <!-- 電テロのページ (静止画・作画) を編集中の帯 -->
+      <div class="de-pageedit-bar hidden" id="de-pageedit-bar" role="status">
+        <span class="de-pageedit-badge">電テロの画像を編集中</span>
+        <span class="de-pageedit-title" id="de-pageedit-title"></span>
+        <span class="de-pageedit-hint">位置・大きさの調整や、文字・図形・画像の追加ができます。保存するとこのページだけに反映され、元の画像ファイルは残ります</span>
+        <span class="de-spacer"></span>
+        <button class="de-ob" id="de-pageedit-cancel">キャンセル (破棄)</button>
+        <button class="de-ob de-ob--primary" id="de-pageedit-save">保存して送出リストへ戻る<span class="de-ob-kbd">Ctrl+S</span></button>
+      </div>
+
       <div class="de-optbar">
-        <div class="de-lang-switch" role="group" aria-label="言語">
+        <div class="de-lang-switch" role="group" aria-label="言語" data-pe-hide>
           <button class="de-seg active" id="de-lang-jp">JP</button>
           <button class="de-seg" id="de-lang-en">EN</button>
         </div>
-        <button class="de-ob" id="de-copy-lang" title="JPのレイアウトをENへコピー">JP→EN</button>
-        <span class="de-optbar-sep"></span>
+        <button class="de-ob" id="de-copy-lang" title="JPのレイアウトをENへコピー" data-pe-hide>JP→EN</button>
+        <span class="de-optbar-sep" data-pe-hide></span>
         <button class="de-ob" data-click="de-play-in">IN 試写</button>
         <button class="de-ob" data-click="de-play-out">OUT 試写</button>
         <span class="de-spacer"></span>
@@ -447,7 +457,7 @@
         </div>
 
         <div class="de-center">
-          <div class="de-doc-tabs" id="de-doc-tabs"></div>
+          <div class="de-doc-tabs" id="de-doc-tabs" data-pe-hide></div>
           <select id="de-template" class="hidden" aria-hidden="true"></select>
           <div class="de-viewport" id="de-viewport">
             <div class="de-server-warning hidden" id="de-server-warning">出力サーバが停止中のため、画像・持ち込みフォントが表示されません (設定タブで起動してください)</div>
@@ -472,6 +482,8 @@
                 <option value="0.5">50%</option>
                 <option value="0.75">75%</option>
                 <option value="1">100%</option>
+                <option value="1.5">150%</option>
+                <option value="2">200%</option>
               </select>
             </label>
             <span class="de-sb-item de-mono">1920 × 1080 px</span>
@@ -502,7 +514,7 @@
               <button class="de-ptab active" data-ptab="props">プロパティ</button>
               <button class="de-ptab" data-ptab="text">文字</button>
               <button class="de-ptab" data-ptab="anim">アニメーション</button>
-              <button class="de-ptab" data-ptab="vars" title="このテンプレートの変数を、Excelの列としてどう並べるか設定します">変数/Excel</button>
+              <button class="de-ptab" data-ptab="vars" title="このテンプレートの変数を、Excelの列としてどう並べるか設定します" data-pe-hide>変数/Excel</button>
             </div>
             <div class="de-props" id="de-props">
               <div class="de-props-empty">レイヤーを選択してください</div>
@@ -510,7 +522,7 @@
           </div>
           <div class="de-panel de-panel--lib">
             <div class="de-ptabs" id="de-lib-tabs">
-              <button class="de-ptab active" data-libtab="tpl">テンプレート</button>
+              <button class="de-ptab active" data-libtab="tpl" data-pe-hide>テンプレート</button>
               <button class="de-ptab" data-libtab="style">スタイル</button>
             </div>
             <div class="de-lib-body" id="de-lib-tpl">
@@ -640,8 +652,9 @@
         <div class="settings-nav-group">出力</div>
         <button class="settings-nav-btn active" data-section="output">出力サーバと URL</button>
         <button class="settings-nav-btn" data-section="channels">系統 (TL) とプリセット</button>
-        <button class="settings-nav-btn" data-section="groups">出力グループ</button>
+        <button class="settings-nav-btn" data-section="groups">出力の割当</button>
         <button class="settings-nav-btn" data-section="operation">操作</button>
+        <button class="settings-nav-btn" data-section="shortcuts">キーボードショートカット</button>
         <button class="settings-nav-btn" data-section="namefields">氏名テロップの項目名</button>
         <div class="settings-nav-group">連携</div>
         <button class="settings-nav-btn" data-section="remote">2台運用</button>
@@ -712,16 +725,13 @@
       </section>
       <section class="settings-section" data-section="groups">
         <div class="settings-section-head">
-          <h2>出力グループ</h2>
-          <p>複数の系統を 1 本の URL にレイヤー合成して出力します。</p>
+          <h2>出力の割当</h2>
+          <p>どの出力 URL に、どの TL ラインを重ねて出すかを決めます。マスをクリックで ON / OFF。</p>
         </div>
       <fieldset class="settings-group">
-        <legend>出力グループ (URLレイヤー合成)</legend>
-        <div class="settings-row">
-          <label>グループ一覧</label>
-          <div class="og-list" id="og-list"></div>
-        </div>
-        <p class="gpio-hint">複数の系統(チャンネル)を1本の出力URLに重ねて出す設定です。例: 「メイン=名前+サイド」「スコア用=スコアのみ」のように分けると、それぞれ /output/jp/g/(URL名) で配信されます。重なり順は上が背面・下が前面。日本語/英語は自動で両方のURLが作られます (日英の出し分けとは独立)。</p>
+        <legend>出力 URL × TL ライン</legend>
+        <div class="og-list" id="og-list"></div>
+        <p class="gpio-hint">行が出力 URL、列が TL ラインです。「全系統」(/output/jp) にはすべての TL が自動で含まれます。「＋出力を追加」で /output/jp/g/(URL名) の出力を作り、重ねたい TL のマスを ON にします (例: メイン=TL1+TL2、ワイプ用=TL2 のみ)。重なり順は左が背面・右が前面で、◀ ▶ で入れ替えます。各出力には OA (送出中) と NEXT (次に出るページをアニメーションなしで描画。vMix のプレビュー・マルチビュー用) の 2 本の URL があり、日本語 (/jp/) と英語 (/en/) の両方が自動で作られます。TL 単体の URL (/output/jp/(URL名)) も自動です。変更は「設定を保存」で反映されます。</p>
       </fieldset>
       </section>
       <section class="settings-section" data-section="operation">
@@ -735,6 +745,22 @@
           <label for="op-dbltake">ダブルクリックで即TAKE</label>
           <label class="od-bar-label"><input type="checkbox" id="op-dbltake" checked> 送出リストのページをダブルクリックしたとき、確認なしで即送出する (誤操作が心配な場合はOFF)</label>
         </div>
+      </fieldset>
+      </section>
+      <section class="settings-section" data-section="shortcuts">
+        <div class="settings-section-head">
+          <h2>キーボードショートカット</h2>
+          <p>どの画面からでも <kbd class="sc-kbd">Ctrl</kbd> + <kbd class="sc-kbd">/</kbd> でこの一覧を表示できます。右クリックメニューとボタンのツールチップにもキーを表示しています。</p>
+        </div>
+      <fieldset class="settings-group">
+        <legend>ショートカットの一覧</legend>
+        <ul class="sc-rules">
+          <li>文字の入力中は、入力欄の文字編集が優先されます (Ctrl+Z は打った文字の取り消し)</li>
+          <li>送出操作 (TAKE / CLEAR など) は「元に戻す」の対象外です。戻せるのはページ・デザインの編集だけです</li>
+          <li>送出中のページは、切り取り・削除できません</li>
+          <li>Windows の一般的な割り当てに合わせ、デザイン画面は Photoshop に合わせています</li>
+        </ul>
+        <div id="sc-settings-body"></div>
       </fieldset>
       </section>
       <section class="settings-section" data-section="namefields">
@@ -927,6 +953,39 @@
   </div>
 
   <!-- 汎用モーダル (prompt/confirm のアプリ内統一) -->
+  <!-- キーボードショートカットの一覧 (Ctrl+/) -->
+  <dialog id="shortcut-dialog" class="de-dialog sc-dialog" aria-label="キーボードショートカット">
+    <div class="sc-dialog-head">
+      <h3>キーボードショートカット</h3>
+      <span class="de-spacer"></span>
+      <button class="btn btn--small" id="shortcut-dialog-close">閉じる (Esc)</button>
+    </div>
+    <div id="shortcut-dialog-body" class="sc-dialog-body"></div>
+  </dialog>
+
+  <!-- TL (系統) の追加: 名前・URL名・色と、どの出力に含めるか -->
+  <dialog id="ch-add-dialog" class="de-dialog ch-add-dialog">
+    <h3>TLを追加</h3>
+    <div class="settings-row">
+      <label for="ch-add-label">表示名</label>
+      <input type="text" id="ch-add-label" class="input input--small" maxlength="20" placeholder="例: TL3">
+    </div>
+    <div class="settings-row">
+      <label for="ch-add-region">URL名</label>
+      <input type="text" id="ch-add-region" class="input input--small ch-region" placeholder="半角英数 (例: tl3)">
+    </div>
+    <div class="settings-row">
+      <label for="ch-add-color">色</label>
+      <input type="color" id="ch-add-color" class="de-prop-color">
+    </div>
+    <p class="de-props-hint ch-add-q">どの出力に含めますか?</p>
+    <div class="ch-add-outs" id="ch-add-outs"></div>
+    <div class="de-dialog-actions">
+      <button class="btn btn--small" id="ch-add-cancel">キャンセル</button>
+      <button class="btn btn--small btn--primary" id="ch-add-ok">追加</button>
+    </div>
+  </dialog>
+
   <dialog id="app-modal" class="de-dialog app-modal">
     <h3 id="am-title"></h3>
     <p class="de-props-hint" id="am-msg"></p>
@@ -964,5 +1023,6 @@
   <script src="js/live-data-ui.js"></script>
   <script src="js/settings-ui.js"></script>
   <script src="js/status-bar.js"></script>
+  <script src="js/shortcuts.js"></script>
 </body>
 </html>

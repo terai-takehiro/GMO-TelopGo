@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   // Excel
@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('api', {
   graphicsTakeStatic: (payload, animate, logDetail) => ipcRenderer.invoke('graphics-take-static', payload, animate, logDetail),
   graphicsClear: (region, logDetail) => ipcRenderer.invoke('graphics-clear', region, logDetail),
   graphicsStop: (region) => ipcRenderer.invoke('graphics-stop', region),
+  // NEXT出力 (?next=1) 用: 各系統のNEXTのページ内容 { [region]: content | null }
+  graphicsSetNext: (map) => ipcRenderer.invoke('graphics-set-next', map),
   openOnairLogs: () => ipcRenderer.invoke('open-onair-logs'),
 
   // ランダウン (番組>放送>コーナー>ページ)
@@ -58,6 +60,14 @@ contextBridge.exposeInMainWorld('api', {
 
   // アプリ情報
   getAppVersion: () => ipcRenderer.invoke('app-version'),
+
+  // メニューのショートカット: 再読み込みの確認 (Ctrl+Shift+F5) / 表示倍率 (Ctrl+＋/−/0)
+  onReloadRequest: (callback) => ipcRenderer.on('app-reload-request', () => callback()),
+  onAppZoom: (callback) => ipcRenderer.on('app-zoom', (_event, cmd) => callback(cmd)),
+  uiZoom: (cmd) => {
+    if (cmd === 'reset') webFrame.setZoomLevel(0);
+    else webFrame.setZoomLevel(webFrame.getZoomLevel() + (cmd === 'in' ? 0.5 : -0.5));
+  },
 
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),

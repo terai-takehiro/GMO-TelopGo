@@ -360,6 +360,8 @@ const RemoteSync = {
     if (!snap || !snap.rundown) return;
 
     App.rundown = snap.rundown;
+    // 相手PCの状態に差し替わったので、元に戻すの履歴はここから始め直す (相手の編集を巻き戻さないように)
+    App.resetRundownHistory();
     if (snap.broadcast) {
       Object.entries(snap.broadcast).forEach(([channelId, st]) => {
         Object.assign(App.chState(channelId), st);
