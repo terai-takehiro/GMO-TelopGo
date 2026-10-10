@@ -283,6 +283,7 @@ const RundownUI = {
     const project = await window.api.graphicsGetProject();
     App.loadTemplatesFrom(project);
     App.rundown = await window.api.rundownGet();
+    App.resetRundownHistory();
     this.ensureSelections();
     this.loaded = true;
     this.renderAll();
@@ -339,6 +340,7 @@ const RundownUI = {
     this.renderKeyTarget();
     this.renderEditor();
     Broadcast.updateGlobalOnAir();
+    Broadcast.syncNextOutput(); // 系統の増減・放送の切替でNEXT出力の対象が変わる
   },
 
   /** 送出状態のみが変わったときの軽量再描画 */
@@ -451,12 +453,13 @@ const RundownUI = {
     });
   },
 
-  /** ページ行/カードのDOMを生成 */
-  buildPageEl(page, corner, listName) {
+  /** ページ行/カードのDOMを生成 (opts.tile = かるた取りの札として描く) */
+  buildPageEl(page, corner, listName, opts = {}) {
     const channelId = App.channelOfPage(page);
     const channel = App.channelById(channelId);
+    const tile = !!opts.tile;
     const el = document.createElement('div');
-    el.className = `od-page od-page--${this.viewMode} od-thumb-${this.thumbSize}`;
+    el.className = tile ? 'od-page od-page--tile' : `od-page od-page--${this.viewMode} od-thumb-${this.thumbSize}`;
     el.dataset.pageId = page.id;
     el.draggable = true;
 
@@ -469,7 +472,7 @@ const RundownUI = {
     no.textContent = page.pageNo;
     el.appendChild(no);
 
-    if (this.viewMode === 'thumb') {
+    if (tile || this.viewMode === 'thumb') {
       const thumb = document.createElement('div');
       thumb.className = 'od-page-thumb';
       const img = document.createElement('img');
@@ -494,8 +497,9 @@ const RundownUI = {
     const tplName = document.createElement('span');
     tplName.className = 'od-page-tpl';
     tplName.textContent = page.kind === 'still' ? '🖼 静止画'
-      : page.kind === 'design' ? '🎨 作画'
-        : this.templateLabel(page.templateKey);
+      : this.isEditedStill(page) ? '🖼 編集済み'
+        : page.kind === 'design' ? '🎨 作画'
+          : this.templateLabel(page.templateKey);
     metaLine.appendChild(tplName);
     // INアニメが設定されているCGページはバッジで可視化 (TELOP BOXのエフェクトアイコン相当)
     if (!page.kind || page.kind === 'cg') {
@@ -607,13 +611,7 @@ const RundownUI = {
     };
     mkAction(page.locked ? '🔓 解除' : '🔒 ロック', page.locked ? '送出ロックを解除' : '送出ロック (誤TAKE防止)',
       () => this.mutate(() => { page.locked = !page.locked; Broadcast.onPageLockChanged(page); }));
-    mkAction('⧉ 複製', 'このページを複製', () => this.mutate(() => {
-      const copy = JSON.parse(JSON.stringify(page));
-      copy.id = this.uid('pg');
-      copy.pageNo = this.nextPageNo(corner);
-      const list = corner[listName];
-      list.splice(list.indexOf(page) + 1, 0, copy);
-    }));
+    mkAction('⧉ 複製', 'このページを複製 (Ctrl+D)', () => this.duplicatePage(page, corner, listName));
     mkAction(listName === 'pages' ? '⤵ 素材へ' : '⤴ 戻す',
       listName === 'pages' ? '素材集へ移動 (放送しない予備ページ)' : 'プレイリストへ戻す',
       () => this.mutate(() => {
@@ -692,6 +690,9 @@ const RundownUI = {
       addBtn.addEventListener('click', (e) => { e.stopPropagation(); this.addPageForChannel(ch.id); });
       header.appendChild(dot);
       header.appendChild(name);
+      // 電テロ: 系統ごとの送出方式 (リスト / かるた取り)
+      const sendMode = App.sendMode(ch.id);
+      if (telopMode) header.appendChild(this.buildSendModeSwitch(ch, sendMode));
       header.appendChild(addBtn);
       header.addEventListener('click', () => this.focusChannel(ch.id));
       if (monitors) col.insertBefore(header, monitors);
@@ -738,10 +739,13 @@ const RundownUI = {
         col.appendChild(monitors);
       }
 
-      // ボディ (その系統のページ)
+      // ボディ (その系統のページ)。かるた取りは札 (サムネイル) を並べる
+      const karuta = sendMode === 'karuta';
       const body = document.createElement('div');
-      body.className = `od-col-body od-pages--${this.viewMode}`;
-      pages.forEach((page) => body.appendChild(this.buildPageEl(page, corner, 'pages')));
+      body.className = karuta
+        ? `od-col-body od-col-body--karuta od-karuta-${this.thumbSize}`
+        : `od-col-body od-pages--${this.viewMode}`;
+      pages.forEach((page) => body.appendChild(this.buildPageEl(page, corner, 'pages', { tile: karuta })));
       if (pages.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'od-empty';
@@ -825,6 +829,34 @@ const RundownUI = {
     this.renderNextPreviews();
     this.applyPreviewBg();
     this.applyRowStates();
+  },
+
+  /** 列ヘッダの送出方式スイッチ [リスト | かるた] */
+  buildSendModeSwitch(ch, current) {
+    const wrap = document.createElement('div');
+    wrap.className = 'od-sendmode';
+    wrap.setAttribute('role', 'group');
+    wrap.setAttribute('aria-label', `${ch.label} の送出方式`);
+    [
+      ['list', 'リスト', 'リスト送出: 上から順に送出 (TAKEするとNEXTが次のページへ進む)'],
+      ['karuta', 'かるた', 'かるた取り: 札を並べ、クリックした札をNEXTにしてTAKE (TAKE後にNEXTは進まない)'],
+    ].forEach(([mode, label, title]) => {
+      const btn = document.createElement('button');
+      btn.className = `od-sendmode-btn${current === mode ? ' active' : ''}`;
+      btn.textContent = label;
+      btn.title = title;
+      btn.setAttribute('aria-pressed', current === mode ? 'true' : 'false');
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (App.sendMode(ch.id) === mode) return;
+        App.setSendMode(ch.id, mode);
+        this.focusChannel(ch.id);
+        this.renderColumns();
+        App.setStatus(`${ch.label}: ${mode === 'karuta' ? 'かるた取り送出 (札をクリックでNEXT → TAKE)' : 'リスト送出 (上から順に)'} に切り替えました`);
+      });
+      wrap.appendChild(btn);
+    });
+    return wrap;
   },
 
   /** 各列のOAモニター (出力サーバの系統別プレビュー) のURLを最新化 */
@@ -1072,9 +1104,30 @@ const RundownUI = {
       TelopRenderer.renderVariant(canvas, variant, page.values || {}, {
         assetBase: (typeof DesignEditor !== 'undefined') ? DesignEditor.assetBase() : '/assets/',
       });
-      // 16:9で親にフィット
-      canvas.style.transform = `scale(${host.clientWidth / 1920})`;
+      this.fitNextCanvas(host);
+      this.observeNextHost(host);
     });
+  },
+
+  /** NEXTモニターの描画を16:9でモニター枠にフィット */
+  fitNextCanvas(host) {
+    const canvas = host.querySelector('.od-next-canvas');
+    if (canvas) canvas.style.transform = `scale(${host.clientWidth / 1920})`;
+  },
+
+  /**
+   * 列幅が変わったら (TL追加・右ペイン開閉・ウィンドウサイズ変更・非表示からの表示) NEXTモニターを合わせ直す。
+   * 描画時の幅で一度だけ縮尺を決めると、その後に列幅が変わったときに絵がはみ出したり小さく寄ったりする
+   */
+  observeNextHost(host) {
+    if (typeof ResizeObserver === 'undefined' || host._fitObserved) return;
+    if (!this._nextResizeObserver) {
+      this._nextResizeObserver = new ResizeObserver((entries) => {
+        entries.forEach((entry) => this.fitNextCanvas(entry.target));
+      });
+    }
+    this._nextResizeObserver.observe(host);
+    host._fitObserved = true;
   },
 
   /** 互換エイリアス (旧: 単一NEXTプレビュー) */
@@ -1092,6 +1145,7 @@ const RundownUI = {
   /** ページ種別のラベル (エディタ見出し用) */
   pageKindLabel(page) {
     if (page.kind === 'still') return '🖼 静止画';
+    if (this.isEditedStill(page)) return '🖼 静止画 (編集済み)';
     if (page.kind === 'design') return '🎨 作画';
     return this.templateLabel(page.templateKey);
   },
@@ -1231,8 +1285,9 @@ const RundownUI = {
       row('タイトル', titleInput);
     }
 
-    // 電テロ (静止画): 表示方法
+    // 電テロ (静止画・作画): 画像の編集 / 表示方法 / IN・OUT効果
     if (page.kind === 'still' || page.kind === 'design') {
+      this.renderImageEditRow(page, row);
       if (page.kind === 'still') {
         const fitSel = document.createElement('select');
         fitSel.className = 'input input--small';
@@ -1251,8 +1306,9 @@ const RundownUI = {
           this.renderColumns();
         });
         row('表示方法', fitSel);
-        this.renderStillEffectRows(page, corner, row);
       }
+      // 静止画 (画像編集で作画になったものも含む) は、ページごとのIN/OUTエフェクトを選べる
+      if (this.isStillLike(page)) this.renderStillEffectRows(page, corner, row);
     }
 
     // 名前プールから選択 (氏名テロップ系テンプレートで、名前プール読込済みの場合のみ表示)
@@ -1434,8 +1490,29 @@ const RundownUI = {
   /** 未設定時の既定 (TelopAnimator の既定と同じ) */
   STILL_EFFECT_DEFAULT: { preset: 'fade', duration: 350 },
 
+  /** 画像編集で作画になった静止画か (元の静止画を覚えている作画ページ) */
+  isEditedStill(page) {
+    return !!(page && page.kind === 'design' && page.design && page.design.fromStill);
+  },
+
+  /** ページごとのIN/OUTエフェクトを選べるページ (静止画 / 編集済みの静止画) */
+  isStillLike(page) {
+    return !!page && (page.kind === 'still' || this.isEditedStill(page));
+  },
+
+  /** IN/OUTエフェクトの置き場所: 静止画は still.animation、編集済みは作画の variant.animation */
+  effectHolder(page, create) {
+    if (page.kind === 'still') {
+      if (create) page.still = page.still || {};
+      return page.still || null;
+    }
+    if (this.isEditedStill(page)) return page.design.variant || null;
+    return null;
+  },
+
   stillEffect(page, dir) {
-    const a = page.still && page.still.animation && page.still.animation[dir];
+    const holder = this.effectHolder(page);
+    const a = holder && holder.animation && holder.animation[dir];
     return Object.assign({}, this.STILL_EFFECT_DEFAULT, a || {});
   },
 
@@ -1443,9 +1520,11 @@ const RundownUI = {
   renderStillEffectRows(page, corner, row) {
     const setEffect = (dir, patch) => {
       this.mutate(() => {
-        page.still = page.still || {};
-        page.still.animation = page.still.animation || {};
-        page.still.animation[dir] = Object.assign(this.stillEffect(page, dir), patch);
+        const holder = this.effectHolder(page, true);
+        if (!holder) return;
+        const next = Object.assign(this.stillEffect(page, dir), patch);
+        holder.animation = holder.animation || {};
+        holder.animation[dir] = next;
       });
     };
     ['in', 'out'].forEach((dir) => {
@@ -1504,7 +1583,7 @@ const RundownUI = {
     bulk.addEventListener('click', (e) => {
       e.stopPropagation();
       const channelId = App.channelOfPage(page);
-      const stills = (list) => list.filter((pg) => pg.kind === 'still' && pg !== page);
+      const stills = (list) => list.filter((pg) => this.isStillLike(pg) && pg !== page);
       const cornerPages = [...(corner.pages || []), ...(corner.standby || [])];
       const allPages = App.corners().flatMap((c) => [...(c.pages || []), ...(c.standby || [])]);
       const targets = [
@@ -1530,8 +1609,8 @@ const RundownUI = {
     const animation = { in: this.stillEffect(srcPage, 'in'), out: this.stillEffect(srcPage, 'out') };
     this.mutate(() => {
       targets.forEach((pg) => {
-        pg.still = pg.still || {};
-        pg.still.animation = JSON.parse(JSON.stringify(animation));
+        const holder = this.effectHolder(pg, true);
+        if (holder) holder.animation = JSON.parse(JSON.stringify(animation));
       });
     });
     App.setStatus(`静止画 ${targets.length} 件にIN/OUTエフェクトを適用しました`, 'success');
@@ -1593,7 +1672,7 @@ const RundownUI = {
 
   thumbKey(page) {
     if (page.kind === 'still') return `still|${page.still ? `${page.still.file}|${page.still.objectFit || ''}` : ''}`;
-    if (page.kind === 'design') return `design|${page.id}`;
+    if (page.kind === 'design') return `design|${page.id}|${(page.design && page.design.rev) || 0}`;
     return `${page.templateKey}|${JSON.stringify(page.values || {})}`;
   },
 
@@ -1904,6 +1983,123 @@ const RundownUI = {
     App.setStatus('作画を電テロリストへ追加しました (以後テンプレートを編集しても固定です)', 'success');
   },
 
+  // ===== 電テロの画像編集 (デザイン画面で位置調整・文字/図形の追加) =====
+
+  /** テロップ編集の「画像の編集」行 (画像を編集… / 元の画像に戻す) */
+  renderImageEditRow(page, row) {
+    const wrap = document.createElement('div');
+    wrap.className = 'od-editor-inline od-imgedit-inline';
+    const edit = document.createElement('button');
+    edit.className = 'btn btn--small btn--primary';
+    const isDesign = page.kind === 'design' && !this.isEditedStill(page);
+    edit.textContent = isDesign ? '作画を編集…' : '画像を編集…';
+    edit.title = 'デザイン画面で開いて、位置・大きさの調整や文字・図形・画像の追加をします (Ctrl+E)。保存するとこのページだけに反映されます';
+    edit.addEventListener('click', () => this.editPageImage(page));
+    wrap.appendChild(edit);
+    if (this.isEditedStill(page)) {
+      const revert = document.createElement('button');
+      revert.className = 'btn btn--small';
+      revert.textContent = '元の画像に戻す';
+      revert.title = '編集 (文字・位置調整など) を取り消して、取り込んだときの静止画に戻します';
+      revert.addEventListener('click', () => this.revertPageImage(page));
+      wrap.appendChild(revert);
+    }
+    row(isDesign ? '作画' : '画像の編集', wrap);
+  },
+
+  /** 画像の実寸 (読めなければ null) */
+  loadImageSize(file) {
+    return new Promise((resolve) => {
+      if (!file || typeof DesignEditor === 'undefined') { resolve(null); return; }
+      const img = new Image();
+      const timer = setTimeout(() => resolve(null), 4000);
+      img.onload = () => { clearTimeout(timer); resolve({ w: img.naturalWidth, h: img.naturalHeight }); };
+      img.onerror = () => { clearTimeout(timer); resolve(null); };
+      img.src = DesignEditor.assetBase() + encodeURIComponent(file);
+    });
+  },
+
+  /**
+   * 静止画を編集用の作画に変換する: 画像を1枚のレイヤーとして、今の表示方法 (全体表示/画面いっぱい/引き伸ばし) と
+   * 同じ見え方になる位置・大きさで置く。IN/OUTエフェクトも引き継ぐ
+   */
+  async stillToVariant(page) {
+    const still = page.still || {};
+    const fit = still.objectFit || 'contain';
+    const size = fit === 'fill' ? null : await this.loadImageSize(still.file);
+    let box = { x: 0, y: 0, w: 1920, h: 1080 };
+    let objectFit = fit;
+    if (size && size.w > 0 && size.h > 0) {
+      const scale = fit === 'cover' ? Math.max(1920 / size.w, 1080 / size.h) : Math.min(1920 / size.w, 1080 / size.h);
+      const w = Math.round(size.w * scale);
+      const h = Math.round(size.h * scale);
+      box = { x: Math.round((1920 - w) / 2), y: Math.round((1080 - h) / 2), w, h };
+      objectFit = 'fill'; // 枠を画像の縦横比に合わせたので、そのまま敷けば同じ見え方になる (Shift+角で比率を保って拡縮)
+    }
+    return {
+      layers: [{
+        id: `ly_${Math.random().toString(36).slice(2, 9)}`, name: `元画像 ${String(still.file || '').replace(/^\d+_/, '')}`,
+        type: 'image', file: still.file, ...box, objectFit, visible: true, locked: false, opacity: 1,
+      }],
+      animation: { in: this.stillEffect(page, 'in'), out: this.stillEffect(page, 'out') },
+    };
+  },
+
+  /** 送出リストのページ (静止画・作画) をデザイン画面で開く */
+  async editPageImage(page) {
+    if (!page || (page.kind !== 'still' && page.kind !== 'design') || typeof DesignEditor === 'undefined') return;
+    const variant = page.kind === 'still' ? await this.stillToVariant(page) : (page.design && page.design.variant);
+    if (!variant) { App.setStatus('このページには編集できる絵柄がありません', 'error'); return; }
+    const channel = App.channelById(App.channelOfPage(page));
+    const title = `P${page.pageNo} ${Broadcast.summarize(page)}`;
+    const pageId = page.id;
+    const btn = document.querySelector('.tab-btn[data-tab="design"]');
+    if (btn) btn.click();
+    await DesignEditor.beginPageEdit({
+      pageId, title, region: channel ? channel.region : '', variant,
+      onSave: (edited) => this.applyPageEdit(pageId, edited),
+    });
+  },
+
+  /** 画像編集の結果をページへ書き戻す (2台運用の同期でランダウンが差し替わっていても、IDで探し直す) */
+  applyPageEdit(pageId, variant) {
+    const found = App.findPage(pageId);
+    if (!found) { App.setStatus('編集したページが見つかりません (削除された可能性があります)', 'error'); return; }
+    const { page } = found;
+    this.mutate(() => {
+      if (page.kind === 'still') {
+        const original = JSON.parse(JSON.stringify(page.still || {}));
+        if (!page.title && original.file) page.title = String(original.file).replace(/^\d+_/, '').replace(/\.[^.]+$/, '');
+        page.kind = 'design';
+        page.design = { variant, fromStill: original, rev: Date.now() };
+        delete page.still;
+      } else {
+        // rev はサムネイルのキャッシュ用。元に戻す/やり直しで同じ番号が別の絵柄を指さないよう時刻にする
+        page.design = Object.assign({}, page.design, { variant, rev: Date.now() });
+      }
+      this.selectedPageId = page.id;
+    });
+    const onAir = this.isPageOnAir(page);
+    App.setStatus(onAir
+      ? `P${page.pageNo} の画像を保存しました — 送出中のページです。出力へ出すには「オンエアへ反映」を押してください`
+      : `P${page.pageNo} の画像を保存しました (このページだけに反映。元の画像ファイルは残っています)`, 'success');
+  },
+
+  /** 画像編集を取り消して、取り込んだときの静止画へ戻す */
+  async revertPageImage(page) {
+    if (!this.isEditedStill(page)) return;
+    if (!(await AppModal.confirm('元の画像に戻す', `P${page.pageNo} の画像編集 (文字・位置調整など) を取り消して、取り込んだときの静止画に戻しますか?`, { danger: true, okLabel: '元に戻す' }))) return;
+    this.mutate(() => {
+      const still = page.design.fromStill || {};
+      // 編集中に変えたIN/OUTエフェクトは戻した静止画にも残す
+      const anim = page.design.variant && page.design.variant.animation;
+      page.kind = 'still';
+      page.still = Object.assign({}, still, anim ? { animation: JSON.parse(JSON.stringify(anim)) } : {});
+      delete page.design;
+    });
+    App.setStatus(`P${page.pageNo} を元の画像に戻しました`, 'success');
+  },
+
   /** 静止画ファイル(取込済みファイル名)から電テロページを追加 */
   addStillPage(corner, channelId, file, title) {
     const page = {
@@ -2006,28 +2202,45 @@ const RundownUI = {
           this.selectedPageId = page.id;
           this.pastePage();
         } },
-      { label: '複製', action: () => this.mutate(() => {
-          const copy = JSON.parse(JSON.stringify(page));
-          copy.id = this.uid('pg');
-          copy.pageNo = this.nextPageNo(corner);
-          const list = corner[listName];
-          list.splice(list.indexOf(page) + 1, 0, copy);
-        }) },
-      { label: page.locked ? 'ロック解除' : '送出ロック', action: () => this.mutate(() => { page.locked = !page.locked; Broadcast.onPageLockChanged(page); }) },
-      { label: 'デザインをエディタで開く', action: () => {
-          if (typeof DesignEditor !== 'undefined') {
-            DesignEditor.templateKey = page.templateKey;
-            document.querySelector('.tab-btn[data-tab="design"]').click();
-          }
-        } },
-      { label: '削除', danger: true, action: async () => {
-          if (!(await AppModal.confirm('ページを削除', `ページ ${page.pageNo} を削除しますか?`, { danger: true, okLabel: '削除' }))) return;
-          this.mutate(() => {
-            const list = corner[listName];
-            list.splice(list.indexOf(page), 1);
-          });
-        } },
+      { label: '複製', kbd: 'Ctrl+D', action: () => this.duplicatePage(page, corner, listName) },
+      { label: page.locked ? 'ロック解除' : '送出ロック', kbd: 'Ctrl+L', action: () => this.mutate(() => { page.locked = !page.locked; Broadcast.onPageLockChanged(page); }) },
+      (page.kind === 'still' || page.kind === 'design')
+        ? { label: page.kind === 'design' && !this.isEditedStill(page) ? '作画を編集…' : '画像を編集…', kbd: 'Ctrl+E', action: () => this.editPageImage(page) }
+        : { label: 'デザインをエディタで開く', action: () => {
+            if (typeof DesignEditor !== 'undefined') {
+              DesignEditor.templateKey = page.templateKey;
+              document.querySelector('.tab-btn[data-tab="design"]').click();
+            }
+          } },
+      { label: '削除', kbd: 'Delete', danger: true, action: () => this.deletePage(page, corner, listName) },
     ]);
+  },
+
+  /** ページを直後に複製 (Ctrl+D) */
+  duplicatePage(page, corner, listName) {
+    let copy = null;
+    this.mutate(() => {
+      copy = JSON.parse(JSON.stringify(page));
+      copy.id = this.uid('pg');
+      copy.pageNo = this.nextPageNo(corner);
+      const list = corner[listName];
+      list.splice(list.indexOf(page) + 1, 0, copy);
+      this.selectedPageId = copy.id;
+    });
+    if (copy) App.setStatus(`P${page.pageNo} を複製しました (P${copy.pageNo})`, 'success');
+  },
+
+  /** ページを削除 (確認あり。送出中のページは削除しない) */
+  async deletePage(page, corner, listName) {
+    if (this.isPageOnAir(page)) { App.setStatus('送出中のページは削除できません (CLEAR してから削除してください)', 'error'); return; }
+    if (!(await AppModal.confirm('ページを削除', `ページ ${page.pageNo} を削除しますか? (Ctrl+Z で元に戻せます)`, { danger: true, okLabel: '削除' }))) return;
+    this.mutate(() => {
+      const list = corner[listName];
+      const idx = list.indexOf(page);
+      if (idx >= 0) list.splice(idx, 1);
+      Object.values(App.broadcast || {}).forEach((st) => { if (st && st.nextPageId === page.id) st.nextPageId = null; });
+      if (this.selectedPageId === page.id) this.selectedPageId = null;
+    });
   },
 
   showCornerMenu(e, corner) {
@@ -2212,32 +2425,104 @@ const RundownUI = {
   onKeyDown(e) {
     const onairTab = document.getElementById('tab-onair');
     if (!onairTab || !onairTab.classList.contains('active')) return;
+    // ダイアログ (確認・ページ追加など) を開いている間は送出キーを効かせない
+    if (document.querySelector('dialog[open]')) return;
     const target = e.target;
     const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
     if (isInput) return;
 
     const mod = e.ctrlKey || e.metaKey;
-    if (mod && !e.shiftKey && !e.altKey && ['x', 'c', 'v'].includes(e.key.toLowerCase())) {
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    const selected = () => (this.selectedPageId ? App.findPage(this.selectedPageId) : null);
+
+    if (mod && !e.shiftKey && !e.altKey && ['x', 'c', 'v'].includes(key)) {
       e.preventDefault();
-      const key = e.key.toLowerCase();
       if (key === 'v') { this.pastePage(); return; }
-      const found = this.selectedPageId ? App.findPage(this.selectedPageId) : null;
+      const found = selected();
       if (!found) return;
       if (key === 'x') this.cutPage(found.page, found.corner, found.list);
       else this.copyPage(found.page);
       return;
     }
 
-    if (e.key === ' ' || e.key === 'Enter') {
+    // 送出リストの編集の 元に戻す / やり直し (送出操作 TAKE/CLEAR は対象外)
+    if (mod && !e.altKey && (key === 'z' || key === 'y')) {
+      e.preventDefault();
+      const redo = key === 'y' || e.shiftKey;
+      const done = redo ? App.redoRundown() : App.undoRundown();
+      if (done) {
+        this.ensureSelections();
+        this.renderAll();
+        App.setStatus(redo ? 'やり直しました' : '元に戻しました (送出リストの編集)', 'success');
+      } else {
+        App.setStatus(redo ? 'やり直せる操作はありません' : '元に戻せる操作はありません');
+      }
+      return;
+    }
+
+    if (mod && !e.altKey && !e.shiftKey) {
+      const found = selected();
+      const handled = {
+        d: () => { if (found) this.duplicatePage(found.page, found.corner, found.list); },
+        f: () => { const el = document.getElementById('od-search'); if (el) { el.focus(); el.select(); } },
+        l: () => {
+          if (!found) return;
+          this.mutate(() => { found.page.locked = !found.page.locked; Broadcast.onPageLockChanged(found.page); });
+          App.setStatus(`P${found.page.pageNo} を${found.page.locked ? '送出ロックしました' : 'ロック解除しました'}`);
+        },
+        n: () => this.addPageForChannel(this.activeChannelId),
+        o: () => { if (typeof StartWizard !== 'undefined') StartWizard.open(App.activeMode); },
+        e: () => { if (found) this.editPageImage(found.page); },
+        b: () => this.setConsoleHidden(!this.consoleHidden),
+        Enter: () => Broadcast.doUpdate(this.activeChannelId),
+      }[key];
+      if (handled) { e.preventDefault(); handled(); return; }
+    }
+
+    // キー操作するTLの切替: Alt+1〜9 / Ctrl+Tab (Shiftで前へ)
+    if (e.altKey && !mod && /^[1-9]$/.test(e.key)) {
+      e.preventDefault();
+      const ch = App.channels[Number(e.key) - 1];
+      if (ch) { this.focusChannel(ch.id); App.setStatus(`キー操作: ${ch.label}`); }
+      return;
+    }
+    if (mod && e.key === 'Tab') {
+      e.preventDefault();
+      const idx = App.channels.findIndex((c) => c.id === this.activeChannelId);
+      const n = App.channels.length;
+      const ch = App.channels[((idx < 0 ? 0 : idx) + (e.shiftKey ? n - 1 : 1)) % n];
+      if (ch) { this.focusChannel(ch.id); App.setStatus(`キー操作: ${ch.label}`); }
+      return;
+    }
+
+    if (!mod && !e.altKey && (e.key === 'Delete')) {
+      e.preventDefault();
+      const found = selected();
+      if (found) this.deletePage(found.page, found.corner, found.list);
+      return;
+    }
+    if (!mod && !e.altKey && e.key === 'F2') {
+      e.preventDefault();
+      this.focusTitleField();
+      return;
+    }
+
+    if ((e.key === ' ' || e.key === 'Enter') && !mod && !e.altKey) {
       e.preventDefault();
       Broadcast.doTake(this.activeChannelId);
-    } else if (e.key === 'ArrowDown') {
+    } else if (e.key === 'ArrowDown' && !mod) {
       e.preventDefault();
       Broadcast.moveNext(this.activeChannelId, 1);
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === 'ArrowUp' && !mod) {
       e.preventDefault();
       Broadcast.moveNext(this.activeChannelId, -1);
-    } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    } else if (e.key === 'Home' && !mod) {
+      e.preventDefault();
+      Broadcast.goTop(this.activeChannelId);
+    } else if (e.key === 'End' && !mod) {
+      e.preventDefault();
+      Broadcast.goEnd(this.activeChannelId);
+    } else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !mod) {
       e.preventDefault();
       const corners = App.corners();
       const idx = corners.findIndex((c) => c.id === this.currentCornerId);
@@ -2254,13 +2539,21 @@ const RundownUI = {
     } else if (e.key === 'Backspace' && e.ctrlKey) {
       e.preventDefault();
       Broadcast.doClear(this.activeChannelId);
-    } else if (/^[0-9]$/.test(e.key)) {
+    } else if (/^[0-9]$/.test(e.key) && !mod && !e.altKey) {
       const direct = document.getElementById('od-direct');
       direct.focus();
       direct.value = e.key;
       this._directArmedNo = null;
       e.preventDefault();
     }
+  },
+
+  /** F2: 選択中ページのタイトル欄へ (テロップ編集を閉じていれば開く) */
+  focusTitleField() {
+    if (!this.selectedPageId) { App.setStatus('ページを選択してください'); return; }
+    if (this.rightCollapsed) this.setRightCollapsed(false);
+    const el = document.querySelector('#od-editor [data-field-key="title"]');
+    if (el) { el.focus(); el.select(); }
   },
 
   // ===== 残尺カウントダウン / オートフォロー =====

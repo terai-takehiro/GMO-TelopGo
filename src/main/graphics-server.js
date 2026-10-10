@@ -11,6 +11,9 @@
  *   /assets/<file>      画像素材
  *   /ws                 状態配信WebSocket
  *
+ * どの出力URLにも ?next=1 を付けると、送出中ではなく各系統の「NEXTのページ」を
+ * アニメーションなしで描画する (vMixのプレビュー・マルチビュー用)。
+ *
  * リージョン (name / side) ごとにオンエア状態を保持し、
  * ページ再読込時も init メッセージで表示が復元される。
  */
@@ -53,6 +56,12 @@ function regionState(region) {
   if (!state[region]) state[region] = { onAir: false, templateKey: null, values: {}, static: null };
   return state[region];
 }
+
+/**
+ * リージョンごとのNEXTのページ内容 (NEXT出力 ?next=1 用)。送出画面がNEXTの変化のたびに送ってくる
+ *   { [region]: { templateKey, values } | { static: {kind, still?|variant?} } | null }
+ */
+let nextState = {};
 
 let getChannels = () => [
   { id: 'tl1', label: 'TL1', region: 'tl1' },
@@ -145,7 +154,7 @@ function broadcast(msg) {
 }
 
 function initMessage() {
-  return { type: 'init', payload: { project: getProject(), state, channels: getChannels(), groups: getGroups() } };
+  return { type: 'init', payload: { project: getProject(), state, next: nextState, channels: getChannels(), groups: getGroups() } };
 }
 
 // ===== 制御API =====
@@ -256,12 +265,18 @@ function stopAnim(region) {
   broadcast({ type: 'stop', region });
 }
 
+/** NEXT出力: 各リージョンのNEXTのページ内容を差し替えて配信 */
+function setNext(map) {
+  nextState = (map && typeof map === 'object') ? map : {};
+  broadcast({ type: 'next', next: nextState });
+}
+
 /** テンプレート再読込を全出力ページへ配信 (エディタ保存時など) */
 function refreshProject() {
-  broadcast({ type: 'refresh', payload: { project: getProject(), state, channels: getChannels(), groups: getGroups() } });
+  broadcast({ type: 'refresh', payload: { project: getProject(), state, next: nextState, channels: getChannels(), groups: getGroups() } });
 }
 
 module.exports = {
   events, configure, start, stop, isRunning, getStatus,
-  take, takeStatic, change, clear, stopAnim, refreshProject,
+  take, takeStatic, change, clear, stopAnim, refreshProject, setNext,
 };

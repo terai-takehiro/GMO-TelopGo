@@ -56,14 +56,20 @@ if (process.platform === 'win32') app.setAppUserModelId('com.gmo.telopgo');
 
 app.whenReady().then(() => {
   // メニューバーは非表示だが、編集ショートカット (Ctrl+X/C/V/Z/A) を確実に効かせるため編集メニューを登録する
+  // 再読み込みは送出中の誤操作 (Ctrl+R) で画面が読み直されないよう Ctrl+Shift+F5 にし、画面側で確認してから行う。
+  // 表示倍率は画面側へ渡し、デザイン画面ではキャンバスの拡大・縮小に使う
+  const toRenderer = (channel, arg) => (_item, win) => { if (win) win.webContents.send(channel, arg); };
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: 'editMenu' },
     {
       label: '表示',
       submenu: [
-        { role: 'reload' }, { role: 'forceReload' }, { role: 'toggleDevTools' },
+        { label: '再読み込み', accelerator: 'CmdOrCtrl+Shift+F5', click: toRenderer('app-reload-request') },
+        { role: 'toggleDevTools' },
         { type: 'separator' },
-        { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
+        { label: '実際のサイズ', accelerator: 'CmdOrCtrl+0', click: toRenderer('app-zoom', 'reset') },
+        { label: '拡大', accelerator: 'CmdOrCtrl+Plus', click: toRenderer('app-zoom', 'in') },
+        { label: '縮小', accelerator: 'CmdOrCtrl+-', click: toRenderer('app-zoom', 'out') },
         { type: 'separator' },
         { role: 'togglefullscreen' },
       ],

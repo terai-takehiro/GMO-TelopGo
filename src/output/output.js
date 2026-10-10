@@ -5,6 +5,7 @@
  * take / change / clear / stop を描画に反映する。
  *   /output/jp        → lang=jp, 全チャンネル重畳
  *   /output/jp/name   → lang=jp, nameチャンネルのみ
+ *   ?next=1           → 送出中ではなく、各チャンネルの「NEXTのページ」をアニメーションなしで描画
  *
  * リージョンのコンテナはWS init/refreshで受け取るチャンネル一覧から動的生成する
  * (チャンネルは設定で任意に追加できる)。
@@ -21,8 +22,11 @@
     : mSingle ? { type: 'channel', region: mSingle[2] }
       : { type: 'all' };
 
+  const query = new URLSearchParams(location.search);
   // ?alphafix=1: KAIROS/vMix など、半透明を二重に暗く合成する受け側向けの補正 (フェード中に黒っぽくなるのを防ぐ)
-  TelopAnimator.options.alphaFix = new URLSearchParams(location.search).get('alphafix') === '1';
+  TelopAnimator.options.alphaFix = query.get('alphafix') === '1';
+  // ?next=1: NEXT出力 (vMixのプレビュー・マルチビュー用)。送出 (take/clear) には反応しない
+  const nextMode = query.get('next') === '1';
 
   let project = null;
   const generation = {};
@@ -120,11 +124,12 @@
     return { variant: findVariant(content.templateKey), values: content.values || {} };
   }
 
+  /** 描画できたら true (テンプレートが見つからない等で描けなければ false) */
   function show(region, content, animate) {
-    if (!handlesRegion(region)) return;
+    if (!handlesRegion(region)) return false;
     const container = containerFor(region);
     const { variant, values } = resolveContent(content);
-    if (!variant) return;
+    if (!variant) return false;
 
     generation[region]++;
     TelopRenderer.renderVariant(container, variant, values);
@@ -134,6 +139,7 @@
     if (animate) {
       TelopAnimator.play(container, variant, 'in');
     }
+    return true;
   }
 
   function hide(region) {
@@ -161,6 +167,25 @@
       try {
         if (anyRunning) a.pause(); else a.play();
       } catch (_) { /* ignore */ }
+    });
+  }
+
+  /** NEXT出力: 各リージョンへNEXTのページを静止状態で描画 (内容が変わったリージョンだけ描き直す) */
+  function applyNext(next, force) {
+    orderedRegions.forEach((region) => {
+      const content = (next && next[region]) || null;
+      const key = content ? JSON.stringify(content) : '';
+      const container = containerFor(region);
+      if (!force && container._nextKey === key) return;
+      container._nextKey = key;
+      // 描けない内容 (テンプレートが消えたCGページ等) のときは、前のNEXTを残さず空にする
+      const shown = !!content && (content.templateKey || content.static)
+        && show(region, content.static ? { static: content.static } : { templateKey: content.templateKey, values: content.values }, false);
+      if (!shown) {
+        generation[region] = (generation[region] || 0) + 1;
+        container.classList.remove('on-air');
+        container.innerHTML = '';
+      }
     });
   }
 
@@ -194,9 +219,14 @@
           project = msg.payload.project;
           TelopRenderer.applyFonts((project.assets && project.assets.fonts) || [], '/assets/');
           ensureContainers(msg.payload.channels, msg.payload.groups);
-          applyState(msg.payload.state);
+          if (nextMode) applyNext(msg.payload.next, true); // テンプレート更新時も描き直す
+          else applyState(msg.payload.state);
+          break;
+        case 'next':
+          if (nextMode) applyNext(msg.next, false);
           break;
         case 'take':
+          if (nextMode) break;
           show(
             msg.region,
             msg.static ? { static: msg.static } : { templateKey: msg.templateKey, values: msg.values },
@@ -204,10 +234,10 @@
           );
           break;
         case 'clear':
-          hide(msg.region);
+          if (!nextMode) hide(msg.region);
           break;
         case 'stop':
-          toggleStop(msg.region);
+          if (!nextMode) toggleStop(msg.region);
           break;
         default:
           break;

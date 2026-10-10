@@ -8,6 +8,11 @@
   tabBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       const target = btn.dataset.tab;
+      // 電テロの画像を編集中にほかのタブへ移るときは、保存するか編集を続けるかを確認する
+      if (target !== 'design' && typeof DesignEditor !== 'undefined' && DesignEditor.pageEdit) {
+        DesignEditor.confirmLeavePageEdit(target);
+        return;
+      }
       tabBtns.forEach((b) => b.classList.remove('active'));
       contents.forEach((c) => c.classList.remove('active'));
       btn.classList.add('active');
