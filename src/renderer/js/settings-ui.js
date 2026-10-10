@@ -238,12 +238,13 @@ const OutputGroupsUI = {
     return `http://${GraphicsUI.pickHost(st)}:${st.port}${path}`;
   },
 
-  copyBtn(label, path) {
+  /** URLのコピーボタン (next=true は NEXT 出力。半透明補正の設定も付ける) */
+  copyBtn(label, path, next) {
     const btn = document.createElement('button');
     btn.className = 'btn btn--small';
     btn.textContent = label;
     btn.addEventListener('click', () => {
-      const url = this.fullUrl(path);
+      const url = this.fullUrl(`${path}${GraphicsUI.outputQuery(!!next)}`);
       if (!url) { App.setStatus('出力サーバの起動後にURLをコピーできます (設定 › 出力サーバと URL)', 'error'); return; }
       navigator.clipboard.writeText(url);
       App.setStatus(`URLをコピーしました: ${url}`, 'success');
@@ -366,7 +367,7 @@ const OutputGroupsUI = {
       tr.appendChild(stackCell(channels.map((c) => c.region), null));
       const act = document.createElement('td');
       act.className = 'og-actions';
-      act.append(this.copyBtn('OAをコピー', '/output/jp'), this.copyBtn('NEXTをコピー', '/output/jp?next=1'));
+      act.append(this.copyBtn('OAをコピー', '/output/jp'), this.copyBtn('NEXTをコピー', '/output/jp', true));
       tr.appendChild(act);
       tbody.appendChild(tr);
     }
@@ -429,7 +430,7 @@ const OutputGroupsUI = {
         this.rows.splice(i, 1);
         this.render();
       });
-      act.append(this.copyBtn('OAをコピー', `/output/jp/g/${g.id}`), this.copyBtn('NEXTをコピー', `/output/jp/g/${g.id}?next=1`), del);
+      act.append(this.copyBtn('OAをコピー', `/output/jp/g/${g.id}`), this.copyBtn('NEXTをコピー', `/output/jp/g/${g.id}`, true), del);
       tr.appendChild(act);
       tbody.appendChild(tr);
     });

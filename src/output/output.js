@@ -124,11 +124,12 @@
     return { variant: findVariant(content.templateKey), values: content.values || {} };
   }
 
+  /** 描画できたら true (テンプレートが見つからない等で描けなければ false) */
   function show(region, content, animate) {
-    if (!handlesRegion(region)) return;
+    if (!handlesRegion(region)) return false;
     const container = containerFor(region);
     const { variant, values } = resolveContent(content);
-    if (!variant) return;
+    if (!variant) return false;
 
     generation[region]++;
     TelopRenderer.renderVariant(container, variant, values);
@@ -138,6 +139,7 @@
     if (animate) {
       TelopAnimator.play(container, variant, 'in');
     }
+    return true;
   }
 
   function hide(region) {
@@ -176,9 +178,10 @@
       const container = containerFor(region);
       if (!force && container._nextKey === key) return;
       container._nextKey = key;
-      if (content && (content.templateKey || content.static)) {
-        show(region, content.static ? { static: content.static } : { templateKey: content.templateKey, values: content.values }, false);
-      } else {
+      // 描けない内容 (テンプレートが消えたCGページ等) のときは、前のNEXTを残さず空にする
+      const shown = !!content && (content.templateKey || content.static)
+        && show(region, content.static ? { static: content.static } : { templateKey: content.templateKey, values: content.values }, false);
+      if (!shown) {
         generation[region] = (generation[region] || 0) + 1;
         container.classList.remove('on-air');
         container.innerHTML = '';

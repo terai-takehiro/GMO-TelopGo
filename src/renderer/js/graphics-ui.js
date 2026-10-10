@@ -217,7 +217,6 @@ const GraphicsUI = {
     fixRow.appendChild(fixCheck);
     fixRow.appendChild(document.createTextNode(' 半透明補正付きのURLにする (KAIROS・vMix などでフェード中に半透明部分が黒っぽくなる場合。受け側のURLを差し替えて使用)'));
     container.appendChild(fixRow);
-    const query = alphaFix ? '?alphafix=1' : '';
     const urls = [
       { label: '日本語 (全チャンネル)', path: '/output/jp' },
       { label: '英語 (全チャンネル)', path: '/output/en' },
@@ -234,9 +233,17 @@ const GraphicsUI = {
     });
     // 各出力に OA (送出中) と NEXT (次に出るページを静止描画) の2本
     urls.forEach(({ label, path }) => {
-      container.appendChild(this.urlRow(label, 'OA', `http://${host}:${status.port}${path}${query}`));
-      container.appendChild(this.urlRow('', 'NEXT', `http://${host}:${status.port}${path}?next=1`));
+      container.appendChild(this.urlRow(label, 'OA', `http://${host}:${status.port}${path}${this.outputQuery(false)}`));
+      container.appendChild(this.urlRow('', 'NEXT', `http://${host}:${status.port}${path}${this.outputQuery(true)}`));
     });
+  },
+
+  /** 出力URLのクエリ。半透明補正をONにしていれば OA / NEXT どちらにも付ける */
+  outputQuery(next) {
+    const params = [];
+    if (next) params.push('next=1');
+    if (this._store(this.URL_ALPHAFIX_KEY) === '1') params.push('alphafix=1');
+    return params.length ? `?${params.join('&')}` : '';
   },
 
   /** 出力URLの1行 (kind = 'OA' | 'NEXT') */
